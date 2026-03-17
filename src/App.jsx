@@ -2488,36 +2488,6 @@ function SettingsTab({ league, onUpdate, onReset, allLeagues }) {
         })()}
       </div>
 
-      {/* Link Scoring */}
-      {allLeagues && allLeagues.length > 1 && (
-        <div style={{ marginBottom:20,padding:"16px",background:league.linkedScoringFrom?"#4ecdc411":"#12121f",borderRadius:10,
-          border:league.linkedScoringFrom?"1px solid #4ecdc433":"1px solid #1e1e38" }}>
-          <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:4,display:"flex",alignItems:"center",gap:6 }}>
-            🔗 Linked Scoring
-          </div>
-          <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:8,lineHeight:1.4 }}>
-            Link this league's scoring to another league. When you score events in the source league, this league's scores, contestant status, and week will sync automatically.
-          </div>
-          <select value={league.linkedScoringFrom||""} onChange={e=>onUpdate({...league,linkedScoringFrom:e.target.value||null})} style={{
-            width:"100%",padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",
-            borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'DM Sans',sans-serif",
-          }}>
-            <option value="">— No link (score independently) —</option>
-            {allLeagues.filter(l=>l.id!==league.id).map(l=>
-              <option key={l.id} value={l.id}>{l.name} ({l.seasonName})</option>
-            )}
-          </select>
-          {league.linkedScoringFrom && (()=>{
-            const source = allLeagues.find(l=>l.id===league.linkedScoringFrom);
-            return source ? (
-              <div style={{ marginTop:8,fontSize:11,color:"#4ecdc4" }}>
-                Scores sync from: {source.name} · Wk {source.currentWeek}
-              </div>
-            ) : null;
-          })()}
-        </div>
-      )}
-
       <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
         <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>
           {FORMAT_INFO[league.format]?.icon} {FORMAT_INFO[league.format]?.name} Format
@@ -2587,24 +2557,27 @@ function SettingsTab({ league, onUpdate, onReset, allLeagues }) {
       {/* Transfer Commissioner */}
       {league.commissionerUid && (
         <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-          <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:4 }}>Commissioner</div>
+          <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:4 }}>Transfer Commissioner</div>
           <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:10,lineHeight:1.4 }}>
-            Transfer commissioner rights to another team owner. They'll be able to manage scoring, settings, and invite codes.
+            Hand off commissioner powers to a team owner. When they next log in, they'll have full control of this league.
           </div>
-          <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+          <select onChange={e=>{
+            if(!e.target.value) return;
+            const team = (league.teams||[]).find(t=>t.id===e.target.value);
+            if(team && confirm(`Transfer commissioner to ${team.owner}? They will gain full control of this league.`)) {
+              onUpdate({...league, commissionerTeamId: team.id, commissionerName: team.owner});
+            }
+            e.target.value = "";
+          }} style={{
+            width:"100%",padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",
+            borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'DM Sans',sans-serif",
+          }}>
+            <option value="">— Select new commissioner —</option>
             {(league.teams||[]).map(t => (
-              <Btn key={t.id} small variant="ghost" onClick={()=>{
-                if(confirm(`Transfer commissioner to ${t.owner}? You will lose commissioner access unless you're the site admin.`)) {
-                  // We store the team owner's name for now — when they claim the team via invite code,
-                  // their uid will be linked. For now, use a placeholder approach.
-                  const newUid = prompt("Enter the new commissioner's Firebase UID (ask them to check their profile), or leave blank to mark by team:");
-                  if (newUid !== null) {
-                    onUpdate({...league, commissionerUid: newUid || ("team:" + t.id)});
-                  }
-                }
-              }}>{t.owner}</Btn>
+              <option key={t.id} value={t.id}>{t.owner} ({t.name})</option>
             ))}
-          </div>
+          </select>
+          {league.commissionerName && <div style={{ marginTop:8,fontSize:11,color:"#4ecdc4" }}>Current commissioner: {league.commissionerName}</div>}
         </div>
       )}
 
@@ -2845,13 +2818,16 @@ export default function FantasyRealityTV() {
   }
 
   return (
-    <div style={{ minHeight:"100vh",background:"#0d0d1a",fontFamily:"'DM Sans',sans-serif",maxWidth:480,margin:"0 auto" }}>
+    <div style={{ minHeight:"100vh",background:"#0d0d1a",fontFamily:"'DM Sans',sans-serif",maxWidth:720,margin:"0 auto",padding:"0" }}>
       <style>{`
         body { margin:0; background:#0d0d1a; }
         input:focus,select:focus{border-color:#e94560!important;outline:none}
         select{background-color:#0d0d18!important;color:#e8e8f0!important}
         option{background:#0d0d18!important;color:#e8e8f0!important}
         optgroup{background:#1a1a30!important;color:#8888aa!important;font-style:normal}
+        @media (min-width: 768px) {
+          body { padding: 20px; }
+        }
       `}</style>
       {view==="login" && <AuthScreen onJoinViaCode={handleJoinViaCode} />}
       {view==="home" && authUser && <AppHome
@@ -2887,7 +2863,7 @@ export default function FantasyRealityTV() {
         }}
         onBack={()=>{refreshLeagues();setView("home")}} onReset={resetToImported}
         loggedInTeamId={(isAdmin || selected?.commissionerUid === authUser?.uid) ? (selected.adminTeamId || myTeamIn(selected.id)) : myTeamIn(selected.id)}
-        isCommissioner={isAdmin || selected?.commissionerUid === authUser?.uid}
+        isCommissioner={isAdmin || selected?.commissionerUid === authUser?.uid || (selected?.commissionerTeamId && userProfile?.activations?.[selected.id] === selected.commissionerTeamId)}
         skipLogin={true} />}
     </div>
   );
