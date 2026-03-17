@@ -217,7 +217,7 @@ function MultiplierBadge({ role }) {
 // HOME SCREEN
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-function CreateLeagueScreen({ onSave, onCancel }) {
+function CreateLeagueScreen({ onSave, onCancel, commissionerUid }) {
   const [name, setName] = useState("");
   const [showType, setShowType] = useState("survivor");
   const [showName, setShowName] = useState("");
@@ -249,6 +249,7 @@ function CreateLeagueScreen({ onSave, onCancel }) {
       teams: [],
       weeklyScores: {},
       currentWeek: 1,
+      commissionerUid: commissionerUid || null,
       createdAt: Date.now(),
     });
   }
@@ -2583,6 +2584,30 @@ function SettingsTab({ league, onUpdate, onReset, allLeagues }) {
       {/* Import from XLSX */}
       <ImportXLSXSection league={league} onUpdate={onUpdate} />
 
+      {/* Transfer Commissioner */}
+      {league.commissionerUid && (
+        <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+          <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:4 }}>Commissioner</div>
+          <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:10,lineHeight:1.4 }}>
+            Transfer commissioner rights to another team owner. They'll be able to manage scoring, settings, and invite codes.
+          </div>
+          <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+            {(league.teams||[]).map(t => (
+              <Btn key={t.id} small variant="ghost" onClick={()=>{
+                if(confirm(`Transfer commissioner to ${t.owner}? You will lose commissioner access unless you're the site admin.`)) {
+                  // We store the team owner's name for now — when they claim the team via invite code,
+                  // their uid will be linked. For now, use a placeholder approach.
+                  const newUid = prompt("Enter the new commissioner's Firebase UID (ask them to check their profile), or leave blank to mark by team:");
+                  if (newUid !== null) {
+                    onUpdate({...league, commissionerUid: newUid || ("team:" + t.id)});
+                  }
+                }
+              }}>{t.owner}</Btn>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div style={{ padding:"16px",background:"#1a0a10",borderRadius:10,border:"1px solid #3a1525" }}>
         <div style={{ fontSize:14,fontWeight:700,color:"#e94560",marginBottom:8 }}>Danger Zone</div>
         <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
@@ -2784,6 +2809,7 @@ export default function FantasyRealityTV() {
       pins: {},
       inviteCodes: {},
       usedCodes: [],
+      commissionerUid: authUser?.uid || source.commissionerUid,
       adminTeamId: source.adminTeamId,
       rostersLocked: false,
       createdAt: Date.now(),
@@ -2805,7 +2831,7 @@ export default function FantasyRealityTV() {
 
   const selected = leagues.find(l => l.id === selectedId);
   const myTeamIn = (lid) => userProfile?.activations?.[lid] || null;
-  const visibleLeagues = isAdmin ? leagues : leagues.filter(l => userProfile?.activations?.[l.id]);
+  const visibleLeagues = isAdmin ? leagues : leagues.filter(l => userProfile?.activations?.[l.id] || l.commissionerUid === authUser?.uid);
 
   if (authLoading) {
     return (
@@ -2833,8 +2859,9 @@ export default function FantasyRealityTV() {
         isAdmin={isAdmin} onSelectLeague={id=>{setSelectedId(id);setView("league")}}
         onCreateLeague={()=>setView("create")} onDeleteLeague={deleteLeague} onDuplicateLeague={duplicateLeague}
         onLogout={handleLogout}
-        onJoinViaCode={handleJoinViaCode} />}
-      {view==="create" && <CreateLeagueScreen onSave={async l=>{ await persist([...leagues,l]); setSelectedId(l.id);setView("league"); }} onCancel={()=>setView("home")} />}
+        onJoinViaCode={handleJoinViaCode}
+        allLeaguesCount={leagues.filter(l => l.commissionerUid === authUser?.uid).length} />}
+      {view==="create" && <CreateLeagueScreen commissionerUid={authUser?.uid} onSave={async l=>{ await persist([...leagues,l]); setSelectedId(l.id);setView("league"); }} onCancel={()=>setView("home")} />}
       {view==="league" && selected && authUser && <LeagueDashboard league={selected} allLeagues={leagues}
         onUpdate={u=>{
           let updated = leagues.map(l=>l.id===u.id?u:l);
@@ -2859,8 +2886,8 @@ export default function FantasyRealityTV() {
           persist(updated);
         }}
         onBack={()=>{refreshLeagues();setView("home")}} onReset={resetToImported}
-        loggedInTeamId={isAdmin ? (selected.adminTeamId || myTeamIn(selected.id)) : myTeamIn(selected.id)}
-        isCommissioner={isAdmin}
+        loggedInTeamId={(isAdmin || selected?.commissionerUid === authUser?.uid) ? (selected.adminTeamId || myTeamIn(selected.id)) : myTeamIn(selected.id)}
+        isCommissioner={isAdmin || selected?.commissionerUid === authUser?.uid}
         skipLogin={true} />}
     </div>
   );
@@ -3083,7 +3110,7 @@ function AuthScreen({ onJoinViaCode }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // APP HOME
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeague, onDeleteLeague, onDuplicateLeague, onLogout, onJoinViaCode }) {
+function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeague, onDeleteLeague, onDuplicateLeague, onLogout, onJoinViaCode, allLeaguesCount }) {
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
 
@@ -3138,7 +3165,7 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
         {/* League list */}
         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
           <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#e8e8f0" }}>My Leagues</h3>
-          {isAdmin && <Btn small onClick={onCreateLeague}><Icon name="plus" size={12}/> New League</Btn>}
+          {(isAdmin || (allLeaguesCount || 0) < 3) && <Btn small onClick={onCreateLeague}><Icon name="plus" size={12}/> New League</Btn>}
         </div>
 
         {leagues.length > 0 ? (
@@ -3155,12 +3182,12 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
                     <div style={{ fontSize:28 }}>{SHOW_PRESETS[league.showType]?.emoji || "📺"}</div>
                     <div style={{ flex:1 }}>
                       <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:15,fontFamily:"'Anybody',sans-serif" }}>{league.name}</div>
-                      <div style={{ color:"#6a6a8a",fontSize:12,marginTop:2 }}>{league.seasonName} · Wk {league.currentWeek||1}</div>
+                      <div style={{ color:"#6a6a8a",fontSize:12,marginTop:2 }}>{league.seasonName} · Wk {league.currentWeek||1}{league.commissionerUid === user?.uid && !isAdmin ? " · Commissioner" : ""}</div>
                       {myTeam && <div style={{ color:"#8888aa",fontSize:11,marginTop:2 }}>{myTeam.name}</div>}
                     </div>
                     <Icon name="chevron" size={16}/>
                   </button>
-                  {isAdmin && (
+                  {(isAdmin || league.commissionerUid === user?.uid) && (
                     <div style={{ display:"flex",flexDirection:"column",gap:6,padding:"0 10px 0 0" }}>
                       <button onClick={()=>onDuplicateLeague(league.id)} title="Duplicate for new season" style={{
                         background:"none",border:"none",color:"#4ecdc4",cursor:"pointer",padding:2,fontSize:11,fontFamily:"'DM Sans',sans-serif",
