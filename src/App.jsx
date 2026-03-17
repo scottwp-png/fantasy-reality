@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
-import { loadData, saveData, deleteData, loadAllLeagues, saveAllLeagues, clearAllStorage, fbLoadShared, fbSaveShared, fbDeleteShared } from "./firebase.js"
+import { loadData, saveData, deleteData, loadAllLeagues, saveAllLeagues, clearAllStorage, loadUserProfile, saveUserProfile, onAuthChange, signUp, signIn, signInWithGoogle, signOut, resetPassword, ADMIN_EMAIL } from "./firebase.js"
 import * as XLSX from "xlsx"
 
 
@@ -2671,102 +2671,76 @@ function AddTeamModal({ open, onClose, league, onUpdate, editing }) {
 // MAIN APP
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 export default function FantasyRealityTV() {
-  const ADMIN = { username: "imHIM", pin: "311661" };
-
   const [leagues, setLeagues] = useState([]);
-  const [view, setView] = useState("login");
+  const [view, setView] = useState("loading"); // loading | login | home | league | create
   const [selectedId, setSelectedId] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState(null); // {username, isAdmin, activations: {leagueId: teamId}}
-  const [users, setUsers] = useState({});
+  const [authUser, setAuthUser] = useState(null); // Firebase Auth user object
+  const [userProfile, setUserProfile] = useState(null); // {displayName, activations: {leagueId: teamId}}
+  const [authLoading, setAuthLoading] = useState(true);
 
+  const isAdmin = authUser?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+
+  // Listen for Firebase Auth state changes
   useEffect(() => {
-    (async () => {
-      let data = await loadAllLeagues();
-      if (data.length === 0 && typeof IMPORTED_LEAGUES !== 'undefined') {
-        data = JSON.parse(JSON.stringify(IMPORTED_LEAGUES));
-        await saveAllLeagues(data);
-      }
-      let u = {};
-      try { u = await fbLoadShared("users") || {}; } catch {}
-      let session = null;
-      try { const s = localStorage.getItem("frtv_session"); if (s) session = JSON.parse(s); } catch {}
-
-      setUsers(u);
-      setLeagues(data);
-      if (session) {
-        const isAdmin = session.username === ADMIN.username;
-        const userData = u[session.username] || { activations: {} };
-        setCurrentUser({ username: session.username, isAdmin, activations: userData.activations || {} });
+    const unsub = onAuthChange(async (user) => {
+      setAuthUser(user);
+      if (user) {
+        // Load leagues
+        let data = await loadAllLeagues();
+        if (data.length === 0 && typeof IMPORTED_LEAGUES !== 'undefined') {
+          data = JSON.parse(JSON.stringify(IMPORTED_LEAGUES));
+          await saveAllLeagues(data);
+        }
+        setLeagues(data);
+        // Load user profile
+        let profile = await loadUserProfile(user.uid);
+        if (!profile) {
+          profile = { displayName: user.displayName || user.email.split("@")[0], activations: {} };
+          await saveUserProfile(user.uid, profile);
+        }
+        setUserProfile(profile);
         setView("home");
+      } else {
+        setUserProfile(null);
+        setView("login");
       }
-      setLoading(false);
-    })();
+      setAuthLoading(false);
+    });
+    return () => unsub();
   }, []);
 
-  async function saveUsers(u) {
-    setUsers(u);
-    try { await fbSaveShared("users", u); } catch {}
-  }
-  async function saveSession(username) {
-    try { localStorage.setItem("frtv_session", JSON.stringify({ username })); } catch {}
-  }
-  async function clearSession() {
-    try { localStorage.removeItem("frtv_session"); } catch {}
-    setCurrentUser(null);
-    setView("login");
+  // Reload leagues when coming back to home
+  async function refreshLeagues() {
+    const data = await loadAllLeagues();
+    setLeagues(data);
+    return data;
   }
 
-  async function loadFreshUsers() {
-    try {
-      const fresh = await fbLoadShared("users");
-      if (fresh) return fresh;
-    } catch {}
-    return users;
+  async function persist(updated) {
+    setLeagues(updated);
+    await saveAllLeagues(updated);
   }
 
-  async function handleLogin(username, pin) {
-    // Check admin
-    if (username === ADMIN.username) {
-      if (pin !== ADMIN.pin) return "Wrong PIN.";
-      await saveSession(username);
-      setCurrentUser({ username, isAdmin: true, activations: {} });
-      setView("home");
-      return null;
-    }
-    // Fetch fresh users from storage (not stale state)
-    const freshUsers = await loadFreshUsers();
-    const user = freshUsers[username];
-    if (!user) return "User not found.";
-    if (user.pin !== pin) return "Wrong PIN.";
-    setUsers(freshUsers);
-    await saveSession(username);
-    setCurrentUser({ username, isAdmin: false, activations: user.activations || {} });
-    setView("home");
-    return null;
-  }
-
-  async function handleJoinViaCode(inviteCode, username, pin) {
-    for (const league of leagues) {
+  async function handleJoinViaCode(inviteCode) {
+    if (!authUser || !userProfile) return "Not logged in.";
+    const freshLeagues = await refreshLeagues();
+    for (const league of freshLeagues) {
       const codes = league.inviteCodes || {};
       const used = league.usedCodes || [];
       const teamId = Object.entries(codes).find(([tid, c]) => c === inviteCode)?.[0];
       if (teamId) {
         if (used.includes(inviteCode)) return "This code has already been used.";
-        const existing = users[username];
-        if (existing && existing.pin !== pin) return "Wrong PIN for existing account.";
-        const userObj = existing
-          ? { ...existing, activations: { ...existing.activations, [league.id]: teamId } }
-          : { pin, activations: { [league.id]: teamId } };
-        const u = { ...users, [username]: userObj };
-        await saveUsers(u);
-        const updatedLeague = { ...league, usedCodes: [...used, inviteCode], pins: { ...(league.pins||{}), [teamId]: pin } };
-        const updatedLeagues = leagues.map(l => l.id === league.id ? updatedLeague : l);
-        setLeagues(updatedLeagues);
-        await saveAllLeagues(updatedLeagues);
-        await saveSession(username);
-        setCurrentUser({ username, isAdmin: false, activations: userObj.activations });
-        setView("home");
+        // Update user profile with activation
+        const updatedProfile = {
+          ...userProfile,
+          activations: { ...(userProfile.activations || {}), [league.id]: teamId }
+        };
+        await saveUserProfile(authUser.uid, updatedProfile);
+        setUserProfile(updatedProfile);
+        // Mark code as used
+        const updatedLeague = { ...league, usedCodes: [...used, inviteCode] };
+        const updatedLeagues = freshLeagues.map(l => l.id === league.id ? updatedLeague : l);
+        await persist(updatedLeagues);
         return null;
       }
     }
@@ -2779,8 +2753,6 @@ export default function FantasyRealityTV() {
     const fresh = JSON.parse(JSON.stringify(IMPORTED_LEAGUES));
     await saveAllLeagues(fresh);
     setLeagues(fresh);
-    await saveUsers({});
-    await clearSession();
   }
 
   async function deleteLeague(leagueId) {
@@ -2798,14 +2770,11 @@ export default function FantasyRealityTV() {
     if (!newName) return;
     const seasonName = prompt("Season name:", "Season " + ((parseInt(source.seasonName?.replace(/\D/g,""))||0) + 1));
     if (!seasonName) return;
-
     const newLeague = {
       ...JSON.parse(JSON.stringify(source)),
       id: generateId(),
       name: newName.trim(),
       seasonName: seasonName.trim(),
-      // Keep: scoringRules, format, captainsConfig, standardConfig, showType, showName, tribeColors
-      // Reset: contestants, scores, rosters, tribes, pins, inviteCodes, week
       contestants: [],
       weeklyScores: {},
       currentWeek: 1,
@@ -2818,121 +2787,78 @@ export default function FantasyRealityTV() {
       adminTeamId: source.adminTeamId,
       rostersLocked: false,
       createdAt: Date.now(),
-      // Keep teams but clear their rosters
       teams: (source.teams || []).map(t => ({
-        id: t.id,
-        name: t.name,
-        owner: t.owner,
+        id: t.id, name: t.name, owner: t.owner,
         depthChart: { captain: null, coCaptain: null, regulars: [] },
-        weeklyRosters: {},
-        weeklyDepthCharts: {},
+        weeklyRosters: {}, weeklyDepthCharts: {},
       })),
     };
-
-    const updated = [...leagues, newLeague];
-    await persist(updated);
+    await persist([...leagues, newLeague]);
   }
 
-  const persist = useCallback(async (updated) => {
-    // Sync scoring data to any leagues linked to the changed league
-    const changed = updated.find((l, i) => {
-      const old = leagues[i];
-      return old && l.id === old.id && JSON.stringify(l.weeklyScores) !== JSON.stringify(old.weeklyScores);
-    });
-    if (changed) {
-      // Find leagues that link to this one for scoring
-      updated = updated.map(l => {
-        if (l.linkedScoringFrom === changed.id && l.id !== changed.id) {
-          return {
-            ...l,
-            weeklyScores: JSON.parse(JSON.stringify(changed.weeklyScores)),
-            currentWeek: changed.currentWeek,
-            // Sync contestant status and eliminatedWeek
-            contestants: (l.contestants || []).map(c => {
-              const source = (changed.contestants || []).find(sc => sc.id === c.id);
-              if (source) return { ...c, status: source.status, eliminatedWeek: source.eliminatedWeek };
-              return c;
-            }),
-          };
-        }
-        return l;
-      });
-    }
-    setLeagues(updated);
-    await saveAllLeagues(updated);
-  }, [leagues]);
+  const handleLogout = async () => {
+    await signOut();
+    setAuthUser(null);
+    setUserProfile(null);
+    setView("login");
+  };
 
   const selected = leagues.find(l => l.id === selectedId);
-  const isAdmin = currentUser?.isAdmin || false;
-  const myTeamIn = (lid) => currentUser?.activations?.[lid] || null;
+  const myTeamIn = (lid) => userProfile?.activations?.[lid] || null;
+  const visibleLeagues = isAdmin ? leagues : leagues.filter(l => userProfile?.activations?.[l.id]);
 
-  if (loading) return (
-    <div style={{ minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0d0d1a",color:"#e8e8f0",fontFamily:"'DM Sans',sans-serif" }}>
-      <div style={{ textAlign:"center" }}><div style={{ fontSize:40,marginBottom:12 }}>📺</div><div style={{ fontFamily:"'Anybody',sans-serif",fontSize:18,fontWeight:800 }}>Loading...</div></div>
-    </div>
-  );
+  if (authLoading) {
+    return (
+      <div style={{ minHeight:"100vh",background:"#0d0d1a",display:"flex",alignItems:"center",justifyContent:"center" }}>
+        <div style={{ textAlign:"center" }}>
+          <div style={{ fontSize:40,marginBottom:12 }}>📺</div>
+          <div style={{ color:"#e8e8f0",fontSize:16,fontWeight:700,fontFamily:"'Anybody',sans-serif" }}>Loading...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ minHeight:"100vh",background:"#0d0d1a",color:"#e8e8f0",fontFamily:"'DM Sans',sans-serif",maxWidth:640,margin:"0 auto" }}>
-      <link href="https://fonts.googleapis.com/css2?family=Anybody:wght@400;700;800;900&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+    <div style={{ minHeight:"100vh",background:"#0d0d1a",fontFamily:"'DM Sans',sans-serif",maxWidth:480,margin:"0 auto" }}>
       <style>{`
-        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-        @keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-        *{box-sizing:border-box}
-        ::-webkit-scrollbar{width:6px;height:6px}
-        ::-webkit-scrollbar-track{background:transparent}
-        ::-webkit-scrollbar-thumb{background:#2a2a4a;border-radius:3px}
-        input:focus,select:focus{border-color:#e94560!important}
-        select{background-color:#0d0d18;color:#e8e8f0}
-        option{background:#0d0d18;color:#e8e8f0}
-        optgroup{background:#12121f;color:#8888aa;font-style:normal}
+        body { margin:0; background:#0d0d1a; }
+        input:focus,select:focus{border-color:#e94560!important;outline:none}
+        select{background-color:#0d0d18!important;color:#e8e8f0!important}
+        option{background:#0d0d18!important;color:#e8e8f0!important}
+        optgroup{background:#1a1a30!important;color:#8888aa!important;font-style:normal}
       `}</style>
-
-      {view==="login" && <AppLogin onLogin={handleLogin} onJoinViaCode={handleJoinViaCode} />}
-      {view==="home" && currentUser && <AppHome user={currentUser} leagues={isAdmin ? leagues : leagues.filter(l=>currentUser.activations?.[l.id])}
+      {view==="login" && <AuthScreen onJoinViaCode={handleJoinViaCode} />}
+      {view==="home" && authUser && <AppHome
+        user={authUser} profile={userProfile} leagues={visibleLeagues}
         isAdmin={isAdmin} onSelectLeague={id=>{setSelectedId(id);setView("league")}}
-        onCreateLeague={()=>setView("create")} onDeleteLeague={deleteLeague} onDuplicateLeague={duplicateLeague} onLogout={clearSession}
-        onJoinViaCode={async (code)=> await handleJoinViaCode(code, currentUser.username, users[currentUser.username]?.pin || "")} />}
+        onCreateLeague={()=>setView("create")} onDeleteLeague={deleteLeague} onDuplicateLeague={duplicateLeague}
+        onLogout={handleLogout}
+        onJoinViaCode={handleJoinViaCode} />}
       {view==="create" && <CreateLeagueScreen onSave={async l=>{ await persist([...leagues,l]); setSelectedId(l.id);setView("league"); }} onCancel={()=>setView("home")} />}
-      {view==="league" && selected && currentUser && <LeagueDashboard league={selected} allLeagues={leagues}
+      {view==="league" && selected && authUser && <LeagueDashboard league={selected} allLeagues={leagues}
         onUpdate={u=>{
           let updated = leagues.map(l=>l.id===u.id?u:l);
-          // Sync scoring + contestants + currentWeek to linked leagues
           if (u.linkedLeagueId) {
             updated = updated.map(l => l.id === u.linkedLeagueId ? {
-              ...l,
-              weeklyScores: u.weeklyScores,
-              contestants: l.contestants.map(lc => {
-                const uc = (u.contestants||[]).find(c => c.id === lc.id);
-                return uc ? { ...lc, status: uc.status, eliminatedWeek: uc.eliminatedWeek, tribe: uc.tribe } : lc;
-              }),
-              currentWeek: u.currentWeek,
-              tribes: u.tribes || l.tribes,
-              merged: u.merged !== undefined ? u.merged : l.merged,
-              mergedTribeName: u.mergedTribeName || l.mergedTribeName,
+              ...l, weeklyScores: u.weeklyScores,
+              contestants: l.contestants.map(lc => { const uc = (u.contestants||[]).find(c => c.id === lc.id); return uc ? { ...lc, status: uc.status, eliminatedWeek: uc.eliminatedWeek, tribe: uc.tribe } : lc; }),
+              currentWeek: u.currentWeek, tribes: u.tribes || l.tribes,
+              merged: u.merged !== undefined ? u.merged : l.merged, mergedTribeName: u.mergedTribeName || l.mergedTribeName,
             } : l);
           }
-          // Also check if any OTHER league links to this one
           updated = updated.map(l => {
             if (l.id !== u.id && l.linkedLeagueId === u.id) {
-              return {
-                ...l,
-                weeklyScores: u.weeklyScores,
-                contestants: l.contestants.map(lc => {
-                  const uc = (u.contestants||[]).find(c => c.id === lc.id);
-                  return uc ? { ...lc, status: uc.status, eliminatedWeek: uc.eliminatedWeek, tribe: uc.tribe } : lc;
-                }),
-                currentWeek: u.currentWeek,
-                tribes: u.tribes || l.tribes,
-                merged: u.merged !== undefined ? u.merged : l.merged,
-                mergedTribeName: u.mergedTribeName || l.mergedTribeName,
+              return { ...l, weeklyScores: u.weeklyScores,
+                contestants: l.contestants.map(lc => { const uc = (u.contestants||[]).find(c => c.id === lc.id); return uc ? { ...lc, status: uc.status, eliminatedWeek: uc.eliminatedWeek, tribe: uc.tribe } : lc; }),
+                currentWeek: u.currentWeek, tribes: u.tribes || l.tribes,
+                merged: u.merged !== undefined ? u.merged : l.merged, mergedTribeName: u.mergedTribeName || l.mergedTribeName,
               };
             }
             return l;
           });
           persist(updated);
         }}
-        onBack={()=>setView("home")} onReset={resetToImported}
+        onBack={()=>{refreshLeagues();setView("home")}} onReset={resetToImported}
         loggedInTeamId={isAdmin ? (selected.adminTeamId || myTeamIn(selected.id)) : myTeamIn(selected.id)}
         isCommissioner={isAdmin}
         skipLogin={true} />}
@@ -2941,29 +2867,100 @@ export default function FantasyRealityTV() {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// APP LOGIN
+// AUTH SCREEN (Login / Sign Up / Join via Code)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function AppLogin({ onLogin, onJoinViaCode }) {
-  const [mode, setMode] = useState("login"); // "login" | "invite"
-  const [username, setUsername] = useState("");
-  const [pin, setPin] = useState("");
-  const [pinConfirm, setPinConfirm] = useState("");
+function AuthScreen({ onJoinViaCode }) {
+  const [mode, setMode] = useState("login"); // login | signup | invite | forgot
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
 
   async function handleLogin() {
-    if (!username.trim() || !pin.trim()) { setError("Enter username and PIN."); return; }
-    const err = await onLogin(username.trim(), pin);
-    if (err) setError(err);
+    if (!email.trim() || !password) { setError("Enter email and password."); return; }
+    setBusy(true); setError("");
+    try {
+      await signIn(email.trim(), password);
+    } catch (e) {
+      setError(e.code === "auth/invalid-credential" ? "Invalid email or password." :
+               e.code === "auth/user-not-found" ? "No account found with this email." :
+               e.code === "auth/wrong-password" ? "Incorrect password." :
+               e.code === "auth/too-many-requests" ? "Too many attempts. Try again later." :
+               e.message);
+    }
+    setBusy(false);
   }
 
-  async function handleInvite() {
-    if (!username.trim() || !pin.trim()) { setError("Enter a username and PIN."); return; }
-    if (inviteCode.length < 6) { setError("Enter a 6-character invite code."); return; }
-    if (pin !== pinConfirm) { setError("PINs don't match. Try again."); return; }
-    const err = await onJoinViaCode(inviteCode, username.trim(), pin);
-    if (err) setError(err);
+  async function handleGoogleLogin() {
+    setBusy(true); setError("");
+    try {
+      await signInWithGoogle();
+    } catch (e) {
+      if (e.code !== "auth/popup-closed-by-user") setError(e.message);
+    }
+    setBusy(false);
   }
+
+  async function handleSignup() {
+    if (!email.trim() || !password || !displayName.trim()) { setError("Fill in all fields."); return; }
+    if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
+    setBusy(true); setError("");
+    try {
+      await signUp(email.trim(), password, displayName.trim());
+    } catch (e) {
+      setError(e.code === "auth/email-already-in-use" ? "An account with this email already exists. Try logging in." :
+               e.code === "auth/weak-password" ? "Password must be at least 6 characters." :
+               e.code === "auth/invalid-email" ? "Invalid email address." :
+               e.message);
+    }
+    setBusy(false);
+  }
+
+  async function handleSignupAndJoin() {
+    if (!email.trim() || !password || !displayName.trim()) { setError("Fill in all fields."); return; }
+    if (inviteCode.length < 6) { setError("Enter a 6-character invite code."); return; }
+    if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
+    setBusy(true); setError("");
+    try {
+      await signUp(email.trim(), password, displayName.trim());
+      // After signup, Firebase auth state changes which triggers onAuthChange,
+      // but we need to wait for the profile to be created before joining
+      // The join will happen after they land on home screen
+      // Store the code to use after login
+      localStorage.setItem("frtv_pending_invite", inviteCode);
+    } catch (e) {
+      if (e.code === "auth/email-already-in-use") {
+        // Try logging in instead
+        try {
+          await signIn(email.trim(), password);
+          localStorage.setItem("frtv_pending_invite", inviteCode);
+        } catch (e2) {
+          setError("Account exists but password is wrong. Try logging in first.");
+        }
+      } else {
+        setError(e.message);
+      }
+    }
+    setBusy(false);
+  }
+
+  async function handleForgot() {
+    if (!email.trim()) { setError("Enter your email address."); return; }
+    setBusy(true); setError(""); setMessage("");
+    try {
+      await resetPassword(email.trim());
+      setMessage("Password reset email sent! Check your inbox.");
+    } catch (e) {
+      setError(e.code === "auth/user-not-found" ? "No account found with this email." : e.message);
+    }
+    setBusy(false);
+  }
+
+  const inputStyle = { width:"100%",padding:"12px 14px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:8,
+    color:"#e8e8f0",fontSize:14,fontFamily:"'DM Sans',sans-serif",marginBottom:12 };
 
   return (
     <div>
@@ -2976,46 +2973,106 @@ function AppLogin({ onLogin, onJoinViaCode }) {
         <p style={{ color:"#6a6a8a",fontSize:14,margin:0 }}>Draft. Score. Dominate.</p>
       </div>
       <div style={{ padding:"0 20px 20px" }}>
+        {/* Mode tabs */}
         <div style={{ display:"flex",gap:6,marginBottom:20 }}>
-          {[{id:"login",label:"Log In"},{id:"invite",label:"Join a League"}].map(t=>(
-            <button key={t.id} onClick={()=>{setMode(t.id);setError("")}} style={{
-              flex:1,padding:"10px",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,
+          {[{id:"login",label:"Log In"},{id:"signup",label:"Sign Up"},{id:"invite",label:"Join League"}].map(t=>(
+            <button key={t.id} onClick={()=>{setMode(t.id);setError("");setMessage("")}} style={{
+              flex:1,padding:"10px",borderRadius:8,border:"none",cursor:"pointer",fontSize:12,fontWeight:600,
               background:mode===t.id?"#e9456033":"#1e1e38",color:mode===t.id?"#e94560":"#8888aa",
               fontFamily:"'DM Sans',sans-serif",transition:"all 0.15s ease",
             }}>{t.label}</button>
           ))}
         </div>
 
+        {/* Login */}
         {mode === "login" && (
           <div>
-            <Input label="Username" value={username} onChange={e=>setUsername(e.target.value)} placeholder="Your username" />
-            <Input label="PIN" type="password" inputMode="numeric" value={pin}
-              onChange={e=>setPin(e.target.value)} placeholder="Your PIN"
-              style={{ fontSize:20,textAlign:"center",letterSpacing:"0.2em" }}
-              onKeyDown={e=>{if(e.key==="Enter")handleLogin()}} />
+            <input type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} style={inputStyle} />
+            <input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)}
+              onKeyDown={e=>{if(e.key==="Enter")handleLogin()}} style={inputStyle} />
             {error && <div style={{ color:"#e94560",fontSize:12,marginBottom:10 }}>{error}</div>}
-            <Btn onClick={handleLogin} disabled={!username.trim()||!pin.trim()} style={{ width:"100%",justifyContent:"center" }}>Log In</Btn>
+            <button onClick={handleLogin} disabled={busy} style={{
+              width:"100%",padding:"12px",borderRadius:8,border:"none",cursor:"pointer",fontSize:14,fontWeight:700,
+              background:"linear-gradient(135deg,#e94560,#c23152)",color:"#fff",fontFamily:"'DM Sans',sans-serif",
+              opacity:busy?0.6:1,marginBottom:10,
+            }}>{busy ? "..." : "Log In"}</button>
+            <button onClick={handleGoogleLogin} disabled={busy} style={{
+              width:"100%",padding:"12px",borderRadius:8,border:"1px solid #2a2a4a",cursor:"pointer",fontSize:14,fontWeight:600,
+              background:"#12121f",color:"#e8e8f0",fontFamily:"'DM Sans',sans-serif",
+              display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:12,
+            }}>
+              <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#4285F4" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#34A853" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#EA4335" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+              Sign in with Google
+            </button>
+            <button onClick={()=>{setMode("forgot");setError("");setMessage("")}} style={{
+              background:"none",border:"none",color:"#6a6a8a",cursor:"pointer",fontSize:12,
+              fontFamily:"'DM Sans',sans-serif",width:"100%",textAlign:"center",padding:4,
+            }}>Forgot password?</button>
           </div>
         )}
 
+        {/* Sign Up */}
+        {mode === "signup" && (
+          <div>
+            <input type="text" placeholder="Display name" value={displayName} onChange={e=>setDisplayName(e.target.value)} style={inputStyle} />
+            <input type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} style={inputStyle} />
+            <input type="password" placeholder="Password (6+ characters)" value={password} onChange={e=>setPassword(e.target.value)}
+              onKeyDown={e=>{if(e.key==="Enter")handleSignup()}} style={inputStyle} />
+            {error && <div style={{ color:"#e94560",fontSize:12,marginBottom:10 }}>{error}</div>}
+            <button onClick={handleSignup} disabled={busy} style={{
+              width:"100%",padding:"12px",borderRadius:8,border:"none",cursor:"pointer",fontSize:14,fontWeight:700,
+              background:"linear-gradient(135deg,#e94560,#c23152)",color:"#fff",fontFamily:"'DM Sans',sans-serif",
+              opacity:busy?0.6:1,marginBottom:10,
+            }}>{busy ? "..." : "Create Account"}</button>
+            <button onClick={handleGoogleLogin} disabled={busy} style={{
+              width:"100%",padding:"12px",borderRadius:8,border:"1px solid #2a2a4a",cursor:"pointer",fontSize:14,fontWeight:600,
+              background:"#12121f",color:"#e8e8f0",fontFamily:"'DM Sans',sans-serif",
+              display:"flex",alignItems:"center",justifyContent:"center",gap:8,
+            }}>
+              <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#4285F4" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#34A853" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#EA4335" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+              Sign up with Google
+            </button>
+          </div>
+        )}
+
+        {/* Join League (signup + invite code) */}
         {mode === "invite" && (
           <div>
             <div style={{ padding:"10px 14px",background:"#4ecdc411",borderRadius:8,border:"1px solid #4ecdc433",marginBottom:16 }}>
-              <div style={{ fontSize:12,color:"#4ecdc4",lineHeight:1.5 }}>Enter the invite code your commissioner sent you along with a username and PIN to create your account.</div>
+              <div style={{ fontSize:12,color:"#4ecdc4",lineHeight:1.5 }}>Enter your invite code and create an account (or log in if you already have one).</div>
             </div>
-            <Input label="Invite Code" value={inviteCode} onChange={e=>setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,""))}
-              placeholder="XXXXXX" style={{ fontSize:20,textAlign:"center",letterSpacing:"0.2em",fontFamily:"monospace" }} />
-            <Input label="Username" value={username} onChange={e=>setUsername(e.target.value)} placeholder="Choose a username" />
-            <Input label="Create a PIN" type="password" inputMode="numeric" value={pin}
-              onChange={e=>setPin(e.target.value)} placeholder="Choose a PIN"
-              style={{ fontSize:20,textAlign:"center",letterSpacing:"0.2em" }} />
-            <Input label="Confirm PIN" type="password" inputMode="numeric" value={pinConfirm}
-              onChange={e=>setPinConfirm(e.target.value)} placeholder="Re-enter PIN"
-              style={{ fontSize:20,textAlign:"center",letterSpacing:"0.2em" }}
-              onKeyDown={e=>{if(e.key==="Enter")handleInvite()}} />
-            {pin && pinConfirm && pin !== pinConfirm && <div style={{ color:"#f5a623",fontSize:11,marginBottom:8 }}>PINs don't match</div>}
+            <input placeholder="Invite code" value={inviteCode} maxLength={6}
+              onChange={e=>setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,""))}
+              style={{ ...inputStyle, fontSize:20,textAlign:"center",letterSpacing:"0.2em",fontFamily:"monospace" }} />
+            <input type="text" placeholder="Display name" value={displayName} onChange={e=>setDisplayName(e.target.value)} style={inputStyle} />
+            <input type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} style={inputStyle} />
+            <input type="password" placeholder="Password (6+ characters)" value={password} onChange={e=>setPassword(e.target.value)}
+              onKeyDown={e=>{if(e.key==="Enter")handleSignupAndJoin()}} style={inputStyle} />
             {error && <div style={{ color:"#e94560",fontSize:12,marginBottom:10 }}>{error}</div>}
-            <Btn onClick={handleInvite} disabled={inviteCode.length<6||!username.trim()||!pin.trim()||pin!==pinConfirm} style={{ width:"100%",justifyContent:"center" }}>Join League</Btn>
+            <button onClick={handleSignupAndJoin} disabled={busy||inviteCode.length<6} style={{
+              width:"100%",padding:"12px",borderRadius:8,border:"none",cursor:"pointer",fontSize:14,fontWeight:700,
+              background:"linear-gradient(135deg,#4ecdc4,#2a9d8f)",color:"#fff",fontFamily:"'DM Sans',sans-serif",
+              opacity:(busy||inviteCode.length<6)?0.5:1,
+            }}>{busy ? "..." : "Join League"}</button>
+          </div>
+        )}
+
+        {/* Forgot Password */}
+        {mode === "forgot" && (
+          <div>
+            <input type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)}
+              onKeyDown={e=>{if(e.key==="Enter")handleForgot()}} style={inputStyle} />
+            {error && <div style={{ color:"#e94560",fontSize:12,marginBottom:10 }}>{error}</div>}
+            {message && <div style={{ color:"#4ecdc4",fontSize:12,marginBottom:10 }}>{message}</div>}
+            <button onClick={handleForgot} disabled={busy} style={{
+              width:"100%",padding:"12px",borderRadius:8,border:"none",cursor:"pointer",fontSize:14,fontWeight:700,
+              background:"linear-gradient(135deg,#e94560,#c23152)",color:"#fff",fontFamily:"'DM Sans',sans-serif",
+              opacity:busy?0.6:1,marginBottom:10,
+            }}>{busy ? "..." : "Send Reset Email"}</button>
+            <button onClick={()=>{setMode("login");setError("");setMessage("")}} style={{
+              background:"none",border:"none",color:"#6a6a8a",cursor:"pointer",fontSize:12,
+              fontFamily:"'DM Sans',sans-serif",width:"100%",textAlign:"center",padding:4,
+            }}>Back to login</button>
           </div>
         )}
       </div>
@@ -3026,9 +3083,21 @@ function AppLogin({ onLogin, onJoinViaCode }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // APP HOME
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function AppHome({ user, leagues, isAdmin, onSelectLeague, onCreateLeague, onDeleteLeague, onDuplicateLeague, onLogout, onJoinViaCode }) {
+function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeague, onDeleteLeague, onDuplicateLeague, onLogout, onJoinViaCode }) {
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
+
+  // Check for pending invite code (from join-league signup flow)
+  useEffect(() => {
+    const pending = localStorage.getItem("frtv_pending_invite");
+    if (pending) {
+      localStorage.removeItem("frtv_pending_invite");
+      (async () => {
+        const err = await onJoinViaCode(pending);
+        if (err) setError(err);
+      })();
+    }
+  }, []);
 
   async function handleJoin() {
     if (inviteCode.length < 6) return;
@@ -3037,13 +3106,15 @@ function AppHome({ user, leagues, isAdmin, onSelectLeague, onCreateLeague, onDel
     else { setInviteCode(""); setError(""); }
   }
 
+  const displayName = profile?.displayName || user?.displayName || user?.email?.split("@")[0] || "User";
+
   return (
     <div>
       <div style={{ padding:"20px 20px 10px",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
         <div>
           <div style={{ fontSize:12,color:"#6a6a8a" }}>Welcome back,</div>
           <div style={{ fontSize:18,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:"#e8e8f0" }}>
-            {user.username} {isAdmin && <span style={{ fontSize:12,color:"#f5a623" }}>★ Admin</span>}
+            {displayName} {isAdmin && <span style={{ fontSize:12,color:"#f5a623" }}>★ Admin</span>}
           </div>
         </div>
         <button onClick={onLogout} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",
@@ -3051,34 +3122,29 @@ function AppHome({ user, leagues, isAdmin, onSelectLeague, onCreateLeague, onDel
       </div>
 
       <div style={{ padding:"10px 20px 20px" }}>
-        {/* Join a league (non-admin) */}
-        {!isAdmin && (
-          <div style={{ marginBottom:20,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-            <div style={{ fontSize:12,fontWeight:600,color:"#8888aa",marginBottom:6 }}>Join a League</div>
-            <div style={{ display:"flex",gap:6 }}>
-              <input value={inviteCode} onChange={e=>setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,""))}
-                placeholder="Invite code" maxLength={6} onKeyDown={e=>{if(e.key==="Enter")handleJoin()}}
-                style={{ flex:1,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
-                  color:"#e8e8f0",fontSize:15,fontFamily:"monospace",letterSpacing:"0.15em",textAlign:"center",fontWeight:700 }} />
-              <Btn small onClick={handleJoin} disabled={inviteCode.length<6}>Join</Btn>
-            </div>
-            {error && <div style={{ color:"#e94560",fontSize:11,marginTop:6 }}>{error}</div>}
+        {/* Join a league */}
+        <div style={{ marginBottom:20,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+          <div style={{ fontSize:12,fontWeight:600,color:"#8888aa",marginBottom:6 }}>Join a League</div>
+          <div style={{ display:"flex",gap:6 }}>
+            <input value={inviteCode} onChange={e=>setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,""))}
+              placeholder="Invite code" maxLength={6} onKeyDown={e=>{if(e.key==="Enter")handleJoin()}}
+              style={{ flex:1,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                color:"#e8e8f0",fontSize:16,fontFamily:"monospace",letterSpacing:"0.15em",textAlign:"center" }} />
+            <Btn small onClick={handleJoin} disabled={inviteCode.length<6}>Join</Btn>
           </div>
-        )}
-
-        {/* Admin tools */}
-        {isAdmin && (
-          <div style={{ marginBottom:20,display:"flex",justifyContent:"space-between",alignItems:"center" }}>
-            <div style={{ fontSize:13,fontWeight:600,color:"#f5a623" }}>★ All Leagues</div>
-            <Btn small onClick={onCreateLeague}><Icon name="plus" size={12}/> New League</Btn>
-          </div>
-        )}
+          {error && <div style={{ color:"#e94560",fontSize:11,marginTop:6 }}>{error}</div>}
+        </div>
 
         {/* League list */}
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
+          <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#e8e8f0" }}>My Leagues</h3>
+          {isAdmin && <Btn small onClick={onCreateLeague}><Icon name="plus" size={12}/> New League</Btn>}
+        </div>
+
         {leagues.length > 0 ? (
           <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
             {leagues.map(league => {
-              const myTeamId = user.activations?.[league.id];
+              const myTeamId = profile?.activations?.[league.id];
               const myTeam = myTeamId ? (league.teams||[]).find(t=>t.id===myTeamId) : null;
               return (
                 <div key={league.id} style={{ display:"flex",alignItems:"center",gap:14,background:"#12121f",border:"1px solid #2a2a4a",borderRadius:12,overflow:"hidden" }}>
@@ -3115,3 +3181,4 @@ function AppHome({ user, leagues, isAdmin, onSelectLeague, onCreateLeague, onDel
     </div>
   );
 }
+
