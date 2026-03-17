@@ -2555,7 +2555,7 @@ function SettingsTab({ league, onUpdate, onReset, allLeagues }) {
       <ImportXLSXSection league={league} onUpdate={onUpdate} />
 
       {/* Transfer Commissioner */}
-      {league.commissionerUid && (
+      {(league.teams||[]).length > 0 && (
         <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
           <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:4 }}>Transfer Commissioner</div>
           <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:10,lineHeight:1.4 }}>
