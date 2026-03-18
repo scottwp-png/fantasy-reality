@@ -161,7 +161,7 @@ function Input({ label, ...props }) {
     <div style={{ marginBottom:14 }}>
       {label && <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>{label}</label>}
       <input {...props} style={{ width:"100%",padding:"10px 14px",background:"#12121f",border:"1px solid #2a2a4a",
-        borderRadius:8,color:"#e8e8f0",fontSize:14,outline:"none",boxSizing:"border-box",fontFamily:"'DM Sans',sans-serif",...(props.style||{}) }} />
+        borderRadius:8,color:"#e8e8f0",fontSize:14,outline:"none",boxSizing:"border-box",fontFamily:"'Outfit',sans-serif",...(props.style||{}) }} />
     </div>
   );
 }
@@ -171,7 +171,7 @@ function Select({ label, options, ...props }) {
     <div style={{ marginBottom:14 }}>
       {label && <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>{label}</label>}
       <select {...props} style={{ width:"100%",padding:"10px 14px",background:"#12121f",border:"1px solid #2a2a4a",
-        borderRadius:8,color:"#e8e8f0",fontSize:14,outline:"none",boxSizing:"border-box",fontFamily:"'DM Sans',sans-serif" }}>
+        borderRadius:8,color:"#e8e8f0",fontSize:14,outline:"none",boxSizing:"border-box",fontFamily:"'Outfit',sans-serif" }}>
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     </div>
@@ -188,7 +188,7 @@ function Btn({ children, variant="primary", small, ...props }) {
   };
   return (
     <button {...props} style={{ padding:small?"6px 12px":"10px 20px",borderRadius:8,border:"none",cursor:"pointer",
-      fontSize:small?12:14,fontWeight:600,fontFamily:"'DM Sans',sans-serif",display:"inline-flex",alignItems:"center",gap:6,
+      fontSize:small?12:14,fontWeight:600,fontFamily:"'Outfit',sans-serif",display:"inline-flex",alignItems:"center",gap:6,
       transition:"all 0.15s ease",opacity:props.disabled?0.5:1,...s[variant],...(props.style||{}) }}>
       {children}
     </button>
@@ -339,29 +339,45 @@ function LeagueDashboard({ league, onUpdate, onBack, onReset, loggedInTeamId, is
 
   return (
     <div>
-      <div style={{ padding:"16px 20px",borderBottom:"1px solid #1e1e38",display:"flex",alignItems:"center",gap:12 }}>
-        <button onClick={onBack} style={{ background:"none",border:"none",color:"#8888aa",cursor:"pointer",padding:4 }}><Icon name="back" size={20}/></button>
-        <div style={{ fontSize:24 }}>{SHOW_PRESETS[league.showType]?.emoji||"📺"}</div>
-        <div style={{ flex:1 }}>
-          <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:16,fontFamily:"'Anybody',sans-serif" }}>{league.name}</div>
-          <div style={{ color:"#6a6a8a",fontSize:11 }}>{league.seasonName} · {FORMAT_INFO[league.format]?.name} · Week {league.currentWeek}</div>
-        </div>
-        <div style={{ textAlign:"right" }}>
-          <div style={{ color:"#e8e8f0",fontSize:12,fontWeight:600 }}>{loggedInTeam?.owner || "—"}</div>
-          <div style={{ fontSize:10,color:isCommissioner?"#f5a623":"#6a6a8a" }}>
-            {isCommissioner ? "★ Commissioner" : "Manager"}
+      <div style={{ padding:"18px 20px 14px",background:"linear-gradient(180deg,rgba(233,69,96,0.04),transparent)",borderBottom:"1px solid #1e1e38" }}>
+        <div style={{ display:"flex",alignItems:"center",gap:12 }}>
+          <button onClick={onBack} style={{ background:"#12121f",border:"1px solid #1e1e38",borderRadius:8,color:"#8888aa",cursor:"pointer",padding:6,display:"flex",alignItems:"center",justifyContent:"center" }}><Icon name="back" size={18}/></button>
+          <div style={{ flex:1,minWidth:0 }}>
+            <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+              <span style={{ fontSize:20 }}>{SHOW_PRESETS[league.showType]?.emoji||"📺"}</span>
+              <div style={{ color:"#e8e8f0",fontWeight:800,fontSize:17,fontFamily:"'Anybody',sans-serif",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{league.name}</div>
+            </div>
+            <div style={{ color:"#6a6a8a",fontSize:11,marginTop:3,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap" }}>
+              <span>{league.seasonName}</span>
+              <span style={{ width:3,height:3,borderRadius:"50%",background:"#3a3a5a" }}></span>
+              <span>{FORMAT_INFO[league.format]?.name}</span>
+              <span style={{ width:3,height:3,borderRadius:"50%",background:"#3a3a5a" }}></span>
+              <span>Week {league.currentWeek}</span>
+            </div>
+          </div>
+          <div style={{ textAlign:"right",flexShrink:0 }}>
+            <div style={{ color:"#e8e8f0",fontSize:12,fontWeight:600 }}>{loggedInTeam?.owner || "—"}</div>
+            <div style={{ fontSize:10,color:isCommissioner?"#f5a623":"#6a6a8a",fontWeight:600 }}>
+              {isCommissioner ? "★ Commissioner" : "Manager"}
+            </div>
           </div>
         </div>
       </div>
 
-      <div style={{ display:"flex",overflowX:"auto",borderBottom:"1px solid #1e1e38",padding:"0 8px",gap:2 }}>
+      <div style={{ height:3,background:"#1e1e38",margin:"0 20px" }}>
+        <div style={{ height:"100%",borderRadius:2,background:"linear-gradient(90deg,#e94560,#f5a623)",
+          width: Math.min(100, ((league.currentWeek||1) / Math.max(Object.keys(league.weeklyScores||{}).length, league.currentWeek||1, 10)) * 100) + "%",
+          transition:"width 0.5s ease" }}></div>
+      </div>
+      <div style={{ display:"flex",overflowX:"auto",padding:"8px 12px",gap:4,borderBottom:"1px solid #1e1e38",WebkitOverflowScrolling:"touch" }}>
         {tabs.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
-            background:"none",border:"none",cursor:"pointer",padding:"12px 12px",fontSize:12,fontWeight:600,
-            color:tab===t.id?"#e94560":"#6a6a8a",borderBottom:tab===t.id?"2px solid #e94560":"2px solid transparent",
-            display:"flex",alignItems:"center",gap:4,whiteSpace:"nowrap",fontFamily:"'DM Sans',sans-serif",transition:"all 0.15s ease",
+            background:tab===t.id?"#e9456022":"transparent",border:tab===t.id?"1px solid #e9456044":"1px solid transparent",
+            cursor:"pointer",padding:"8px 14px",fontSize:12,fontWeight:tab===t.id?700:500,borderRadius:99,
+            color:tab===t.id?"#e94560":"#7a7a9a",
+            display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap",fontFamily:"'Outfit',sans-serif",transition:"all 0.15s ease",
           }}>
-            <Icon name={t.icon} size={13}/> {t.label}
+            <Icon name={t.icon} size={12}/> {t.label}
           </button>
         ))}
       </div>
@@ -397,7 +413,7 @@ function StandingsTab({ league, standings }) {
   return (
     <div>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
-        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#e8e8f0" }}>Leaderboard</h3>
+        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Leaderboard</h3>
         <Badge color="#f5a623">Week {league.currentWeek}</Badge>
       </div>
       {standings.length === 0 ? <EmptyState message="Add teams and score weeks to see standings." /> : (
@@ -408,21 +424,24 @@ function StandingsTab({ league, standings }) {
             const wkPts = lastWk ? (team.weeklyTotals?.[lastWk]||0) : 0;
             return (
               <div key={team.id} style={{
-                display:"flex",alignItems:"center",gap:14,padding:"14px 16px",borderRadius:10,
-                background:i===0?"linear-gradient(135deg,rgba(233,69,96,0.12),rgba(245,166,35,0.08))":"#12121f",
-                border:i===0?"1px solid rgba(233,69,96,0.3)":"1px solid #1e1e38",
+                display:"flex",alignItems:"center",gap:12,padding:"16px",borderRadius:12,
+                background:i===0?"linear-gradient(135deg,rgba(255,77,106,0.1),rgba(255,210,61,0.05))":i===1?"linear-gradient(135deg,rgba(200,200,220,0.06),transparent)":i===2?"linear-gradient(135deg,rgba(205,127,50,0.06),transparent)":"#12121f",
+                border:i===0?"1px solid rgba(255,77,106,0.25)":i<3?"1px solid rgba(200,200,220,0.1)":"1px solid #1e1e38",
+                transition:"all 0.2s",
               }}>
-                <div style={{ width:32,textAlign:"center",fontSize:medal?20:16,color:"#6a6a8a",fontWeight:700 }}>{medal||(i+1)}</div>
-                <div style={{ flex:1 }}>
+                <div style={{ width:36,height:36,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",
+                  background:i===0?"rgba(255,77,106,0.15)":i===1?"rgba(200,200,220,0.1)":i===2?"rgba(205,127,50,0.1)":"#1a1a2e",
+                  fontSize:medal?18:14,fontWeight:800,color:i===0?"#ff4d6a":i===1?"#c0c0d0":i===2?"#cd7f32":"#6a6a8a",
+                  fontFamily:"'Anybody',sans-serif",
+                }}>{medal||(i+1)}</div>
+                <div style={{ flex:1,minWidth:0 }}>
                   <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:14 }}>{team.name}</div>
-                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>{team.owner}</div>
+                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>{team.owner}{wkPts !== 0 ? ` · ${wkPts>0?"+":""}${wkPts} this wk` : ""}</div>
                 </div>
-                {wkPts !== 0 && (
-                  <div style={{ textAlign:"right",marginRight:8 }}>
-                    <div style={{ color:wkPts>0?"#4ecdc4":"#e94560",fontSize:12,fontWeight:600 }}>{wkPts>0?"+":""}{wkPts} wk</div>
-                  </div>
-                )}
-                <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:22,fontWeight:900,color:"#e8e8f0",minWidth:50,textAlign:"right" }}>{team.total}</div>
+                <div style={{ textAlign:"right" }}>
+                  <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:24,fontWeight:900,color:team.total>0?"#e8e8f0":team.total<0?"#e94560":"#6a6a8a",letterSpacing:"-0.02em" }}>{team.total}</div>
+                  <div style={{ fontSize:10,color:"#4a4a6a" }}>pts</div>
+                </div>
               </div>
             );
           })}
@@ -430,7 +449,7 @@ function StandingsTab({ league, standings }) {
       )}
       {weeks.length > 0 && standings.length > 0 && (
         <div style={{ marginTop:24 }}>
-          <h4 style={{ fontFamily:"'Anybody',sans-serif",fontWeight:700,fontSize:14,color:"#8888aa",marginBottom:10 }}>Weekly Breakdown</h4>
+          <h4 style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:15,color:"#e8e8f0",marginBottom:12 }}>Weekly Breakdown</h4>
           <div style={{ overflowX:"auto" }}>
             <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
               <thead><tr>
@@ -558,7 +577,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
     return (
       <div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
-          <h3 style={{margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#e8e8f0"}}>Manage Tribes</h3>
+          <h3 style={{margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em"}}>Manage Tribes</h3>
           <Btn small variant="ghost" onClick={()=>{setTribeMode(false);setSelectedForMove(new Set())}}>← Back to Cast</Btn>
         </div>
         <div style={{padding:"12px 16px",borderRadius:10,marginBottom:16,background:isMerged?"#f5a62311":"#12121f",border:isMerged?"1px solid #f5a62333":"1px solid #1e1e38",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -583,7 +602,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                   style={{width:20,height:20,border:"none",borderRadius:4,cursor:"pointer",padding:0,background:"transparent"}} title="Change tribe color" />
                 <div style={{fontSize:13,fontWeight:700,color:tribeCol}}>{tribe}</div>
                 <span style={{fontSize:11,color:"#6a6a8a"}}>({members.length})</span>
-                <button onClick={()=>selectTribe(tribe)} style={{background:"none",border:"1px solid #2a2a4a",borderRadius:4,padding:"2px 8px",fontSize:10,color:"#8888aa",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Select All</button>
+                <button onClick={()=>selectTribe(tribe)} style={{background:"none",border:"1px solid #2a2a4a",borderRadius:4,padding:"2px 8px",fontSize:10,color:"#8888aa",cursor:"pointer",fontFamily:"'Outfit',sans-serif"}}>Select All</button>
               </div>
               <button onClick={()=>removeTribe(tribe)} style={{background:"none",border:"none",color:"#4a4a6a",cursor:"pointer",padding:2}}><Icon name="trash" size={12}/></button>
             </div>
@@ -592,7 +611,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                 <div key={c.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,background:sel?"#e9456018":"#12121f",border:sel?"1px solid #e9456033":"1px solid #1e1e38"}}>
                   <button onClick={()=>toggleSelect(c.id)} style={{width:22,height:22,borderRadius:4,border:sel?"none":"2px solid #3a3a5a",cursor:"pointer",background:sel?"#e94560":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{sel&&<Icon name="check" size={12}/>}</button>
                   <span style={{flex:1,color:"#e8e8f0",fontSize:13,fontWeight:500}}>{c.name}</span>
-                  <select value={c.tribe||""} onChange={e=>reassignSingle(c.id,e.target.value)} style={{padding:"3px 8px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:4,color:"#8888aa",fontSize:11,fontFamily:"'DM Sans',sans-serif"}}>
+                  <select value={c.tribe||""} onChange={e=>reassignSingle(c.id,e.target.value)} style={{padding:"3px 8px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:4,color:"#8888aa",fontSize:11,fontFamily:"'Outfit',sans-serif"}}>
                     {tribeNames.map(t=><option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
@@ -621,7 +640,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
   return (
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
-        <h3 style={{margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#e8e8f0"}}>Cast Scoring</h3>
+        <h3 style={{margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em"}}>Cast Scoring</h3>
         <div style={{display:"flex",gap:6}}>
           {!readOnly&&onUpdate&&<Btn small variant="ghost" onClick={()=>setTribeMode(true)}>Tribes</Btn>}
           {!readOnly&&<Btn small variant="ghost" onClick={()=>setBulkAddOpen(true)}>Bulk Add</Btn>}
@@ -633,10 +652,10 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
       </div>)}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:6}}>
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-          {["all","active","eliminated"].map(f=>(<button key={f} onClick={()=>setFilter(f)} style={{padding:"5px 12px",borderRadius:99,border:"none",cursor:"pointer",fontSize:12,fontWeight:600,textTransform:"capitalize",background:filter===f?"#e9456033":"#1e1e38",color:filter===f?"#e94560":"#8888aa",fontFamily:"'DM Sans',sans-serif"}}>{f}{f==="all"?` (${league.contestants?.length||0})`:""}</button>))}
+          {["all","active","eliminated"].map(f=>(<button key={f} onClick={()=>setFilter(f)} style={{padding:"6px 14px",borderRadius:99,border:filter===f?"1px solid #e9456044":"1px solid #1e1e38",cursor:"pointer",fontSize:12,fontWeight:600,textTransform:"capitalize",background:filter===f?"#e9456018":"transparent",color:filter===f?"#e94560":"#7a7a9a",fontFamily:"'Outfit',sans-serif",transition:"all .15s"}}>{f}{f==="all"?` (${league.contestants?.length||0})`:""}</button>))}
         </div>
         <div style={{display:"flex",gap:4}}>
-          {[{id:"total",label:"Season"},{id:"lastWeek",label:"Last Wk"},{id:"best",label:"Best"},{id:"worst",label:"Worst"},{id:"name",label:"A-Z"}].map(s=>(<button key={s.id} onClick={()=>setSortBy(s.id)} style={{padding:"4px 8px",borderRadius:4,border:"none",cursor:"pointer",fontSize:10,fontWeight:600,background:sortBy===s.id?"#2a2a5a":"transparent",color:sortBy===s.id?"#e8e8f0":"#6a6a8a",fontFamily:"'DM Sans',sans-serif"}}>{s.label}</button>))}
+          {[{id:"total",label:"Season"},{id:"lastWeek",label:"Last Wk"},{id:"best",label:"Best"},{id:"worst",label:"Worst"},{id:"name",label:"A-Z"}].map(s=>(<button key={s.id} onClick={()=>setSortBy(s.id)} style={{padding:"5px 10px",borderRadius:99,border:sortBy===s.id?"1px solid #e9456044":"1px solid transparent",cursor:"pointer",fontSize:11,fontWeight:600,background:sortBy===s.id?"#e9456018":"transparent",color:sortBy===s.id?"#e94560":"#6a6a8a",fontFamily:"'Outfit',sans-serif",transition:"all .15s"}}>{s.label}</button>))}
         </div>
       </div>
       {filtered.length===0?<EmptyState message="No contestants found."/>:(
@@ -650,10 +669,10 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
             else if(sortBy==="best"){bigVal=c.bestWeekPts;bigLabel=c.bestWeekNum?`wk ${c.bestWeekNum}`:null;subtitle=`Season: ${c.total}`;}
             else if(sortBy==="worst"){bigVal=c.worstWeekPts;bigLabel=c.worstWeekNum?`wk ${c.worstWeekNum}`:null;subtitle=`Season: ${c.total}`;}
             else{bigVal=c.total;bigLabel=null;subtitle=null;}
-            return(<div key={c.id} style={{borderRadius:10,background:"#12121f",border:"1px solid #1e1e38",opacity:c.status==="eliminated"?0.6:1,overflow:"hidden"}}>
-              <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",cursor:"pointer"}} onClick={()=>setExpandedId(isExp?null:c.id)}>
+            return(<div key={c.id} style={{borderRadius:12,background:"#12121f",border:"1px solid #1e1e38",opacity:c.status==="eliminated"?0.5:1,overflow:"hidden",transition:"all 0.2s"}}>
+              <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",cursor:"pointer"}} onClick={()=>setExpandedId(isExp?null:c.id)}>
                 <div style={{width:28,textAlign:"center",fontSize:13,fontWeight:700,color:"#6a6a8a"}}>{sortBy!=="name"?(rank+1):""}</div>
-                <div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,background:c.status==="eliminated"?"#2a2a4a":getTribeColor(league,c),display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:"#fff"}}>{c.name?.[0]?.toUpperCase()||"?"}</div>
+                <div style={{width:36,height:36,borderRadius:10,flexShrink:0,background:c.status==="eliminated"?"#2a2a4a":getTribeColor(league,c),display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:"#fff"}}>{c.name?.[0]?.toUpperCase()||"?"}</div>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{color:"#e8e8f0",fontWeight:600,fontSize:13,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
                     {c.name}
@@ -862,7 +881,7 @@ function BulkAddContestants({ league, onUpdate, onClose }) {
 
         <textarea value={rawText} onChange={e=>setRawText(e.target.value)} placeholder="Paste cast page text or name list here..." rows={8} style={{
           width:"100%",padding:"10px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:8,
-          color:"#e8e8f0",fontSize:13,fontFamily:"'DM Sans',sans-serif",resize:"vertical",marginBottom:10,
+          color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",resize:"vertical",marginBottom:10,
         }} />
 
         <Btn small onClick={parseText} disabled={!rawText.trim()} style={{ marginBottom:12 }}>Parse</Btn>
@@ -940,7 +959,7 @@ function TeamsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
   return (
     <div>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8 }}>
-        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#e8e8f0" }}>Teams</h3>
+        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Teams</h3>
         <div style={{ display:"flex",gap:6,alignItems:"center" }}>
           {!readOnly && <Btn small onClick={()=>{setEditing(null);setModal("add-team")}}><Icon name="plus" size={14}/> Add Team</Btn>}
         </div>
@@ -1128,7 +1147,6 @@ function TeamCardActions({ team, league, onUpdate, setEditing, setModal }) {
 function ScoringTab({ league, onUpdate }) {
   const [selectedWeek, setSelectedWeek] = useState(String(league.currentWeek||1));
   const [edits, setEdits] = useState({});
-  const [hasChanges, setHasChanges] = useState(false);
   const [selectedRule, setSelectedRule] = useState(null);
   const [view, setView] = useState("events"); // "events" | "assign" | "summary"
 
@@ -1137,6 +1155,19 @@ function ScoringTab({ league, onUpdate }) {
   const tribes = league.tribes || {};
   const tribeNames = Object.keys(tribes);
   const isMerged = league.merged || false;
+
+  // Compute hasChanges from whether edits actually differ from saved
+  const hasChanges = useMemo(() => {
+    if (Object.keys(edits).length === 0) return false;
+    for (const cid of Object.keys(edits)) {
+      const saved = weekScores[cid] || {};
+      const edited = edits[cid] || {};
+      for (const key of Object.keys(edited)) {
+        if ((edited[key] || 0) !== (saved[key] || 0)) return true;
+      }
+    }
+    return false;
+  }, [edits, weekScores]);
 
   // Merge saved + edits for a contestant
   function getMerged(cid) {
@@ -1151,7 +1182,6 @@ function ScoringTab({ league, onUpdate }) {
 
   function setScore(cid, ruleId, rulePoints, count) {
     setEdits(prev=>({ ...prev, [cid]: { ...(prev[cid]||weekScores[cid]||{}), [ruleId]: count * rulePoints } }));
-    setHasChanges(true);
   }
 
   function toggleContestant(cid, rule) {
@@ -1174,7 +1204,10 @@ function ScoringTab({ league, onUpdate }) {
     const merged = { ...(league.weeklyScores||{}), [selectedWeek]: { ...weekScores, ...edits } };
     onUpdate({ ...league, weeklyScores: merged });
     setEdits({});
-    setHasChanges(false);
+  }
+
+  function discardChanges() {
+    setEdits({});
   }
 
   function advanceWeek() {
@@ -1222,10 +1255,10 @@ function ScoringTab({ league, onUpdate }) {
     <div>
       {/* Header */}
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8 }}>
-        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#e8e8f0" }}>
+        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>
           {view === "events" ? "Score Episode" : view === "assign" ? "" : "Week Summary"}
         </h3>
-        <Select value={selectedWeek} onChange={e=>{setSelectedWeek(e.target.value);setEdits({});setHasChanges(false);setView("events");setSelectedRule(null)}}
+        <Select value={selectedWeek} onChange={e=>{setSelectedWeek(e.target.value);setEdits({});setView("events");setSelectedRule(null)}}
           options={Array.from({length:Math.max(league.currentWeek||1,1)+2},(_,i)=>({value:String(i+1),label:`Week ${i+1}`}))} />
       </div>
 
@@ -1235,7 +1268,7 @@ function ScoringTab({ league, onUpdate }) {
           <button key={t.id} onClick={()=>{setView(t.id);setSelectedRule(null)}} style={{
             padding:"6px 14px",borderRadius:99,border:"none",cursor:"pointer",fontSize:12,fontWeight:600,
             background:view===t.id||( view==="assign"&&t.id==="events")?"#e9456033":"#1e1e38",
-            color:view===t.id||(view==="assign"&&t.id==="events")?"#e94560":"#8888aa",fontFamily:"'DM Sans',sans-serif",
+            color:view===t.id||(view==="assign"&&t.id==="events")?"#e94560":"#8888aa",fontFamily:"'Outfit',sans-serif",
           }}>{t.label}</button>
         ))}
       </div>
@@ -1258,7 +1291,7 @@ function ScoringTab({ league, onUpdate }) {
                     <button key={r.id} onClick={()=>{setSelectedRule(r.id);setView("assign")}} style={{
                       display:"flex",alignItems:"center",justifyContent:"space-between",
                       padding:"14px 16px",background:"#12121f",border:"1px solid #1e1e38",borderRadius:10,
-                      cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.1s ease",
+                      cursor:"pointer",fontFamily:"'Outfit',sans-serif",transition:"all 0.1s ease",
                       textAlign:"left",
                     }} onMouseEnter={e=>{e.currentTarget.style.borderColor="#3a3a5a"}} onMouseLeave={e=>{e.currentTarget.style.borderColor="#1e1e38"}}>
                       <div>
@@ -1289,7 +1322,7 @@ function ScoringTab({ league, onUpdate }) {
         <div>
           <button onClick={()=>{setView("events");setSelectedRule(null)}} style={{
             background:"none",border:"none",color:"#8888aa",cursor:"pointer",padding:"4px 0",
-            fontSize:13,fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",gap:4,marginBottom:12,
+            fontSize:13,fontFamily:"'Outfit',sans-serif",display:"flex",alignItems:"center",gap:4,marginBottom:12,
           }}>
             <Icon name="back" size={16}/> Back to events
           </button>
@@ -1318,7 +1351,7 @@ function ScoringTab({ league, onUpdate }) {
                     <button key={tribe} onClick={()=>toggleTribe(tribe, rule)} style={{
                       padding:"7px 14px",borderRadius:8,border:allOn?`2px solid ${tribeColor}`:"2px solid transparent",cursor:"pointer",fontSize:12,fontWeight:700,
                       background:allOn?tribeColor+"33":"#1e1e38",color:allOn?tribeColor:"#ccc",
-                      fontFamily:"'DM Sans',sans-serif",transition:"all 0.1s ease",
+                      fontFamily:"'Outfit',sans-serif",transition:"all 0.1s ease",
                       display:"flex",alignItems:"center",gap:6,
                     }}>
                       <span style={{width:8,height:8,borderRadius:"50%",background:tribeColor,flexShrink:0}}></span>
@@ -1328,7 +1361,7 @@ function ScoringTab({ league, onUpdate }) {
                 })}
                 <button onClick={()=>selectAllActive(rule)} style={{
                   padding:"7px 14px",borderRadius:8,border:"1px solid #2a2a4a",cursor:"pointer",fontSize:12,fontWeight:600,
-                  background:"transparent",color:"#8888aa",fontFamily:"'DM Sans',sans-serif",
+                  background:"transparent",color:"#8888aa",fontFamily:"'Outfit',sans-serif",
                 }}>
                   {activeContestants.every(c => getCount(c.id, rule.id, rule.points) > 0) ? "Deselect All" : "Select All"}
                 </button>
@@ -1477,7 +1510,7 @@ function ScoringTab({ league, onUpdate }) {
       {hasChanges ? (
         <div style={{ position:"sticky",bottom:16,marginTop:20,padding:"14px 16px",background:"linear-gradient(135deg,#1a0a10,#12121f)",borderRadius:14,border:"1px solid #e94560",
           display:"flex",gap:10,justifyContent:"center",alignItems:"center",boxShadow:"0 -4px 24px rgba(233,69,96,0.2)" }}>
-          <div style={{ fontSize:12,color:"#e94560",fontWeight:600 }}>Unsaved changes</div>
+          <Btn small variant="ghost" onClick={discardChanges}>Discard</Btn>
           <Btn onClick={saveScores}><Icon name="save" size={14}/> Save Week {selectedWeek}</Btn>
         </div>
       ) : (
@@ -1566,7 +1599,7 @@ function WeeklyDraftTab({ league, onUpdate, standings }) {
   return (
     <div>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8 }}>
-        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#e8e8f0" }}>Weekly Draft</h3>
+        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Weekly Draft</h3>
         <Select value={draftWeek} onChange={e=>{setDraftWeek(e.target.value);setDraftStarted(false);setCurrentPick(0)}}
           options={Array.from({length:Math.max(league.currentWeek||1,1)+2},(_,i)=>({value:String(i+1),label:`Week ${i+1}`}))} />
       </div>
@@ -1618,7 +1651,7 @@ function WeeklyDraftTab({ league, onUpdate, standings }) {
             {filteredAvailable.map(c=>(
               <button key={c.id} onClick={()=>makePick(c.id)} style={{
                 display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:"#12121f",
-                border:"1px solid #1e1e38",borderRadius:8,cursor:"pointer",textAlign:"left",fontFamily:"'DM Sans',sans-serif",transition:"all 0.1s ease",
+                border:"1px solid #1e1e38",borderRadius:8,cursor:"pointer",textAlign:"left",fontFamily:"'Outfit',sans-serif",transition:"all 0.1s ease",
               }} onMouseEnter={e=>{e.currentTarget.style.borderColor="#4ecdc4"}} onMouseLeave={e=>{e.currentTarget.style.borderColor="#1e1e38"}}>
                 <div style={{ width:30,height:30,borderRadius:"50%",background:"linear-gradient(135deg,#e94560,#f5a623)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:"#fff" }}>{c.name?.[0]?.toUpperCase()}</div>
                 <div style={{ flex:1 }}>
@@ -1640,7 +1673,6 @@ function WeeklyDraftTab({ league, onUpdate, standings }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isCommissioner }) {
   const [selectedTeam, setSelectedTeam] = useState(lockedToTeamId || defaultTeamId || (league.teams||[])[0]?.id || "");
-  const [hasChanges, setHasChanges] = useState(false);
   const [localChart, setLocalChart] = useState({});
   const [editingName, setEditingName] = useState(false);
   const [teamName, setTeamName] = useState("");
@@ -1650,6 +1682,17 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
   const activeContestants = (league.contestants||[]).filter(c=>c.status!=="eliminated");
   const currentWeek = league.currentWeek || 1;
   const weeks = Object.keys(league.weeklyScores || {}).sort((a,b)=>+a - +b);
+
+  const savedChart = team?.depthChart || { captain: null, coCaptain: null, regulars: [] };
+  const hasChanges = useMemo(() => {
+    if (!team) return false;
+    if (localChart.captain !== savedChart.captain) return true;
+    if (localChart.coCaptain !== savedChart.coCaptain) return true;
+    const lr = localChart.regulars || [];
+    const sr = savedChart.regulars || [];
+    if (lr.length !== sr.length) return true;
+    return lr.some((id, i) => id !== sr[i]);
+  }, [localChart, savedChart, team]);
 
   // Contestant season rankings
   const contestantRankings = useMemo(() => {
@@ -1698,7 +1741,6 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
     if (team) {
       setLocalChart(team.depthChart || { captain: null, coCaptain: null, regulars: [] });
       setTeamName(team.name || "");
-      setHasChanges(false);
     }
   }, [selectedTeam, league]);
 
@@ -1757,7 +1799,6 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
       if (id) { nc.regulars[idx] = id; } else { nc.regulars.splice(idx, 1); }
     }
     setLocalChart(nc);
-    setHasChanges(true);
   }
 
   function saveDepthChart() {
@@ -1769,8 +1810,11 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
       weeklyDepthCharts: { ...(t.weeklyDepthCharts||{}), [weekNum]: { ...localChart } },
     });
     onUpdate({ ...league, teams: updatedTeams });
-    setHasChanges(false);
     setEditingName(false);
+  }
+
+  function discardRosterChanges() {
+    if (team) setLocalChart(team.depthChart || { captain: null, coCaptain: null, regulars: [] });
   }
 
   function saveNameOnly() {
@@ -1826,7 +1870,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
               width:"100%",padding:"8px 10px",background:c?"transparent":"#0d0d18",
               border:c?"1px solid transparent":"1px solid #2a2a4a",
               borderRadius:6,color:c?"#e8e8f0":"#6a6a8a",fontSize:13,fontWeight:c?600:400,
-              fontFamily:"'DM Sans',sans-serif",cursor:"pointer",
+              fontFamily:"'Outfit',sans-serif",cursor:"pointer",
               appearance:c?"none":"auto",WebkitAppearance:c?"none":"auto",
             }}>
               <option value="">{c ? "— Remove player —" : "— Select contestant —"}</option>
@@ -1911,7 +1955,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
     <div>
       {/* Header with editable team name */}
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8 }}>
-        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#e8e8f0" }}>
+        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>
           {lockedToTeamId ? "My Roster" : "Depth Chart"}
         </h3>
         <Badge color="#f5a623">Week {currentWeek}</Badge>
@@ -2014,7 +2058,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
       {hasChanges && (
         <div style={{ position:"sticky",bottom:16,marginTop:12,padding:"14px 16px",background:"linear-gradient(135deg,#0a1a18,#12121f)",borderRadius:14,border:"1px solid #4ecdc4",
           display:"flex",gap:10,justifyContent:"center",alignItems:"center",boxShadow:"0 -4px 24px rgba(78,205,196,0.15)" }}>
-          <div style={{ fontSize:12,color:"#4ecdc4",fontWeight:600 }}>Unsaved changes</div>
+          <Btn small variant="ghost" onClick={discardRosterChanges}>Discard</Btn>
           <Btn onClick={saveDepthChart}><Icon name="save" size={14}/> Save Roster</Btn>
         </div>
       )}
@@ -2039,7 +2083,7 @@ function EliminateRow({ contestant, league, onUpdate }) {
           <label style={{ color:"#8888aa",fontSize:12 }}>Week:</label>
           <input type="number" min="1" value={week} onChange={e=>setWeek(e.target.value)} style={{
             width:60,padding:"5px 8px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:4,
-            color:"#e8e8f0",fontSize:13,textAlign:"center",fontFamily:"'DM Sans',sans-serif",
+            color:"#e8e8f0",fontSize:13,textAlign:"center",fontFamily:"'Outfit',sans-serif",
           }} />
           <Btn small variant="danger" onClick={()=>{
             onUpdate({...league,contestants:league.contestants.map(x=>x.id===contestant.id?{...x,status:"eliminated",eliminatedWeek:Number(week)||league.currentWeek}:x)});
@@ -2494,7 +2538,7 @@ function SettingsTab({ league, onUpdate, onReset, allLeagues }) {
 
   return (
     <div>
-      <h3 style={{ margin:"0 0 16px",fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#e8e8f0" }}>League Settings</h3>
+      <h3 style={{ margin:"0 0 16px",fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>League Settings</h3>
 
       {/* League Info */}
       <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
@@ -2538,7 +2582,7 @@ function SettingsTab({ league, onUpdate, onReset, allLeagues }) {
         <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:8 }}>Which team is yours? This determines your default on the My Roster tab.</div>
         <select value={league.adminTeamId||""} onChange={e=>onUpdate({...league,adminTeamId:e.target.value||null})} style={{
           width:"100%",padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",
-          borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'DM Sans',sans-serif",
+          borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",
         }}>
           <option value="">— None —</option>
           {(league.teams||[]).map(t=><option key={t.id} value={t.id}>{t.name} ({t.owner})</option>)}
@@ -2591,7 +2635,7 @@ function SettingsTab({ league, onUpdate, onReset, allLeagues }) {
             {editRules ? (
               <div style={{ display:"flex",alignItems:"center",gap:6 }}>
                 <input type="number" value={r.points} onChange={e=>{ const u=[...rules]; u[i]={...u[i],points:Number(e.target.value)}; setRules(u); }}
-                  style={{ width:60,padding:"4px 8px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:4,color:"#e8e8f0",fontSize:13,textAlign:"center",fontFamily:"'DM Sans',sans-serif" }} />
+                  style={{ width:60,padding:"4px 8px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:4,color:"#e8e8f0",fontSize:13,textAlign:"center",fontFamily:"'Outfit',sans-serif" }} />
                 <button onClick={()=>setRules(rules.filter((_,j)=>j!==i))} style={{ background:"none",border:"none",color:"#e94560",cursor:"pointer",padding:2 }}><Icon name="trash" size={12}/></button>
               </div>
             ) : <Badge color={r.points>=0?"#4ecdc4":"#e94560"}>{r.points>0?"+":""}{r.points}</Badge>}
@@ -2600,9 +2644,9 @@ function SettingsTab({ league, onUpdate, onReset, allLeagues }) {
         {editRules && (
           <div style={{ display:"flex",gap:6,marginTop:10 }}>
             <input placeholder="Rule name" value={newRule.label} onChange={e=>setNewRule({...newRule,label:e.target.value})}
-              style={{ flex:1,padding:"7px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:12,fontFamily:"'DM Sans',sans-serif" }} />
+              style={{ flex:1,padding:"7px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif" }} />
             <input type="number" placeholder="Pts" value={newRule.points} onChange={e=>setNewRule({...newRule,points:e.target.value})}
-              style={{ width:60,padding:"7px 8px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:12,textAlign:"center",fontFamily:"'DM Sans',sans-serif" }} />
+              style={{ width:60,padding:"7px 8px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:12,textAlign:"center",fontFamily:"'Outfit',sans-serif" }} />
             <Btn small variant="secondary" onClick={addCustomRule}><Icon name="plus" size={12}/></Btn>
           </div>
         )}
@@ -2651,7 +2695,7 @@ function SettingsTab({ league, onUpdate, onReset, allLeagues }) {
             e.target.value = "";
           }} style={{
             width:"100%",padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",
-            borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'DM Sans',sans-serif",
+            borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",
           }}>
             <option value="">— Select new commissioner —</option>
             {(league.teams||[]).map(t => (
@@ -2912,7 +2956,7 @@ export default function FantasyRealityTV() {
   }
 
   return (
-    <div style={{ minHeight:"100vh",background:"#0d0d1a",fontFamily:"'DM Sans',sans-serif",maxWidth:720,margin:"0 auto",padding:"0" }}>
+    <div style={{ minHeight:"100vh",background:"#0d0d1a",fontFamily:"'Outfit',sans-serif",maxWidth:720,margin:"0 auto",padding:"0" }}>
       <style>{`
         body { margin:0; background:#0d0d1a; }
         input:focus,select:focus{border-color:#e94560!important;outline:none}
@@ -3066,7 +3110,7 @@ function AdminPanel({ leagues, onBack, onUpdate }) {
   const totalContestants = leagues.reduce((sum, l) => sum + (l.contestants||[]).length, 0);
   const activeLeagues = leagues.filter(l => Object.keys(l.weeklyScores||{}).length > 0).length;
 
-  const tabs = [{id:"stats",label:"Stats"},{id:"users",label:"Users"},{id:"leagues",label:"Leagues"},{id:"announce",label:"Announce"}];
+  const tabs = [{id:"stats",label:"Stats"},{id:"users",label:"Users"},{id:"leagues",label:"Leagues"},{id:"announce",label:"Announce"},{id:"manage",label:"Manage"}];
 
   return (
     <div style={{ padding:20 }}>
@@ -3197,6 +3241,81 @@ function AdminPanel({ leagues, onBack, onUpdate }) {
           )}
         </div>
       )}
+
+      {/* Manage Tab */}
+      {tab==="manage" && (
+        <div>
+          <div style={{ marginBottom:20 }}>
+            <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>Admin Emails</div>
+            <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:10,lineHeight:1.4 }}>
+              These emails have full admin access to the platform. The primary admin cannot be removed.
+            </div>
+            <div style={{ padding:"10px 14px",background:"#12121f",borderRadius:8,border:"1px solid #1e1e38",marginBottom:8 }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                <span style={{ fontSize:13,color:"#e8e8f0" }}>scottwpii@gmail.com</span>
+                <span style={{ fontSize:10,color:"#f5a623",fontWeight:700 }}>PRIMARY</span>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ marginBottom:20 }}>
+            <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>Quick Actions</div>
+            <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
+              <Btn small variant="ghost" onClick={()=>{
+                const data = JSON.stringify(leagues, null, 2);
+                const blob = new Blob([data], {type:"application/json"});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url; a.download = "all_leagues_backup_" + new Date().toISOString().slice(0,10) + ".json";
+                a.click(); URL.revokeObjectURL(url);
+              }}>Export All Leagues (Full Backup)</Btn>
+              <Btn small variant="ghost" onClick={async ()=>{
+                const input = document.createElement("input");
+                input.type = "file"; input.accept = ".json";
+                input.onchange = async (e) => {
+                  const file = e.target.files[0];
+                  if (!file) return;
+                  try {
+                    const text = await file.text();
+                    const imported = JSON.parse(text);
+                    if (Array.isArray(imported) && imported.length > 0 && imported[0].id) {
+                      if (confirm("Import " + imported.length + " leagues? This will ADD them to your existing leagues (not replace).")) {
+                        const merged = [...leagues];
+                        for (const l of imported) {
+                          if (!merged.find(m => m.id === l.id)) merged.push(l);
+                          else { const idx = merged.findIndex(m => m.id === l.id); merged[idx] = l; }
+                        }
+                        await onUpdate(merged);
+                        alert("Imported " + imported.length + " leagues.");
+                      }
+                    } else if (imported.id) {
+                      if (confirm("Import league: " + imported.name + "?")) {
+                        const merged = [...leagues];
+                        const idx = merged.findIndex(m => m.id === imported.id);
+                        if (idx >= 0) merged[idx] = imported; else merged.push(imported);
+                        await onUpdate(merged);
+                        alert("Imported: " + imported.name);
+                      }
+                    } else { alert("Invalid backup file."); }
+                  } catch (err) { alert("Failed to parse file: " + err.message); }
+                };
+                input.click();
+              }}>Import League from Backup</Btn>
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>Platform Info</div>
+            <div style={{ display:"flex",flexDirection:"column",gap:4,fontSize:12,color:"#6a6a8a" }}>
+              <div>Version: v1.3.2.0</div>
+              <div>Stack: Vite + React + Firebase</div>
+              <div>Hosting: Netlify (auto-deploy from GitHub)</div>
+              <div>Database: Firebase Realtime Database</div>
+              <div>Auth: Firebase Authentication (Email + Google)</div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3295,7 +3414,7 @@ function AuthScreen({ onJoinViaCode, onOpenFAQ }) {
   }
 
   const inputStyle = { width:"100%",padding:"12px 14px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:8,
-    color:"#e8e8f0",fontSize:14,fontFamily:"'DM Sans',sans-serif",marginBottom:12 };
+    color:"#e8e8f0",fontSize:14,fontFamily:"'Outfit',sans-serif",marginBottom:12 };
 
   return (
     <div>
@@ -3314,7 +3433,7 @@ function AuthScreen({ onJoinViaCode, onOpenFAQ }) {
             <button key={t.id} onClick={()=>{setMode(t.id);setError("");setMessage("")}} style={{
               flex:1,padding:"10px",borderRadius:8,border:"none",cursor:"pointer",fontSize:12,fontWeight:600,
               background:mode===t.id?"#e9456033":"#1e1e38",color:mode===t.id?"#e94560":"#8888aa",
-              fontFamily:"'DM Sans',sans-serif",transition:"all 0.15s ease",
+              fontFamily:"'Outfit',sans-serif",transition:"all 0.15s ease",
             }}>{t.label}</button>
           ))}
         </div>
@@ -3328,12 +3447,12 @@ function AuthScreen({ onJoinViaCode, onOpenFAQ }) {
             {error && <div style={{ color:"#e94560",fontSize:12,marginBottom:10 }}>{error}</div>}
             <button onClick={handleLogin} disabled={busy} style={{
               width:"100%",padding:"12px",borderRadius:8,border:"none",cursor:"pointer",fontSize:14,fontWeight:700,
-              background:"linear-gradient(135deg,#e94560,#c23152)",color:"#fff",fontFamily:"'DM Sans',sans-serif",
+              background:"linear-gradient(135deg,#e94560,#c23152)",color:"#fff",fontFamily:"'Outfit',sans-serif",
               opacity:busy?0.6:1,marginBottom:10,
             }}>{busy ? "..." : "Log In"}</button>
             <button onClick={handleGoogleLogin} disabled={busy} style={{
               width:"100%",padding:"12px",borderRadius:8,border:"1px solid #2a2a4a",cursor:"pointer",fontSize:14,fontWeight:600,
-              background:"#12121f",color:"#e8e8f0",fontFamily:"'DM Sans',sans-serif",
+              background:"#12121f",color:"#e8e8f0",fontFamily:"'Outfit',sans-serif",
               display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:12,
             }}>
               <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#4285F4" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#34A853" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#EA4335" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
@@ -3341,7 +3460,7 @@ function AuthScreen({ onJoinViaCode, onOpenFAQ }) {
             </button>
             <button onClick={()=>{setMode("forgot");setError("");setMessage("")}} style={{
               background:"none",border:"none",color:"#6a6a8a",cursor:"pointer",fontSize:12,
-              fontFamily:"'DM Sans',sans-serif",width:"100%",textAlign:"center",padding:4,
+              fontFamily:"'Outfit',sans-serif",width:"100%",textAlign:"center",padding:4,
             }}>Forgot password?</button>
           </div>
         )}
@@ -3356,12 +3475,12 @@ function AuthScreen({ onJoinViaCode, onOpenFAQ }) {
             {error && <div style={{ color:"#e94560",fontSize:12,marginBottom:10 }}>{error}</div>}
             <button onClick={handleSignup} disabled={busy} style={{
               width:"100%",padding:"12px",borderRadius:8,border:"none",cursor:"pointer",fontSize:14,fontWeight:700,
-              background:"linear-gradient(135deg,#e94560,#c23152)",color:"#fff",fontFamily:"'DM Sans',sans-serif",
+              background:"linear-gradient(135deg,#e94560,#c23152)",color:"#fff",fontFamily:"'Outfit',sans-serif",
               opacity:busy?0.6:1,marginBottom:10,
             }}>{busy ? "..." : "Create Account"}</button>
             <button onClick={handleGoogleLogin} disabled={busy} style={{
               width:"100%",padding:"12px",borderRadius:8,border:"1px solid #2a2a4a",cursor:"pointer",fontSize:14,fontWeight:600,
-              background:"#12121f",color:"#e8e8f0",fontFamily:"'DM Sans',sans-serif",
+              background:"#12121f",color:"#e8e8f0",fontFamily:"'Outfit',sans-serif",
               display:"flex",alignItems:"center",justifyContent:"center",gap:8,
             }}>
               <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#4285F4" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#34A853" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#EA4335" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
@@ -3386,7 +3505,7 @@ function AuthScreen({ onJoinViaCode, onOpenFAQ }) {
             {error && <div style={{ color:"#e94560",fontSize:12,marginBottom:10 }}>{error}</div>}
             <button onClick={handleSignupAndJoin} disabled={busy||inviteCode.length<6} style={{
               width:"100%",padding:"12px",borderRadius:8,border:"none",cursor:"pointer",fontSize:14,fontWeight:700,
-              background:"linear-gradient(135deg,#4ecdc4,#2a9d8f)",color:"#fff",fontFamily:"'DM Sans',sans-serif",
+              background:"linear-gradient(135deg,#4ecdc4,#2a9d8f)",color:"#fff",fontFamily:"'Outfit',sans-serif",
               opacity:(busy||inviteCode.length<6)?0.5:1,
             }}>{busy ? "..." : "Join League"}</button>
           </div>
@@ -3401,12 +3520,12 @@ function AuthScreen({ onJoinViaCode, onOpenFAQ }) {
             {message && <div style={{ color:"#4ecdc4",fontSize:12,marginBottom:10 }}>{message}</div>}
             <button onClick={handleForgot} disabled={busy} style={{
               width:"100%",padding:"12px",borderRadius:8,border:"none",cursor:"pointer",fontSize:14,fontWeight:700,
-              background:"linear-gradient(135deg,#e94560,#c23152)",color:"#fff",fontFamily:"'DM Sans',sans-serif",
+              background:"linear-gradient(135deg,#e94560,#c23152)",color:"#fff",fontFamily:"'Outfit',sans-serif",
               opacity:busy?0.6:1,marginBottom:10,
             }}>{busy ? "..." : "Send Reset Email"}</button>
             <button onClick={()=>{setMode("login");setError("");setMessage("")}} style={{
               background:"none",border:"none",color:"#6a6a8a",cursor:"pointer",fontSize:12,
-              fontFamily:"'DM Sans',sans-serif",width:"100%",textAlign:"center",padding:4,
+              fontFamily:"'Outfit',sans-serif",width:"100%",textAlign:"center",padding:4,
             }}>Back to login</button>
           </div>
         )}
@@ -3488,7 +3607,7 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
 
         {/* League list */}
         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
-          <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#e8e8f0" }}>My Leagues</h3>
+          <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>My Leagues</h3>
           {(isAdmin || (allLeaguesCount || 0) < 3) && <Btn small onClick={onCreateLeague}><Icon name="plus" size={12}/> New League</Btn>}
         </div>
 
@@ -3514,7 +3633,7 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
                   {(isAdmin || league.commissionerUid === user?.uid) && (
                     <div style={{ display:"flex",flexDirection:"column",gap:6,padding:"0 10px 0 0" }}>
                       <button onClick={()=>onDuplicateLeague(league.id)} title="Duplicate for new season" style={{
-                        background:"none",border:"none",color:"#4ecdc4",cursor:"pointer",padding:2,fontSize:11,fontFamily:"'DM Sans',sans-serif",
+                        background:"none",border:"none",color:"#4ecdc4",cursor:"pointer",padding:2,fontSize:11,fontFamily:"'Outfit',sans-serif",
                       }}>Copy</button>
                       <button onClick={()=>onDeleteLeague(league.id)} style={{
                         background:"none",border:"none",color:"#4a4a6a",cursor:"pointer",padding:2,
@@ -3526,7 +3645,7 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
             })}
           </div>
         ) : (
-          <EmptyState message={isAdmin ? "No leagues yet. Create one!" : "No leagues yet. Enter an invite code to join!"} />
+          <EmptyState message={isAdmin ? "No leagues yet. Create one!" : "No leagues yet. Enter an invite code above to join, or create your own!"} />
         )}
       </div>
     </div>
