@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
-import { loadData, saveData, deleteData, loadAllLeagues, saveAllLeagues, clearAllStorage, loadUserProfile, saveUserProfile, onAuthChange, signUp, signIn, signInWithGoogle, signOut, resetPassword, ADMIN_EMAIL } from "./firebase.js"
+import { loadData, saveData, deleteData, loadAllLeagues, saveAllLeagues, clearAllStorage, loadUserProfile, saveUserProfile, loadAllUserProfiles, onAuthChange, signUp, signIn, signInWithGoogle, signOut, resetPassword, ADMIN_EMAIL } from "./firebase.js"
 import * as XLSX from "xlsx"
 
 
@@ -357,7 +357,7 @@ function LeagueDashboard({ league, onUpdate, onBack, onReset, loggedInTeamId, is
       <div style={{ display:"flex",overflowX:"auto",borderBottom:"1px solid #1e1e38",padding:"0 8px",gap:2 }}>
         {tabs.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
-            background:"none",border:"none",cursor:"pointer",padding:"10px 10px",fontSize:11,fontWeight:600,
+            background:"none",border:"none",cursor:"pointer",padding:"12px 12px",fontSize:12,fontWeight:600,
             color:tab===t.id?"#e94560":"#6a6a8a",borderBottom:tab===t.id?"2px solid #e94560":"2px solid transparent",
             display:"flex",alignItems:"center",gap:4,whiteSpace:"nowrap",fontFamily:"'DM Sans',sans-serif",transition:"all 0.15s ease",
           }}>
@@ -589,7 +589,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:3}}>
               {members.map(c=>{const sel=selectedForMove.has(c.id);return(
-                <div key={c.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderRadius:8,background:sel?"#e9456018":"#12121f",border:sel?"1px solid #e9456033":"1px solid #1e1e38"}}>
+                <div key={c.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,background:sel?"#e9456018":"#12121f",border:sel?"1px solid #e9456033":"1px solid #1e1e38"}}>
                   <button onClick={()=>toggleSelect(c.id)} style={{width:22,height:22,borderRadius:4,border:sel?"none":"2px solid #3a3a5a",cursor:"pointer",background:sel?"#e94560":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{sel&&<Icon name="check" size={12}/>}</button>
                   <span style={{flex:1,color:"#e8e8f0",fontSize:13,fontWeight:500}}>{c.name}</span>
                   <select value={c.tribe||""} onChange={e=>reassignSingle(c.id,e.target.value)} style={{padding:"3px 8px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:4,color:"#8888aa",fontSize:11,fontFamily:"'DM Sans',sans-serif"}}>
@@ -605,7 +605,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
           <div style={{fontSize:13,fontWeight:700,color:"#f5a623",marginBottom:6}}>Unassigned ({unassigned.length})</div>
           <div style={{display:"flex",flexDirection:"column",gap:3}}>
             {unassigned.map(c=>{const sel=selectedForMove.has(c.id);return(
-              <div key={c.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderRadius:8,background:sel?"#e9456018":"#12121f",border:sel?"1px solid #e9456033":"1px solid #1e1e38"}}>
+              <div key={c.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,background:sel?"#e9456018":"#12121f",border:sel?"1px solid #e9456033":"1px solid #1e1e38"}}>
                 <button onClick={()=>toggleSelect(c.id)} style={{width:22,height:22,borderRadius:4,border:sel?"none":"2px solid #3a3a5a",cursor:"pointer",background:sel?"#e94560":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{sel&&<Icon name="check" size={12}/>}</button>
                 <span style={{flex:1,color:"#e8e8f0",fontSize:13}}>{c.name}</span>
               </div>
@@ -1257,7 +1257,7 @@ function ScoringTab({ league, onUpdate }) {
                   return (
                     <button key={r.id} onClick={()=>{setSelectedRule(r.id);setView("assign")}} style={{
                       display:"flex",alignItems:"center",justifyContent:"space-between",
-                      padding:"10px 14px",background:"#12121f",border:"1px solid #1e1e38",borderRadius:8,
+                      padding:"14px 16px",background:"#12121f",border:"1px solid #1e1e38",borderRadius:10,
                       cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.1s ease",
                       textAlign:"left",
                     }} onMouseEnter={e=>{e.currentTarget.style.borderColor="#3a3a5a"}} onMouseLeave={e=>{e.currentTarget.style.borderColor="#1e1e38"}}>
@@ -1349,13 +1349,13 @@ function ScoringTab({ league, onUpdate }) {
                     const isOn = count > 0;
                     return (
                       <div key={c.id} style={{
-                        display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderRadius:8,
+                        display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,
                         background:isOn?(rule.points>=0?"#4ecdc418":"#e9456018"):"#12121f",
                         border:isOn?(rule.points>=0?"1px solid #4ecdc433":"1px solid #e9456033"):"1px solid #1e1e38",
                         transition:"all 0.1s ease",
                       }}>
                         <button onClick={()=>toggleContestant(c.id, rule)} style={{
-                          width:24,height:24,borderRadius:6,border:isOn?"none":"2px solid #3a3a5a",cursor:"pointer",
+                          width:32,height:32,borderRadius:8,border:isOn?"none":"2px solid #3a3a5a",cursor:"pointer",
                           background:isOn?(rule.points>=0?"#4ecdc4":"#e94560"):"transparent",
                           display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,
                         }}>
@@ -1367,12 +1367,12 @@ function ScoringTab({ league, onUpdate }) {
                         {isOn && (
                           <div style={{ display:"flex",alignItems:"center",gap:4 }}>
                             <button onClick={()=>setScore(c.id,rule.id,rule.points,Math.max(0,count-1))} style={{
-                              width:26,height:26,borderRadius:6,border:"1px solid #2a2a4a",background:"#1e1e38",
+                              width:32,height:32,borderRadius:8,border:"1px solid #2a2a4a",background:"#1e1e38",
                               color:"#ccc",cursor:"pointer",fontSize:15,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",
                             }}>−</button>
                             <span style={{ color:"#e8e8f0",fontWeight:700,fontSize:14,minWidth:20,textAlign:"center" }}>{count}</span>
                             <button onClick={()=>setScore(c.id,rule.id,rule.points,count+1)} style={{
-                              width:26,height:26,borderRadius:6,border:"1px solid #2a2a4a",background:"#1e1e38",
+                              width:32,height:32,borderRadius:8,border:"1px solid #2a2a4a",background:"#1e1e38",
                               color:"#ccc",cursor:"pointer",fontSize:15,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",
                             }}>+</button>
                             <span style={{ color:rule.points>=0?"#4ecdc4":"#e94560",fontSize:12,fontWeight:600,minWidth:40,textAlign:"right" }}>
@@ -1394,12 +1394,12 @@ function ScoringTab({ league, onUpdate }) {
                 const isOn = count > 0;
                 return (
                   <div key={c.id} style={{
-                    display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderRadius:8,
+                    display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,
                     background:isOn?(rule.points>=0?"#4ecdc418":"#e9456018"):"#12121f",
                     border:isOn?(rule.points>=0?"1px solid #4ecdc433":"1px solid #e9456033"):"1px solid #1e1e38",
                   }}>
                     <button onClick={()=>toggleContestant(c.id, rule)} style={{
-                      width:24,height:24,borderRadius:6,border:isOn?"none":"2px solid #3a3a5a",cursor:"pointer",
+                      width:32,height:32,borderRadius:8,border:isOn?"none":"2px solid #3a3a5a",cursor:"pointer",
                       background:isOn?(rule.points>=0?"#4ecdc4":"#e94560"):"transparent",
                       display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,
                     }}>
@@ -1411,12 +1411,12 @@ function ScoringTab({ league, onUpdate }) {
                     {isOn && (
                       <div style={{ display:"flex",alignItems:"center",gap:4 }}>
                         <button onClick={()=>setScore(c.id,rule.id,rule.points,Math.max(0,count-1))} style={{
-                          width:26,height:26,borderRadius:6,border:"1px solid #2a2a4a",background:"#1e1e38",
+                          width:32,height:32,borderRadius:8,border:"1px solid #2a2a4a",background:"#1e1e38",
                           color:"#ccc",cursor:"pointer",fontSize:15,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",
                         }}>−</button>
                         <span style={{ color:"#e8e8f0",fontWeight:700,fontSize:14,minWidth:20,textAlign:"center" }}>{count}</span>
                         <button onClick={()=>setScore(c.id,rule.id,rule.points,count+1)} style={{
-                          width:26,height:26,borderRadius:6,border:"1px solid #2a2a4a",background:"#1e1e38",
+                          width:32,height:32,borderRadius:8,border:"1px solid #2a2a4a",background:"#1e1e38",
                           color:"#ccc",cursor:"pointer",fontSize:15,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",
                         }}>+</button>
                         <span style={{ color:rule.points>=0?"#4ecdc4":"#e94560",fontSize:12,fontWeight:600,minWidth:40,textAlign:"right" }}>
@@ -1474,10 +1474,17 @@ function ScoringTab({ league, onUpdate }) {
       )}
 
       {/* Save / Advance buttons */}
-      <div style={{ display:"flex",gap:8,marginTop:20,flexWrap:"wrap" }}>
-        {hasChanges && <Btn onClick={saveScores} style={{ flex:1,justifyContent:"center" }}><Icon name="save" size={14}/> Save Week {selectedWeek}</Btn>}
-        <Btn variant="secondary" onClick={advanceWeek} small>Advance to Week {(league.currentWeek||1)+1}</Btn>
-      </div>
+      {hasChanges ? (
+        <div style={{ position:"sticky",bottom:16,marginTop:20,padding:"14px 16px",background:"linear-gradient(135deg,#1a0a10,#12121f)",borderRadius:14,border:"1px solid #e94560",
+          display:"flex",gap:10,justifyContent:"center",alignItems:"center",boxShadow:"0 -4px 24px rgba(233,69,96,0.2)" }}>
+          <div style={{ fontSize:12,color:"#e94560",fontWeight:600 }}>Unsaved changes</div>
+          <Btn onClick={saveScores}><Icon name="save" size={14}/> Save Week {selectedWeek}</Btn>
+        </div>
+      ) : (
+        <div style={{ display:"flex",gap:8,marginTop:20 }}>
+          <Btn variant="secondary" onClick={advanceWeek} small>Advance to Week {(league.currentWeek||1)+1}</Btn>
+        </div>
+      )}
     </div>
   );
 }
@@ -2005,9 +2012,11 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
       </div>
 
       {hasChanges && (
-        <Btn onClick={saveDepthChart} style={{ width:"100%",justifyContent:"center",marginTop:12 }}>
-          <Icon name="save" size={14}/> Save Roster for Week {currentWeek}
-        </Btn>
+        <div style={{ position:"sticky",bottom:16,marginTop:12,padding:"14px 16px",background:"linear-gradient(135deg,#0a1a18,#12121f)",borderRadius:14,border:"1px solid #4ecdc4",
+          display:"flex",gap:10,justifyContent:"center",alignItems:"center",boxShadow:"0 -4px 24px rgba(78,205,196,0.15)" }}>
+          <div style={{ fontSize:12,color:"#4ecdc4",fontWeight:600 }}>Unsaved changes</div>
+          <Btn onClick={saveDepthChart}><Icon name="save" size={14}/> Save Roster</Btn>
+        </div>
       )}
     </div>
   );
@@ -2914,7 +2923,8 @@ export default function FantasyRealityTV() {
           body { padding: 20px; }
         }
       `}</style>
-      {view==="login" && <AuthScreen onJoinViaCode={handleJoinViaCode} />}
+      {view==="login" && <AuthScreen onJoinViaCode={handleJoinViaCode} onOpenFAQ={()=>setView("faq")} />}
+      {view==="faq" && <FAQPage onBack={()=>setView(authUser?"home":"login")} />}
       {view==="admin" && isAdmin && <AdminPanel leagues={leagues} onBack={()=>setView("home")} onUpdate={persist} />}
       {view==="home" && authUser && <AppHome
         user={authUser} profile={userProfile} leagues={visibleLeagues}
@@ -2923,6 +2933,7 @@ export default function FantasyRealityTV() {
         onLogout={handleLogout}
         onJoinViaCode={handleJoinViaCode}
         onOpenAdmin={()=>setView("admin")}
+        onOpenFAQ={()=>setView("faq")}
         announcement={announcement}
         allLeaguesCount={leagues.filter(l => l.commissionerUid === authUser?.uid).length} />}
       {view==="create" && <CreateLeagueScreen commissionerUid={authUser?.uid} onSave={async l=>{ await persist([...leagues,l]); setSelectedId(l.id);setView("league"); }} onCancel={()=>setView("home")} />}
@@ -2958,6 +2969,64 @@ export default function FantasyRealityTV() {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// FAQ PAGE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function FAQPage({ onBack }) {
+  const [openId, setOpenId] = useState(null);
+
+  const faqs = [
+    { id: "what", q: "What is Fantasy Reality TV?",
+      a: "It's like fantasy football, but for reality TV. You draft contestants from shows like Survivor, Top Chef, and Love Island, earn points based on what happens each episode, and compete against your friends all season long." },
+    { id: "free", q: "Is it free?",
+      a: "Yes, completely free to play. Create a league, invite friends, and start drafting." },
+    { id: "start", q: "How do I start a league?",
+      a: "Sign up, tap 'New League' on the home screen, pick your show, and name your league. Then generate invite codes for your friends from the Teams tab." },
+    { id: "join", q: "How do I join a friend's league?",
+      a: "Get an invite code from your league's commissioner. You can enter it when you sign up (on the 'Join League' tab) or after logging in on the home screen." },
+    { id: "formats", q: "What league formats are available?",
+      a: "Two formats right now: Captains format (one-time draft with Captain 2× and Co-Captain 1.5× multipliers, one swap per week) and Standard format (weekly snake redraft in inverse standings order). More formats coming soon." },
+    { id: "scoring", q: "How does scoring work?",
+      a: "Your league's commissioner scores each episode. They pick which events happened (challenge wins, eliminations, drama moments, etc.) and assign them to contestants. Points are customizable — your league decides what's worth what." },
+    { id: "commissioner", q: "What does a commissioner do?",
+      a: "The commissioner is the person who runs the league. They score episodes, manage settings, generate invite codes, lock rosters before episodes, and handle any league drama. Whoever creates the league is automatically the commissioner." },
+    { id: "roster", q: "How do I set my roster?",
+      a: "Go to your league and tap the 'My Roster' tab. Pick contestants for each slot using the dropdown. Your commissioner may lock rosters before episodes air, so set yours early." },
+    { id: "shows", q: "What shows can I play?",
+      a: "We have pre-built scoring templates for Survivor, Top Chef, Love Island, The Bachelor/ette, and Great British Bake Off. You can also create a custom league for any show with a cast and eliminations." },
+    { id: "multiple", q: "Can I be in multiple leagues?",
+      a: "Absolutely. You can be in as many leagues as you want, and you can create up to 3 leagues of your own." },
+    { id: "phone", q: "Is there a mobile app?",
+      a: "The site works as a Progressive Web App (PWA). On your phone, open the site in your browser, then use 'Add to Home Screen' to install it. It'll look and feel like a native app." },
+  ];
+
+  return (
+    <div style={{ padding:20 }}>
+      <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:24 }}>
+        <button onClick={onBack} style={{ background:"none",border:"none",color:"#8888aa",cursor:"pointer",padding:4 }}><Icon name="back" size={20}/></button>
+        <h2 style={{ margin:0,fontSize:20,fontFamily:"'Anybody',sans-serif",fontWeight:800,color:"#e8e8f0" }}>FAQ</h2>
+      </div>
+      <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
+        {faqs.map(f => (
+          <div key={f.id} style={{ background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",overflow:"hidden" }}>
+            <button onClick={()=>setOpenId(openId===f.id?null:f.id)} style={{
+              width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",
+              padding:"14px 16px",background:"none",border:"none",cursor:"pointer",textAlign:"left",
+              fontFamily:"'Outfit',sans-serif",
+            }}>
+              <span style={{ color:"#e8e8f0",fontSize:14,fontWeight:600,flex:1,paddingRight:12 }}>{f.q}</span>
+              <span style={{ color:"#6a6a8a",fontSize:16,transform:openId===f.id?"rotate(45deg)":"none",transition:"transform .2s" }}>+</span>
+            </button>
+            {openId===f.id && (
+              <div style={{ padding:"0 16px 14px",fontSize:13,color:"#8888aa",lineHeight:1.65 }}>{f.a}</div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ADMIN PANEL
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function AdminPanel({ leagues, onBack, onUpdate }) {
@@ -2969,7 +3038,6 @@ function AdminPanel({ leagues, onBack, onUpdate }) {
   useEffect(() => {
     (async () => {
       try {
-        const { loadAllUserProfiles, loadData } = await import("./firebase.js");
         const profiles = await loadAllUserProfiles();
         setUsers(profiles);
         const ann = await loadData("site_announcement", "");
@@ -3136,7 +3204,7 @@ function AdminPanel({ leagues, onBack, onUpdate }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // AUTH SCREEN (Login / Sign Up / Join via Code)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function AuthScreen({ onJoinViaCode }) {
+function AuthScreen({ onJoinViaCode, onOpenFAQ }) {
   const [mode, setMode] = useState("login"); // login | signup | invite | forgot
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -3342,6 +3410,11 @@ function AuthScreen({ onJoinViaCode }) {
             }}>Back to login</button>
           </div>
         )}
+
+        <div style={{ textAlign:"center",marginTop:20,paddingTop:16,borderTop:"1px solid #1e1e38" }}>
+          <button onClick={onOpenFAQ} style={{ background:"none",border:"none",color:"#6a6a8a",cursor:"pointer",
+            fontSize:12,fontFamily:"'Outfit',sans-serif" }}>How does this work? <span style={{color:"#e94560"}}>Read the FAQ</span></button>
+        </div>
       </div>
     </div>
   );
@@ -3350,7 +3423,7 @@ function AuthScreen({ onJoinViaCode }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // APP HOME
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeague, onDeleteLeague, onDuplicateLeague, onLogout, onJoinViaCode, onOpenAdmin, allLeaguesCount, announcement }) {
+function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeague, onDeleteLeague, onDuplicateLeague, onLogout, onJoinViaCode, onOpenAdmin, onOpenFAQ, allLeaguesCount, announcement }) {
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
 
@@ -3387,6 +3460,8 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
         <div style={{ display:"flex",gap:8,alignItems:"center" }}>
           {isAdmin && <button onClick={onOpenAdmin} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",
             color:"#f5a623",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif",fontWeight:600 }}>Admin</button>}
+          <button onClick={onOpenFAQ} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",
+            color:"#6a6a8a",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>FAQ</button>
           <button onClick={onLogout} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",
             color:"#6a6a8a",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>Log Out</button>
         </div>
