@@ -1083,12 +1083,29 @@ function TeamsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
 function TeamCardActions({ team, league, onUpdate, setEditing, setModal }) {
   const [copiedCode, setCopiedCode] = useState(null);
   const [showCode, setShowCode] = useState(false);
+  const [registeredUser, setRegisteredUser] = useState(null);
+  const [checkingReg, setCheckingReg] = useState(true);
 
-  const pins = league.pins || {};
   const inviteCodes = league.inviteCodes || {};
   const usedCodes = league.usedCodes || [];
-  const hasPin = !!pins[team.id];
   const code = inviteCodes[team.id];
+
+  // Check if any Firebase Auth user is activated for this team
+  useEffect(() => {
+    (async () => {
+      try {
+        const { loadAllUserProfiles } = await import("./firebase.js");
+        const profiles = await loadAllUserProfiles();
+        const found = Object.values(profiles || {}).find(p =>
+          p.activations && Object.entries(p.activations).some(([lid, tid]) => lid === league.id && tid === team.id)
+        );
+        setRegisteredUser(found || null);
+      } catch {}
+      setCheckingReg(false);
+    })();
+  }, [league.id, team.id]);
+
+  const hasRegistration = !!registeredUser;
 
   function generateCode() {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -1132,10 +1149,11 @@ function TeamCardActions({ team, league, onUpdate, setEditing, setModal }) {
       <div style={{ display:"flex",gap:6,alignItems:"center",flexWrap:"wrap" }}>
         <Btn small variant="ghost" onClick={()=>{setEditing(team);setModal("add-team")}}><Icon name="edit" size={12}/> Edit</Btn>
         <Btn small variant="danger" onClick={()=>{ if(confirm("Delete team?")) onUpdate({...league,teams:league.teams.filter(t=>t.id!==team.id)}); }}><Icon name="trash" size={12}/> Delete</Btn>
-        {hasPin ? (
+        {checkingReg ? (
+          <Badge color="#6a6a8a">Checking...</Badge>
+        ) : hasRegistration ? (
           <>
-            <Badge color="#4ecdc4">Registered ✓</Badge>
-            <Btn small variant="ghost" onClick={resetRegistration}>Reset</Btn>
+            <Badge color="#4ecdc4">Registered ✓{registeredUser?.displayName ? ` (${registeredUser.displayName})` : ""}</Badge>
           </>
         ) : (
           <Btn small variant="secondary" onClick={genOrRegenCode}>
@@ -1143,7 +1161,7 @@ function TeamCardActions({ team, league, onUpdate, setEditing, setModal }) {
           </Btn>
         )}
       </div>
-      {!hasPin && code && (
+      {!hasRegistration && code && (
         <div style={{ marginTop:8 }}>
           <div style={{ display:"flex",alignItems:"center",gap:6 }}>
             <div style={{ fontSize:11,color:"#6a6a8a" }}>Invite code for {team.owner}:</div>
@@ -1233,6 +1251,7 @@ function ScoringTab({ league, onUpdate }) {
 
   function advanceWeek() {
     const nextWeek = (league.currentWeek||1) + 1;
+    const currentWk = String(league.currentWeek||1);
     let updatedTeams = league.teams;
     if (league.format === "captains") {
       updatedTeams = league.teams.map(t => ({
@@ -1240,7 +1259,28 @@ function ScoringTab({ league, onUpdate }) {
         weeklyDepthCharts: { ...(t.weeklyDepthCharts||{}), [nextWeek]: { ...(t.depthChart||{}) } },
       }));
     }
-    onUpdate({ ...league, currentWeek: nextWeek, teams: updatedTeams });
+
+    // Auto-eliminate: check if any contestant was scored with an "eliminated" rule this week
+    const weekScoresNow = { ...weekScores, ...edits };
+    const eliminatedRule = (league.scoringRules||[]).find(r => r.id === "eliminated" || r.label?.toLowerCase().includes("eliminated"));
+    let updatedContestants = league.contestants || [];
+    if (eliminatedRule) {
+      const elimIds = [];
+      Object.entries(weekScoresNow).forEach(([cid, scores]) => {
+        if (scores[eliminatedRule.id] && scores[eliminatedRule.id] !== 0) {
+          elimIds.push(cid);
+        }
+      });
+      if (elimIds.length > 0) {
+        updatedContestants = updatedContestants.map(c =>
+          elimIds.includes(c.id) && c.status !== "eliminated"
+            ? { ...c, status: "eliminated", eliminatedWeek: Number(currentWk) }
+            : c
+        );
+      }
+    }
+
+    onUpdate({ ...league, currentWeek: nextWeek, teams: updatedTeams, contestants: updatedContestants });
   }
 
   // Group scoring rules by category
@@ -1392,7 +1432,7 @@ function ScoringTab({ league, onUpdate }) {
 
           {/* Contestant list grouped by tribe */}
           {tribeNames.length > 0 && !isMerged ? tribeNames.map(tribe => {
-            const members = activeContestants.filter(c => c.tribe === tribe);
+            const members = activeContestants.filter(c => c.tribe === tribe).sort((a,b) => a.name.localeCompare(b.name));
             if (members.length === 0) return null;
             return (
               <div key={tribe} style={{ marginBottom:12 }}>
@@ -1443,7 +1483,7 @@ function ScoringTab({ league, onUpdate }) {
           }) : (
             /* No tribes — flat list */
             <div style={{ display:"flex",flexDirection:"column",gap:3 }}>
-              {activeContestants.map(c => {
+              {[...activeContestants].sort((a,b) => a.name.localeCompare(b.name)).map(c => {
                 const count = getCount(c.id, rule.id, rule.points);
                 const isOn = count > 0;
                 return (
@@ -3724,7 +3764,7 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
                     <div style={{ fontSize:28 }}>{SHOW_PRESETS[league.showType]?.emoji || "📺"}</div>
                     <div style={{ flex:1 }}>
                       <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:15,fontFamily:"'Anybody',sans-serif" }}>{league.name}</div>
-                      <div style={{ color:"#6a6a8a",fontSize:12,marginTop:2 }}>{league.seasonName} · Wk {league.currentWeek||1}{league.commissionerUid === user?.uid && !isAdmin ? " · Commissioner" : ""}</div>
+                      <div style={{ color:"#6a6a8a",fontSize:12,marginTop:2 }}>{league.seasonName} · Wk {league.currentWeek||1} · {(league.teams||[]).length} team{(league.teams||[]).length!==1?"s":""}{league.commissionerUid === user?.uid && !isAdmin ? " · Commissioner" : ""}</div>
                       {myTeam && (()=>{
                         const standings = calcStandings(league);
                         const myRank = standings.findIndex(t=>t.id===myTeam.id) + 1;
