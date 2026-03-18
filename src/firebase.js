@@ -85,3 +85,6 @@ export async function loadUserProfile(uid) {
 export async function saveUserProfile(uid, profile) {
   try { await set(ref(db, "frtv_users/" + uid), profile) } catch (e) { console.error("Save profile error:", e) }
 }
+export async function loadAllUserProfiles() {
+  try { const snap = await get(ref(db, "frtv_users")); return snap.val() || {} } catch { return {} }
+}

@@ -2366,6 +2366,101 @@ function ImportXLSXSection({ league, onUpdate }) {
   );
 }
 
+function LinkedScoringSection({ league, allLeagues, onUpdate }) {
+  const [pendingLink, setPendingLink] = useState(null);
+  const [confirmText, setConfirmText] = useState("");
+
+  const hasScores = Object.keys(league.weeklyScores || {}).length > 0;
+
+  function handleLinkChange(targetId) {
+    if (!targetId) {
+      // Unlinking — just remove the link, don't touch data
+      onUpdate({...league, linkedLeagueId: null});
+      return;
+    }
+    const target = (allLeagues||[]).find(l=>l.id===targetId);
+    if (!target) return;
+
+    // If this league has its own scores, warn heavily
+    if (hasScores) {
+      setPendingLink(target);
+      setConfirmText("");
+    } else {
+      onUpdate({...league, linkedLeagueId: targetId});
+    }
+  }
+
+  function confirmLink() {
+    if (!pendingLink) return;
+    // Backup current scores before linking
+    const backup = { weeklyScores: league.weeklyScores, currentWeek: league.currentWeek, backedUpAt: Date.now() };
+    onUpdate({...league, linkedLeagueId: pendingLink.id, weeklyScores_backup: backup});
+    setPendingLink(null);
+    setConfirmText("");
+  }
+
+  return (
+    <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+      <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:4 }}>Linked Scoring</div>
+      <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:8,lineHeight:1.4 }}>
+        Link this league to another so scoring syncs automatically. Score once, both leagues update.
+      </div>
+
+      {!pendingLink ? (
+        <>
+          <select value={league.linkedLeagueId||""} onChange={e=>handleLinkChange(e.target.value)} style={{
+            width:"100%",padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",
+            borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",
+          }}>
+            <option value="">— No linked league —</option>
+            {(allLeagues||[]).filter(l=>l.id!==league.id).map(l=>(
+              <option key={l.id} value={l.id}>{l.name} ({l.seasonName})</option>
+            ))}
+          </select>
+          {league.linkedLeagueId && (()=>{
+            const linked = (allLeagues||[]).find(l=>l.id===league.linkedLeagueId);
+            return linked ? (
+              <div style={{ marginTop:8,padding:"8px 12px",background:"#4ecdc411",borderRadius:6,border:"1px solid #4ecdc433" }}>
+                <div style={{ fontSize:12,color:"#4ecdc4" }}>Linked to: {linked.name} ({linked.seasonName})</div>
+                <div style={{ fontSize:10,color:"#6a6a8a",marginTop:4 }}>Scoring, eliminations, and week advances sync both ways.</div>
+                <Btn small variant="ghost" style={{marginTop:6}} onClick={()=>onUpdate({...league, linkedLeagueId: null})}>Unlink</Btn>
+              </div>
+            ) : null;
+          })()}
+          {league.weeklyScores_backup && (
+            <div style={{ marginTop:8,padding:"8px 12px",background:"#f5a62311",borderRadius:6,border:"1px solid #f5a62333" }}>
+              <div style={{ fontSize:11,color:"#f5a623" }}>A scoring backup exists from before linking.</div>
+              <Btn small variant="ghost" style={{marginTop:4}} onClick={()=>{
+                if(confirm("Restore scoring data from before this league was linked? This will overwrite current scores.")) {
+                  const backup = league.weeklyScores_backup;
+                  onUpdate({...league, weeklyScores: backup.weeklyScores, currentWeek: backup.currentWeek, weeklyScores_backup: null, linkedLeagueId: null});
+                }
+              }}>Restore Backup</Btn>
+            </div>
+          )}
+        </>
+      ) : (
+        <div style={{ padding:"14px",background:"#e9456011",borderRadius:8,border:"1px solid #e9456033" }}>
+          <div style={{ fontSize:13,fontWeight:700,color:"#e94560",marginBottom:8 }}>⚠️ This league already has scoring data</div>
+          <div style={{ fontSize:12,color:"#e8e8f0",marginBottom:6,lineHeight:1.5 }}>
+            Linking to <strong>{pendingLink.name}</strong> will sync scoring data between both leagues. Your current scores will be backed up automatically, but the active data may be overwritten.
+          </div>
+          <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:10 }}>
+            Type <strong>{league.name}</strong> to confirm:
+          </div>
+          <input value={confirmText} onChange={e=>setConfirmText(e.target.value)} placeholder={league.name}
+            style={{ width:"100%",padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",
+              borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",marginBottom:10 }} />
+          <div style={{ display:"flex",gap:8 }}>
+            <Btn small variant="danger" disabled={confirmText !== league.name} onClick={confirmLink}>Confirm Link</Btn>
+            <Btn small variant="ghost" onClick={()=>{setPendingLink(null);setConfirmText("")}}>Cancel</Btn>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SettingsTab({ league, onUpdate, onReset, allLeagues }) {
   const [editRules, setEditRules] = useState(false);
   const [rules, setRules] = useState(league.scoringRules||[]);
@@ -2463,30 +2558,7 @@ function SettingsTab({ league, onUpdate, onReset, allLeagues }) {
       </div>
 
       {/* Linked Scoring */}
-      <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-        <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:4 }}>Linked Scoring</div>
-        <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:8,lineHeight:1.4 }}>
-          Link this league to another so scoring, eliminations, tribe changes, and week advances sync automatically. Score once, updates both.
-        </div>
-        <select value={league.linkedLeagueId||""} onChange={e=>onUpdate({...league,linkedLeagueId:e.target.value||null})} style={{
-          width:"100%",padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",
-          borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'DM Sans',sans-serif",
-        }}>
-          <option value="">— No linked league —</option>
-          {(allLeagues||[]).filter(l=>l.id!==league.id).map(l=>(
-            <option key={l.id} value={l.id}>{l.name} ({l.seasonName})</option>
-          ))}
-        </select>
-        {league.linkedLeagueId && (()=>{
-          const linked = (allLeagues||[]).find(l=>l.id===league.linkedLeagueId);
-          return linked ? (
-            <div style={{ marginTop:8,padding:"8px 12px",background:"#4ecdc411",borderRadius:6,border:"1px solid #4ecdc433" }}>
-              <div style={{ fontSize:12,color:"#4ecdc4" }}>Linked to: {linked.name} ({linked.seasonName})</div>
-              <div style={{ fontSize:10,color:"#6a6a8a",marginTop:2 }}>Scoring, eliminations, tribes, and week advances will sync both ways.</div>
-            </div>
-          ) : null;
-        })()}
-      </div>
+      <LinkedScoringSection league={league} allLeagues={allLeagues} onUpdate={onUpdate} />
 
       <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
         <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>
@@ -2582,10 +2654,20 @@ function SettingsTab({ league, onUpdate, onReset, allLeagues }) {
       )}
 
       <div style={{ padding:"16px",background:"#1a0a10",borderRadius:10,border:"1px solid #3a1525" }}>
-        <div style={{ fontSize:14,fontWeight:700,color:"#e94560",marginBottom:8 }}>Danger Zone</div>
-        <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
-          <Btn variant="danger" small onClick={()=>{if(confirm("Clear ALL scores? This cannot be undone.")) onUpdate({...league,weeklyScores:{},currentWeek:1})}}>Reset All Scores</Btn>
-          {onReset && <Btn variant="danger" small onClick={onReset}>Reset All Leagues to Imported Data</Btn>}
+        <div style={{ fontSize:14,fontWeight:700,color:"#e94560",marginBottom:4 }}>Danger Zone</div>
+        <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:12,lineHeight:1.4 }}>These actions cannot be undone.</div>
+        <div style={{ display:"flex",gap:8,flexWrap:"wrap",flexDirection:"column" }}>
+          <Btn variant="danger" small onClick={()=>{if(confirm("Clear ALL scores for this league? Teams keep their rosters but all scoring data will be erased. This cannot be undone.")) onUpdate({...league,weeklyScores:{},currentWeek:1})}}>Reset All Scores</Btn>
+          <Btn variant="danger" small onClick={()=>{
+            const data = JSON.stringify(league, null, 2);
+            const blob = new Blob([data], {type:"application/json"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = (league.name||"league").replace(/[^a-z0-9]/gi,"_") + "_backup.json";
+            a.click();
+            URL.revokeObjectURL(url);
+          }}>Export League Backup (JSON)</Btn>
         </div>
       </div>
     </div>
@@ -2675,6 +2757,7 @@ export default function FantasyRealityTV() {
   const [authUser, setAuthUser] = useState(null); // Firebase Auth user object
   const [userProfile, setUserProfile] = useState(null); // {displayName, activations: {leagueId: teamId}}
   const [authLoading, setAuthLoading] = useState(true);
+  const [announcement, setAnnouncement] = useState("");
 
   const isAdmin = authUser?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
@@ -2697,6 +2780,8 @@ export default function FantasyRealityTV() {
           await saveUserProfile(user.uid, profile);
         }
         setUserProfile(profile);
+        // Load site announcement
+        try { const ann = await loadData("site_announcement", ""); setAnnouncement(ann || ""); } catch {}
         setView("home");
       } else {
         setUserProfile(null);
@@ -2830,12 +2915,15 @@ export default function FantasyRealityTV() {
         }
       `}</style>
       {view==="login" && <AuthScreen onJoinViaCode={handleJoinViaCode} />}
+      {view==="admin" && isAdmin && <AdminPanel leagues={leagues} onBack={()=>setView("home")} onUpdate={persist} />}
       {view==="home" && authUser && <AppHome
         user={authUser} profile={userProfile} leagues={visibleLeagues}
         isAdmin={isAdmin} onSelectLeague={id=>{setSelectedId(id);setView("league")}}
         onCreateLeague={()=>setView("create")} onDeleteLeague={deleteLeague} onDuplicateLeague={duplicateLeague}
         onLogout={handleLogout}
         onJoinViaCode={handleJoinViaCode}
+        onOpenAdmin={()=>setView("admin")}
+        announcement={announcement}
         allLeaguesCount={leagues.filter(l => l.commissionerUid === authUser?.uid).length} />}
       {view==="create" && <CreateLeagueScreen commissionerUid={authUser?.uid} onSave={async l=>{ await persist([...leagues,l]); setSelectedId(l.id);setView("league"); }} onCancel={()=>setView("home")} />}
       {view==="league" && selected && authUser && <LeagueDashboard league={selected} allLeagues={leagues}
@@ -2865,6 +2953,182 @@ export default function FantasyRealityTV() {
         loggedInTeamId={(isAdmin || selected?.commissionerUid === authUser?.uid) ? (selected.adminTeamId || myTeamIn(selected.id)) : myTeamIn(selected.id)}
         isCommissioner={isAdmin || selected?.commissionerUid === authUser?.uid || (selected?.commissionerTeamId && userProfile?.activations?.[selected.id] === selected.commissionerTeamId)}
         skipLogin={true} />}
+    </div>
+  );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ADMIN PANEL
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function AdminPanel({ leagues, onBack, onUpdate }) {
+  const [tab, setTab] = useState("stats");
+  const [users, setUsers] = useState(null);
+  const [announcement, setAnnouncement] = useState("");
+  const [savedAnnouncement, setSavedAnnouncement] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { loadAllUserProfiles, loadData } = await import("./firebase.js");
+        const profiles = await loadAllUserProfiles();
+        setUsers(profiles);
+        const ann = await loadData("site_announcement", "");
+        setAnnouncement(ann || "");
+        setSavedAnnouncement(ann || "");
+      } catch {}
+    })();
+  }, []);
+
+  async function saveAnnouncement() {
+    const { saveData } = await import("./firebase.js");
+    await saveData("site_announcement", announcement);
+    setSavedAnnouncement(announcement);
+  }
+
+  async function clearAnnouncement() {
+    const { saveData } = await import("./firebase.js");
+    await saveData("site_announcement", "");
+    setAnnouncement("");
+    setSavedAnnouncement("");
+  }
+
+  const totalUsers = users ? Object.keys(users).length : "...";
+  const totalLeagues = leagues.length;
+  const totalTeams = leagues.reduce((sum, l) => sum + (l.teams||[]).length, 0);
+  const totalContestants = leagues.reduce((sum, l) => sum + (l.contestants||[]).length, 0);
+  const activeLeagues = leagues.filter(l => Object.keys(l.weeklyScores||{}).length > 0).length;
+
+  const tabs = [{id:"stats",label:"Stats"},{id:"users",label:"Users"},{id:"leagues",label:"Leagues"},{id:"announce",label:"Announce"}];
+
+  return (
+    <div style={{ padding:20 }}>
+      <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:20 }}>
+        <button onClick={onBack} style={{ background:"none",border:"none",color:"#8888aa",cursor:"pointer",padding:4 }}><Icon name="back" size={20}/></button>
+        <h2 style={{ margin:0,fontSize:20,fontFamily:"'Anybody',sans-serif",fontWeight:800,color:"#f5a623" }}>Admin Panel</h2>
+      </div>
+
+      <div style={{ display:"flex",gap:6,marginBottom:20,overflowX:"auto" }}>
+        {tabs.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{
+            padding:"8px 16px",borderRadius:8,border:"none",cursor:"pointer",fontSize:12,fontWeight:600,
+            background:tab===t.id?"#f5a62333":"#1e1e38",color:tab===t.id?"#f5a623":"#8888aa",
+            fontFamily:"'Outfit',sans-serif",whiteSpace:"nowrap",transition:"all .15s"
+          }}>{t.label}</button>
+        ))}
+      </div>
+
+      {/* Stats Tab */}
+      {tab==="stats" && (
+        <div>
+          <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12 }}>
+            {[
+              {label:"Total Users",value:totalUsers,color:"#4ecdc4"},
+              {label:"Total Leagues",value:totalLeagues,color:"#e94560"},
+              {label:"Active Leagues",value:activeLeagues,color:"#f5a623"},
+              {label:"Total Teams",value:totalTeams,color:"#9d5dff"},
+              {label:"Total Contestants",value:totalContestants,color:"#4d8aff"},
+            ].map(s=>(
+              <div key={s.label} style={{ padding:"20px 16px",background:"#12121f",borderRadius:12,border:"1px solid #1e1e38",textAlign:"center" }}>
+                <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:32,fontWeight:900,color:s.color }}>{s.value}</div>
+                <div style={{ fontSize:11,color:"#6a6a8a",marginTop:4,fontWeight:600 }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Users Tab */}
+      {tab==="users" && (
+        <div>
+          {!users ? <div style={{color:"#6a6a8a",fontSize:13}}>Loading users...</div> : (
+            <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
+              {Object.entries(users).map(([uid, profile]) => (
+                <div key={uid} style={{ padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                  <div>
+                    <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>{profile.displayName || "Unnamed"}</div>
+                    <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>
+                      {Object.keys(profile.activations||{}).length} league{Object.keys(profile.activations||{}).length!==1?"s":""}
+                      {profile.banned && <span style={{ color:"#e94560",marginLeft:8 }}>BANNED</span>}
+                    </div>
+                    <div style={{ fontSize:10,color:"#4a4a6a",marginTop:2,fontFamily:"monospace" }}>{uid.slice(0,12)}...</div>
+                  </div>
+                  <Btn small variant={profile.banned?"secondary":"danger"} onClick={async ()=>{
+                    const action = profile.banned ? "unban" : "ban";
+                    if(!confirm(action.charAt(0).toUpperCase()+action.slice(1)+" "+( profile.displayName||"this user")+"?")) return;
+                    const { saveUserProfile } = await import("./firebase.js");
+                    const updated = {...profile, banned: !profile.banned};
+                    await saveUserProfile(uid, updated);
+                    setUsers(prev => ({...prev, [uid]: updated}));
+                  }}>{profile.banned ? "Unban" : "Ban"}</Btn>
+                </div>
+              ))}
+              {Object.keys(users).length === 0 && <div style={{color:"#6a6a8a",fontSize:13}}>No users yet.</div>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Leagues Tab */}
+      {tab==="leagues" && (
+        <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
+          {leagues.map(league => (
+            <div key={league.id} style={{ padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
+                <div>
+                  <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>{league.name}</div>
+                  <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>
+                    {league.seasonName} · {league.format} · {(league.teams||[]).length} teams · {(league.contestants||[]).length} contestants · Wk {league.currentWeek||1}
+                  </div>
+                  <div style={{ fontSize:10,color:"#4a4a6a",marginTop:2 }}>
+                    {Object.keys(league.weeklyScores||{}).length} weeks scored
+                    {league.linkedLeagueId && <span style={{ color:"#4ecdc4",marginLeft:8 }}>Linked</span>}
+                    {league.commissionerUid && <span style={{ color:"#f5a623",marginLeft:8 }}>Has commissioner</span>}
+                  </div>
+                </div>
+                <div style={{ display:"flex",gap:6 }}>
+                  <Btn small variant="ghost" onClick={()=>{
+                    const data = JSON.stringify(league, null, 2);
+                    const blob = new Blob([data], {type:"application/json"});
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = (league.name||"league").replace(/[^a-z0-9]/gi,"_") + "_backup.json";
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}>Export</Btn>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Announcement Tab */}
+      {tab==="announce" && (
+        <div>
+          <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:10,lineHeight:1.4 }}>
+            Set a site-wide banner that all users see at the top of the home screen. Leave blank to hide.
+          </div>
+          <textarea value={announcement} onChange={e=>setAnnouncement(e.target.value)}
+            placeholder="e.g. Survivor scoring for Week 4 is live! Check your standings."
+            rows={3} style={{
+              width:"100%",padding:"10px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:8,
+              color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",resize:"vertical",marginBottom:10
+            }} />
+          <div style={{ display:"flex",gap:8 }}>
+            <Btn small onClick={saveAnnouncement} disabled={announcement===savedAnnouncement}>
+              {announcement===savedAnnouncement ? "Saved" : "Save Announcement"}
+            </Btn>
+            {savedAnnouncement && <Btn small variant="danger" onClick={clearAnnouncement}>Clear</Btn>}
+          </div>
+          {savedAnnouncement && (
+            <div style={{ marginTop:12,padding:"10px 14px",background:"#f5a62311",borderRadius:8,border:"1px solid #f5a62333" }}>
+              <div style={{ fontSize:11,fontWeight:600,color:"#f5a623" }}>Currently showing:</div>
+              <div style={{ fontSize:12,color:"#e8e8f0",marginTop:4 }}>{savedAnnouncement}</div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -3086,7 +3350,7 @@ function AuthScreen({ onJoinViaCode }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // APP HOME
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeague, onDeleteLeague, onDuplicateLeague, onLogout, onJoinViaCode, allLeaguesCount }) {
+function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeague, onDeleteLeague, onDuplicateLeague, onLogout, onJoinViaCode, onOpenAdmin, allLeaguesCount, announcement }) {
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
 
@@ -3120,10 +3384,19 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
             {displayName} {isAdmin && <span style={{ fontSize:12,color:"#f5a623" }}>★ Admin</span>}
           </div>
         </div>
-        <button onClick={onLogout} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",
-          color:"#6a6a8a",fontSize:11,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>Log Out</button>
+        <div style={{ display:"flex",gap:8,alignItems:"center" }}>
+          {isAdmin && <button onClick={onOpenAdmin} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",
+            color:"#f5a623",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif",fontWeight:600 }}>Admin</button>}
+          <button onClick={onLogout} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",
+            color:"#6a6a8a",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>Log Out</button>
+        </div>
       </div>
 
+      {announcement && (
+        <div style={{ margin:"0 20px 0",padding:"10px 14px",background:"#f5a62315",borderRadius:10,border:"1px solid #f5a62333" }}>
+          <div style={{ fontSize:13,color:"#f5a623",lineHeight:1.5 }}>{announcement}</div>
+        </div>
+      )}
       <div style={{ padding:"10px 20px 20px" }}>
         {/* Join a league */}
         <div style={{ marginBottom:20,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
