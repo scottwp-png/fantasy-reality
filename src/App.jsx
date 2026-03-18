@@ -27,18 +27,28 @@ const DEFAULT_SCORING_RULES = [
 ];
 
 const SHOW_PRESETS = {
-  survivor: { name: "Survivor", emoji: "🏝️", defaultFormat: "captains",
+  survivor: { name: "Survivor", emoji: "S", color: "#d4a24e", defaultFormat: "captains",
     scoringDefaults: ["win_challenge","win_immunity","win_reward","found_advantage","played_idol","blindside","survived_tribal","eliminated","fan_favorite","drama_villain"] },
-  top_chef: { name: "Top Chef", emoji: "👨‍🍳", defaultFormat: "captains",
+  top_chef: { name: "Top Chef", emoji: "TC", color: "#3dd6c8", defaultFormat: "captains",
     scoringDefaults: ["win_challenge","win_reward","top_dish","survived_tribal","eliminated","fan_favorite","quote_of_week","crying"] },
-  love_island: { name: "Love Island", emoji: "🏖️", defaultFormat: "standard",
+  love_island: { name: "Love Island", emoji: "LI", color: "#ff5da0", defaultFormat: "standard",
     scoringDefaults: ["survived_tribal","eliminated","fan_favorite","drama_villain","quote_of_week","crying"] },
-  the_bachelor: { name: "The Bachelor/ette", emoji: "🌹", defaultFormat: "standard",
+  the_bachelor: { name: "The Bachelor/ette", emoji: "B", color: "#e86b8a", defaultFormat: "standard",
     scoringDefaults: ["survived_tribal","eliminated","fan_favorite","drama_villain","quote_of_week","crying"] },
-  bake_off: { name: "Great British Bake Off", emoji: "🧁", defaultFormat: "standard",
+  bake_off: { name: "Great British Bake Off", emoji: "BO", color: "#ffd23d", defaultFormat: "standard",
     scoringDefaults: ["win_challenge","top_dish","survived_tribal","eliminated","fan_favorite","quote_of_week","crying"] },
-  custom: { name: "Custom Show", emoji: "📺", defaultFormat: "captains",
+  custom: { name: "Custom Show", emoji: "TV", color: "#9d5dff", defaultFormat: "captains",
     scoringDefaults: DEFAULT_SCORING_RULES.map(r => r.id) },
+  the_traitors: { name: "The Traitors", emoji: "T", color: "#e24b4a", defaultFormat: "captains",
+    scoringDefaults: ["survived_tribal","eliminated","fan_favorite","drama_villain","quote_of_week"] },
+  big_brother: { name: "Big Brother", emoji: "BB", color: "#4d8aff", defaultFormat: "captains",
+    scoringDefaults: ["win_challenge","survived_tribal","eliminated","fan_favorite","drama_villain","quote_of_week"] },
+  the_challenge: { name: "The Challenge", emoji: "CH", color: "#ff8a3d", defaultFormat: "captains",
+    scoringDefaults: ["win_challenge","win_immunity","survived_tribal","eliminated","fan_favorite","drama_villain"] },
+  drag_race: { name: "RuPaul's Drag Race", emoji: "DR", color: "#9d5dff", defaultFormat: "captains",
+    scoringDefaults: ["win_challenge","top_dish","survived_tribal","eliminated","fan_favorite","quote_of_week"] },
+  amazing_race: { name: "The Amazing Race", emoji: "AR", color: "#3ddc84", defaultFormat: "captains",
+    scoringDefaults: ["win_challenge","win_reward","survived_tribal","eliminated","fan_favorite"] },
 };
 
 const FORMAT_INFO = {
@@ -48,9 +58,9 @@ const FORMAT_INFO = {
     icon: "🔄",
   },
   captains: {
-    name: "Captains",
-    desc: "One-time draft to build a roster. Captain (2× pts), Co-Captain (1.5× pts), and regular slots. Weekly swap of 1 contestant + reorganize depth chart. Multiple managers can roster the same contestant.",
-    icon: "⭐",
+    name: "Heroes",
+    desc: "One-time draft to build a roster. Hero (2× pts), Side-Kick (1.5× pts), and Vigilante slots. Weekly swap of 1 contestant + reorganize depth chart. Multiple managers can roster the same contestant.",
+    icon: "🦸",
   },
 };
 
@@ -208,8 +218,8 @@ function EmptyState({ message }) {
 }
 
 function MultiplierBadge({ role }) {
-  if (role === "captain") return <span style={{ fontSize:10,fontWeight:800,color:"#f5a623",background:"#f5a62322",padding:"1px 6px",borderRadius:4,marginLeft:6 }}>C 2×</span>;
-  if (role === "coCaptain") return <span style={{ fontSize:10,fontWeight:800,color:"#4ecdc4",background:"#4ecdc422",padding:"1px 6px",borderRadius:4,marginLeft:6 }}>CC 1.5×</span>;
+  if (role === "captain") return <span style={{ fontSize:10,fontWeight:800,color:"#f5a623",background:"#f5a62322",padding:"1px 6px",borderRadius:4,marginLeft:6 }}>Hero 2×</span>;
+  if (role === "coCaptain") return <span style={{ fontSize:10,fontWeight:800,color:"#4ecdc4",background:"#4ecdc422",padding:"1px 6px",borderRadius:4,marginLeft:6 }}>SK 1.5×</span>;
   return null;
 }
 
@@ -264,9 +274,12 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid }) {
       <Input label="League Name" placeholder="e.g. Top Chef Fantasy 2026" value={name} onChange={e=>setName(e.target.value)} />
 
       <Select label="Show" value={showType} onChange={e=>setShowType(e.target.value)} options={[
-        { value:"survivor",label:"🏝️ Survivor" },{ value:"top_chef",label:"👨‍🍳 Top Chef" },
-        { value:"love_island",label:"🏖️ Love Island" },{ value:"the_bachelor",label:"🌹 The Bachelor/ette" },
-        { value:"bake_off",label:"🧁 Great British Bake Off" },{ value:"custom",label:"📺 Custom Show" },
+        { value:"survivor",label:"Survivor" },{ value:"top_chef",label:"Top Chef" },
+        { value:"love_island",label:"Love Island" },{ value:"the_bachelor",label:"The Bachelor/ette" },
+        { value:"bake_off",label:"Great British Bake Off" },
+        { value:"the_traitors",label:"The Traitors" },{ value:"big_brother",label:"Big Brother" },
+        { value:"the_challenge",label:"The Challenge" },{ value:"drag_race",label:"RuPaul's Drag Race" },
+        { value:"amazing_race",label:"The Amazing Race" },{ value:"custom",label:"Custom Show" },
       ]} />
       {showType === "custom" && <Input label="Show Name" placeholder="e.g. The Traitors" value={showName} onChange={e=>setShowName(e.target.value)} />}
       <Input label="Season Name" placeholder="e.g. Season 22" value={seasonName} onChange={e=>setSeasonName(e.target.value)} />
@@ -289,8 +302,8 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid }) {
 
       {format === "captains" && (
         <div style={{ padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",marginBottom:16 }}>
-          <div style={{ fontSize:12,fontWeight:600,color:"#f5a623",marginBottom:10 }}>⭐ CAPTAINS CONFIG</div>
-          <div style={{ color:"#8888aa",fontSize:12,marginBottom:8 }}>Captain (2×) and Co-Captain (1.5×) are always included.</div>
+          <div style={{ fontSize:12,fontWeight:600,color:"#f5a623",marginBottom:10 }}>HEROES CONFIG</div>
+          <div style={{ color:"#8888aa",fontSize:12,marginBottom:8 }}>Hero (2×) and Side-Kick (1.5×) are always included.</div>
           <Input label="Number of Regular Roster Spots" type="number" min="1" max="10" value={regularSlots} onChange={e=>setRegularSlots(e.target.value)} />
         </div>
       )}
@@ -344,7 +357,10 @@ function LeagueDashboard({ league, onUpdate, onBack, onReset, loggedInTeamId, is
           <button onClick={onBack} style={{ background:"#12121f",border:"1px solid #1e1e38",borderRadius:8,color:"#8888aa",cursor:"pointer",padding:6,display:"flex",alignItems:"center",justifyContent:"center" }}><Icon name="back" size={18}/></button>
           <div style={{ flex:1,minWidth:0 }}>
             <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-              <span style={{ fontSize:20 }}>{SHOW_PRESETS[league.showType]?.emoji||"📺"}</span>
+              <span style={{ fontFamily:"'Anybody',sans-serif",fontSize:13,fontWeight:900,
+                color:SHOW_PRESETS[league.showType]?.color||"#9d5dff",
+                background:(SHOW_PRESETS[league.showType]?.color||"#9d5dff")+"18",
+                padding:"3px 8px",borderRadius:6 }}>{SHOW_PRESETS[league.showType]?.emoji||"TV"}</span>
               <div style={{ color:"#e8e8f0",fontWeight:800,fontSize:17,fontFamily:"'Anybody',sans-serif",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{league.name}</div>
             </div>
             <div style={{ color:"#6a6a8a",fontSize:11,marginTop:3,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap" }}>
@@ -455,8 +471,8 @@ function StandingsTab({ league, standings }) {
                   <div style={{ padding:"0 16px 14px",borderTop:"1px solid #1e1e38" }}>
                     <div style={{ fontSize:10,color:"#6a6a8a",fontWeight:600,textTransform:"uppercase",marginTop:10,marginBottom:6 }}>Current Roster</div>
                     <div style={{ display:"flex",flexWrap:"wrap",gap:6 }}>
-                      {captain && <span style={{ padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,background:"#f5a62318",color:"#f5a623",border:"1px solid #f5a62333" }}>👑 {captain.name}</span>}
-                      {coCaptain && <span style={{ padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,background:"#4ecdc418",color:"#4ecdc4",border:"1px solid #4ecdc433" }}>⭐ {coCaptain.name}</span>}
+                      {captain && <span style={{ padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,background:"#f5a62318",color:"#f5a623",border:"1px solid #f5a62333" }}>H · {captain.name}</span>}
+                      {coCaptain && <span style={{ padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,background:"#4ecdc418",color:"#4ecdc4",border:"1px solid #4ecdc433" }}>SK · {coCaptain.name}</span>}
                       {regulars.map(c => <span key={c.id} style={{ padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:500,background:"#1e1e38",color:"#c8c8da" }}>{c.name}</span>)}
                       {!captain && !coCaptain && regulars.length===0 && <span style={{ fontSize:11,color:"#6a6a8a" }}>No roster set</span>}
                     </div>
@@ -1339,7 +1355,7 @@ function ScoringTab({ league, onUpdate }) {
         <div>
           {league.format==="captains" && (
             <div style={{ padding:"8px 12px",background:"#f5a62311",borderRadius:8,border:"1px solid #f5a62333",marginBottom:14,fontSize:11,color:"#f5a623" }}>
-              Enter base points here. Captain (2×) and Co-Captain (1.5×) multipliers apply automatically.
+              Enter base points here. Hero (2×) and Side-Kick (1.5×) multipliers apply automatically.
             </div>
           )}
           {Object.entries(rulesByCategory).map(([cat, rules]) => (
@@ -2109,10 +2125,10 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
           <div style={{ flex:1,fontSize:10,fontWeight:600,color:"#4a4a6a",paddingLeft:10 }}>Player</div>
           <div style={{ width:46,fontSize:10,fontWeight:600,color:"#4a4a6a",textAlign:"right" }}>Wk {currentWeek}</div>
         </div>
-        <RosterRow label="C" slot="captain" currentId={localChart.captain} multiplierLabel="2×" multiplierNum={2} color="#f5a623" />
-        <RosterRow label="CC" slot="coCaptain" currentId={localChart.coCaptain} multiplierLabel="1.5×" multiplierNum={1.5} color="#4ecdc4" />
+        <RosterRow label="H" slot="captain" currentId={localChart.captain} multiplierLabel="2×" multiplierNum={2} color="#f5a623" />
+        <RosterRow label="SK" slot="coCaptain" currentId={localChart.coCaptain} multiplierLabel="1.5×" multiplierNum={1.5} color="#4ecdc4" />
         {Array.from({length:regularSlots}).map((_,i) => (
-          <RosterRow key={i} label={`R${i+1}`} slot={`regular_${i}`} currentId={(localChart.regulars||[])[i]} multiplierLabel="1×" multiplierNum={1} color="#8888aa" />
+          <RosterRow key={i} label={`V${i+1}`} slot={`regular_${i}`} currentId={(localChart.regulars||[])[i]} multiplierLabel="1×" multiplierNum={1} color="#8888aa" />
         ))}
       </div>
 
@@ -3087,7 +3103,14 @@ export default function FantasyRealityTV() {
     return (
       <div style={{ minHeight:"100vh",background:"#0d0d1a",display:"flex",alignItems:"center",justifyContent:"center" }}>
         <div style={{ textAlign:"center" }}>
-          <div style={{ fontSize:40,marginBottom:12 }}>📺</div>
+          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style={{width:40,height:40}}>
+              <rect x="3" y="5" width="26" height="18" rx="3" stroke="#ff4d6a" strokeWidth="2.5" fill="none"/>
+              <line x1="11" y1="27" x2="21" y2="27" stroke="#7a7a9a" strokeWidth="2.5" strokeLinecap="round"/>
+              <line x1="16" y1="23" x2="16" y2="27" stroke="#7a7a9a" strokeWidth="2.5" strokeLinecap="round"/>
+              <path d="M13 10 L13 16 Q16 19 19 16 L19 10 Z" fill="#ffd23d" opacity="0.85"/>
+              <path d="M11 10.5 Q11 13 13 13" stroke="#ff8a3d" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+              <path d="M21 10.5 Q21 13 19 13" stroke="#ff8a3d" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+            </svg>
           <div style={{ color:"#e8e8f0",fontSize:16,fontWeight:700,fontFamily:"'Anybody',sans-serif" }}>Loading...</div>
         </div>
       </div>
@@ -3167,7 +3190,7 @@ function FAQPage({ onBack }) {
     { id: "join", q: "How do I join a friend's league?",
       a: "Get an invite code from your league's commissioner. You can enter it when you sign up (on the 'Join League' tab) or after logging in on the home screen." },
     { id: "formats", q: "What league formats are available?",
-      a: "Two formats right now: Captains format (one-time draft with Captain 2× and Co-Captain 1.5× multipliers, one swap per week) and Standard format (weekly snake redraft in inverse standings order). More formats coming soon." },
+      a: "Two formats right now: Heroes format (one-time draft with Hero 2× and Side-Kick 1.5× multipliers, one swap per week) and Standard format (weekly snake redraft in inverse standings order). More formats coming soon." },
     { id: "scoring", q: "How does scoring work?",
       a: "Your league's commissioner scores each episode. They pick which events happened (challenge wins, eliminations, drama moments, etc.) and assign them to contestants. Points are customizable — your league decides what's worth what." },
     { id: "commissioner", q: "What does a commissioner do?",
@@ -3558,7 +3581,14 @@ function AuthScreen({ onJoinViaCode, onOpenFAQ }) {
   return (
     <div>
       <div style={{ textAlign:"center",padding:"50px 20px 30px" }}>
-        <div style={{ fontSize:48,marginBottom:8 }}>📺</div>
+        <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style={{width:40,height:40}}>
+              <rect x="3" y="5" width="26" height="18" rx="3" stroke="#ff4d6a" strokeWidth="2.5" fill="none"/>
+              <line x1="11" y1="27" x2="21" y2="27" stroke="#7a7a9a" strokeWidth="2.5" strokeLinecap="round"/>
+              <line x1="16" y1="23" x2="16" y2="27" stroke="#7a7a9a" strokeWidth="2.5" strokeLinecap="round"/>
+              <path d="M13 10 L13 16 Q16 19 19 16 L19 10 Z" fill="#ffd23d" opacity="0.85"/>
+              <path d="M11 10.5 Q11 13 13 13" stroke="#ff8a3d" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+              <path d="M21 10.5 Q21 13 19 13" stroke="#ff8a3d" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+            </svg>
         <h1 style={{ fontFamily:"'Anybody',sans-serif",fontSize:32,fontWeight:900,
           background:"linear-gradient(135deg,#e94560,#f5a623,#e94560)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",margin:"0 0 6px" }}>
           Fantasy Reality
@@ -3761,7 +3791,12 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
                     flex:1,display:"flex",alignItems:"center",gap:14,padding:"16px 18px",
                     cursor:"pointer",textAlign:"left",background:"transparent",border:"none",transition:"all 0.15s ease",
                   }}>
-                    <div style={{ fontSize:28 }}>{SHOW_PRESETS[league.showType]?.emoji || "📺"}</div>
+                    <div style={{ width:40,height:40,borderRadius:10,background:(SHOW_PRESETS[league.showType]?.color||"#9d5dff")+"18",
+                      border:"1px solid "+(SHOW_PRESETS[league.showType]?.color||"#9d5dff")+"33",
+                      display:"flex",alignItems:"center",justifyContent:"center",
+                      fontFamily:"'Anybody',sans-serif",fontSize:14,fontWeight:900,
+                      color:SHOW_PRESETS[league.showType]?.color||"#9d5dff",flexShrink:0
+                    }}>{SHOW_PRESETS[league.showType]?.emoji||"TV"}</div>
                     <div style={{ flex:1 }}>
                       <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:15,fontFamily:"'Anybody',sans-serif" }}>{league.name}</div>
                       <div style={{ color:"#6a6a8a",fontSize:12,marginTop:2 }}>{league.seasonName} · Wk {league.currentWeek||1} · {(league.teams||[]).length} team{(league.teams||[]).length!==1?"s":""}{league.commissionerUid === user?.uid && !isAdmin ? " · Commissioner" : ""}</div>
