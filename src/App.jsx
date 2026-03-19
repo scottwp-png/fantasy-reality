@@ -563,12 +563,17 @@ function Badge({ children, color="#e94560" }) {
   return <span style={{ display:"inline-block",padding:"2px 8px",borderRadius:99,fontSize:11,fontWeight:700,background:color+"22",color,letterSpacing:"0.03em" }}>{children}</span>;
 }
 
-function EmptyState({ message }) {
+function EmptyState({ message, action, actionLabel }) {
   return (
-    <div style={{ textAlign:"center",padding:"30px 20px",background:"#12121f",borderRadius:10,border:"1px dashed #2a2a4a" }}>
-      <p style={{ color:"#6a6a8a",fontSize:13,margin:0 }}>{message}</p>
+    <div style={{ textAlign:"center",padding:"36px 24px",background:"#12121f",borderRadius:12,border:"1px dashed #2a2a4a" }}>
+      <p style={{ color:"#6a6a8a",fontSize:14,margin:0,lineHeight:1.6 }}>{message}</p>
+      {action && actionLabel && <Btn small variant="secondary" onClick={action} style={{marginTop:12}}>{actionLabel}</Btn>}
     </div>
   );
+}
+
+function Spinner({ size=20, color="#e94560" }) {
+  return <div style={{ width:size,height:size,border:`2px solid ${color}33`,borderTop:`2px solid ${color}`,borderRadius:"50%",animation:"spin 0.6s linear infinite" }}/>;
 }
 
 function MultiplierBadge({ role }) {
@@ -581,7 +586,7 @@ function MultiplierBadge({ role }) {
 // HOME SCREEN
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-function CreateLeagueScreen({ onSave, onCancel, commissionerUid }) {
+function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags }) {
   const [step, setStep] = useState(1);
 
   // Step 1: Basics
@@ -668,6 +673,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid }) {
       weeklyScores: {},
       currentWeek: 1,
       commissionerUid: commissionerUid || null,
+      leagueInviteCode: generateId().slice(0,8).toUpperCase(),
       createdAt: Date.now(),
     });
   }
@@ -720,7 +726,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid }) {
 
           <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:8,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>League Format</label>
           <div style={{ display:"flex",gap:8,marginBottom:8,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch" }}>
-            {["standard","captains","survivor_pool","elimination_pool","predictions","salary_cap"].map(f => (
+            {["standard","captains",...(featureFlags?.new_formats!==false?["survivor_pool","elimination_pool","predictions","salary_cap"]:[])].filter(Boolean).map(f => (
               <button key={f} onClick={() => setFormat(f)} style={{
                 padding:"8px 16px",borderRadius:99,cursor:"pointer",whiteSpace:"nowrap",
                 background: format===f ? "#e9456022" : "transparent",
@@ -758,7 +764,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid }) {
           {/* Settings toggles */}
           <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:8,marginTop:8,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>League Settings</label>
           <div style={{ display:"flex",flexDirection:"column",gap:8,marginBottom:16 }}>
-            {(format === "standard" || format === "captains") && (
+            {featureFlags?.h2h!==false && (format === "standard" || format === "captains") && (
               <label style={{ display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",cursor:"pointer" }}>
                 <input type="checkbox" checked={headToHead} onChange={e=>setHeadToHead(e.target.checked)} style={{ accentColor:"#e94560",width:18,height:18 }} />
                 <div>
@@ -767,7 +773,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid }) {
                 </div>
               </label>
             )}
-            {format === "captains" && (
+            {featureFlags?.best_ball!==false && format === "captains" && (
               <label style={{ display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",cursor:"pointer" }}>
                 <input type="checkbox" checked={bestBall} onChange={e=>setBestBall(e.target.checked)} style={{ accentColor:"#e94560",width:18,height:18 }} />
                 <div>
@@ -776,7 +782,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid }) {
                 </div>
               </label>
             )}
-            {(format === "standard" || format === "captains") && (
+            {featureFlags?.roto!==false && (format === "standard" || format === "captains") && (
               <label style={{ display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",cursor:"pointer" }}>
                 <input type="checkbox" checked={rotoScoring} onChange={e=>setRotoScoring(e.target.checked)} style={{ accentColor:"#e94560",width:18,height:18 }} />
                 <div>
@@ -1820,6 +1826,24 @@ function TeamCardActions({ team, league, onUpdate, setEditing, setModal }) {
         ) : hasRegistration ? (
           <>
             <Badge color="#4ecdc4">Registered ✓{registeredUser?.displayName ? ` (${registeredUser.displayName})` : ""}</Badge>
+            <Btn small variant="ghost" onClick={async ()=>{
+              if (!confirm(`Remove ${registeredUser?.displayName || "this user"} from ${team.name} and generate a new invite code? They'll lose access and you can send the code to someone else.`)) return;
+              // Unlink their activation
+              const { loadAllUserProfiles, saveUserProfile } = await import("./firebase.js");
+              const profiles = await loadAllUserProfiles();
+              const uid = Object.entries(profiles||{}).find(([,p]) =>
+                p.activations && Object.entries(p.activations).some(([lid, tid]) => lid === league.id && tid === team.id)
+              )?.[0];
+              if (uid) {
+                const profile = profiles[uid];
+                const newActivations = { ...(profile.activations||{}) };
+                delete newActivations[league.id];
+                await saveUserProfile(uid, { ...profile, activations: newActivations });
+              }
+              setRegisteredUser(null);
+              // Generate new invite code
+              genOrRegenCode();
+            }}>Reassign</Btn>
           </>
         ) : (
           <Btn small variant="secondary" onClick={genOrRegenCode}>
@@ -1842,7 +1866,13 @@ function TeamCardActions({ team, league, onUpdate, setEditing, setModal }) {
               {copiedCode ? "✓ Copied" : "Copy"}
             </Btn>
           </div>
-          <div style={{ fontSize:10,color:"#4a4a6a",marginTop:4 }}>Send this code to {team.owner}. They'll enter it on the login screen.</div>
+          <div style={{ display:"flex",alignItems:"center",gap:6,marginTop:6 }}>
+              <div style={{ flex:1,padding:"6px 10px",background:"#0d0d18",borderRadius:6,fontSize:11,
+                color:"#6a6a8a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
+                {"https://app.fantasyrealitytv.com?join=" + code}
+              </div>
+              <Btn small variant="ghost" onClick={()=>navigator.clipboard?.writeText("https://app.fantasyrealitytv.com?join=" + code)}>Copy Link</Btn>
+            </div>
         </div>
       )}
     </div>
@@ -3888,6 +3918,36 @@ function SettingsTab({ league, onUpdate, onReset, allLeagues }) {
         </div>
       </div>
 
+      {/* League Invite */}
+      <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+        <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:4 }}>League Invite</div>
+        <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:10,lineHeight:1.4 }}>
+          Share this code or link with anyone. They'll auto-join with a new team when they enter it.
+        </div>
+        {league.leagueInviteCode ? (
+          <div>
+            <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:8 }}>
+              <div style={{ flex:1,padding:"10px 14px",background:"#0d0d18",borderRadius:8,fontFamily:"monospace",fontSize:18,
+                color:"#4ecdc4",letterSpacing:"0.15em",textAlign:"center",fontWeight:700 }}>{league.leagueInviteCode}</div>
+              <Btn small variant="ghost" onClick={()=>{
+                navigator.clipboard?.writeText(league.leagueInviteCode);
+              }}>Copy</Btn>
+            </div>
+            <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+              <div style={{ flex:1,padding:"8px 12px",background:"#0d0d18",borderRadius:8,fontSize:12,
+                color:"#6a6a8a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
+                {"https://app.fantasyrealitytv.com?join=" + league.leagueInviteCode}
+              </div>
+              <Btn small variant="ghost" onClick={()=>{
+                navigator.clipboard?.writeText("https://app.fantasyrealitytv.com?join=" + league.leagueInviteCode);
+              }}>Copy Link</Btn>
+            </div>
+          </div>
+        ) : (
+          <Btn small onClick={()=>onUpdate({...league, leagueInviteCode: generateId().slice(0,8).toUpperCase()})}>Generate Invite Code</Btn>
+        )}
+      </div>
+
       {/* Linked Scoring */}
       <LinkedScoringSection league={league} allLeagues={allLeagues} onUpdate={onUpdate} />
 
@@ -4089,6 +4149,8 @@ export default function FantasyRealityTV() {
   const [userProfile, setUserProfile] = useState(null); // {displayName, activations: {leagueId: teamId}}
   const [authLoading, setAuthLoading] = useState(true);
   const [announcement, setAnnouncement] = useState("");
+  const [pendingJoinCode, setPendingJoinCode] = useState("");
+  const [featureFlags, setFeatureFlags] = useState({ new_formats: true, h2h: true, best_ball: true, roto: true });
 
   const isAdmin = authUser?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
@@ -4111,9 +4173,16 @@ export default function FantasyRealityTV() {
           await saveUserProfile(user.uid, profile);
         }
         setUserProfile(profile);
-        // Load site announcement
+        // Load site announcement and feature flags
         try { const ann = await loadData("site_announcement", ""); setAnnouncement(ann || ""); } catch {}
+        try { const flags = await loadData("feature_flags", null); if (flags) setFeatureFlags(flags); } catch {}
         setView("home");
+        // Auto-join if there's a pending code from URL
+        if (pendingJoinCode) {
+          const result = await handleJoinViaCode(pendingJoinCode);
+          setPendingJoinCode("");
+          if (!result) await refreshLeagues();
+        }
       } else {
         setUserProfile(null);
         setView("login");
@@ -4138,21 +4207,53 @@ export default function FantasyRealityTV() {
   async function handleJoinViaCode(inviteCode) {
     if (!authUser || !userProfile) return "Not logged in.";
     const freshLeagues = await refreshLeagues();
+    const code = inviteCode.trim().toUpperCase();
+
     for (const league of freshLeagues) {
-      const codes = league.inviteCodes || {};
-      const used = league.usedCodes || [];
-      const teamId = Object.entries(codes).find(([tid, c]) => c === inviteCode)?.[0];
-      if (teamId) {
-        if (used.includes(inviteCode)) return "This code has already been used.";
-        // Update user profile with activation
+      // Check league-level invite code (new system — auto-create team)
+      if (league.leagueInviteCode && league.leagueInviteCode === code) {
+        // Check if user is already in this league
+        if (userProfile.activations?.[league.id]) return "You're already in this league.";
+
+        // Auto-create a team for this user
+        const teamId = generateId();
+        const displayName = userProfile.displayName || authUser.email?.split("@")[0] || "Player";
+        const newTeam = {
+          id: teamId,
+          name: "Team " + displayName,
+          owner: displayName,
+          depthChart: { captain: null, coCaptain: null, regulars: [] },
+          weeklyRosters: {},
+          weeklyDepthCharts: {},
+        };
+
+        const updatedLeague = { ...league, teams: [...(league.teams||[]), newTeam] };
+        const updatedLeagues = freshLeagues.map(l => l.id === league.id ? updatedLeague : l);
+        await persist(updatedLeagues);
+
+        // Link user to the new team
         const updatedProfile = {
           ...userProfile,
           activations: { ...(userProfile.activations || {}), [league.id]: teamId }
         };
         await saveUserProfile(authUser.uid, updatedProfile);
         setUserProfile(updatedProfile);
-        // Mark code as used
-        const updatedLeague = { ...league, usedCodes: [...used, inviteCode] };
+        return null;
+      }
+
+      // Legacy: check per-team invite codes
+      const codes = league.inviteCodes || {};
+      const used = league.usedCodes || [];
+      const teamId = Object.entries(codes).find(([tid, c]) => c === code)?.[0];
+      if (teamId) {
+        if (used.includes(code)) return "This code has already been used.";
+        const updatedProfile = {
+          ...userProfile,
+          activations: { ...(userProfile.activations || {}), [league.id]: teamId }
+        };
+        await saveUserProfile(authUser.uid, updatedProfile);
+        setUserProfile(updatedProfile);
+        const updatedLeague = { ...league, usedCodes: [...used, code] };
         const updatedLeagues = freshLeagues.map(l => l.id === league.id ? updatedLeague : l);
         await persist(updatedLeagues);
         return null;
@@ -4248,6 +4349,9 @@ export default function FantasyRealityTV() {
         select{background-color:#0d0d18!important;color:#e8e8f0!important}
         option{background:#0d0d18!important;color:#e8e8f0!important}
         optgroup{background:#1a1a30!important;color:#8888aa!important;font-style:normal}
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .fade-in { animation: fadeIn 0.3s ease; }
         @media (min-width: 768px) {
           body { padding: 20px; }
           .app-root { max-width: 720px; margin: 0 auto; }
@@ -4258,7 +4362,7 @@ export default function FantasyRealityTV() {
       `}</style>
       {view==="login" && <AuthScreen onJoinViaCode={handleJoinViaCode} onOpenFAQ={()=>setView("faq")} />}
       {view==="faq" && <FAQPage onBack={()=>setView(authUser?"home":"login")} />}
-      {view==="admin" && isAdmin && <AdminPanel leagues={leagues} onBack={()=>setView("home")} onUpdate={persist} />}
+      {view==="admin" && isAdmin && <AdminPanel leagues={leagues} onBack={()=>setView("home")} onUpdate={persist} featureFlags={featureFlags} setFeatureFlags={setFeatureFlags} />}
       {view==="home" && authUser && <AppHome
         user={authUser} profile={userProfile} leagues={visibleLeagues}
         isAdmin={isAdmin} onSelectLeague={id=>{setSelectedId(id);setView("league")}}
@@ -4268,8 +4372,9 @@ export default function FantasyRealityTV() {
         onOpenAdmin={()=>setView("admin")}
         onOpenFAQ={()=>setView("faq")}
         announcement={announcement}
+        pendingJoinCode={pendingJoinCode}
         allLeaguesCount={leagues.filter(l => l.commissionerUid === authUser?.uid).length} />}
-      {view==="create" && <CreateLeagueScreen commissionerUid={authUser?.uid} onSave={async l=>{ await persist([...leagues,l]); setSelectedId(l.id);setView("league"); }} onCancel={()=>setView("home")} />}
+      {view==="create" && <CreateLeagueScreen commissionerUid={authUser?.uid} featureFlags={featureFlags} onSave={async l=>{ await persist([...leagues,l]); setSelectedId(l.id);setView("league"); }} onCancel={()=>setView("home")} />}
       {view==="league" && selected && authUser && <LeagueDashboard league={selected} allLeagues={leagues}
         onUpdate={u=>{
           let updated = leagues.map(l=>l.id===u.id?u:l);
@@ -4362,10 +4467,12 @@ function FAQPage({ onBack }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ADMIN PANEL
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function AdminPanel({ leagues, onBack, onUpdate }) {
+function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }) {
   const [tab, setTab] = useState("stats");
   const [users, setUsers] = useState(null);
   const [announcement, setAnnouncement] = useState("");
+  const [pendingJoinCode, setPendingJoinCode] = useState("");
+  const [featureFlags, setFeatureFlags] = useState({ new_formats: true, h2h: true, best_ball: true, roto: true });
   const [savedAnnouncement, setSavedAnnouncement] = useState("");
 
   useEffect(() => {
@@ -4640,13 +4747,18 @@ function AdminPanel({ leagues, onBack, onUpdate }) {
               Toggle experimental features on/off across the platform.
             </div>
             {[
-              { id: "new_formats", label: "New Formats (Survivor Pool, Elimination Pool, Predictions, Salary Cap)", default: true },
-              { id: "h2h", label: "Head-to-Head Matchups Setting", default: true },
-              { id: "best_ball", label: "Best Ball Setting", default: true },
-              { id: "roto", label: "Categories/Roto Scoring", default: true },
+              { id: "new_formats", label: "New Formats (Survivor Pool, Elimination Pool, Predictions, Salary Cap)" },
+              { id: "h2h", label: "Head-to-Head Matchups Setting" },
+              { id: "best_ball", label: "Best Ball Setting" },
+              { id: "roto", label: "Categories/Roto Scoring" },
             ].map(flag => (
               <label key={flag.id} style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"#12121f",borderRadius:8,border:"1px solid #1e1e38",marginBottom:6,cursor:"pointer" }}>
-                <input type="checkbox" defaultChecked={flag.default} style={{ accentColor:"#4ecdc4",width:16,height:16 }} />
+                <input type="checkbox" checked={featureFlags[flag.id]!==false} onChange={async e=>{
+                  const newFlags = {...featureFlags, [flag.id]: e.target.checked};
+                  setFeatureFlags(newFlags);
+                  const { saveData } = await import("./firebase.js");
+                  await saveData("feature_flags", newFlags);
+                }} style={{ accentColor:"#4ecdc4",width:16,height:16 }} />
                 <span style={{ fontSize:12,color:"#e8e8f0" }}>{flag.label}</span>
               </label>
             ))}
@@ -4676,7 +4788,7 @@ function AuthScreen({ onJoinViaCode, onOpenFAQ }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
+  const [inviteCode, setInviteCode] = useState(pendingJoinCode || "");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -4897,9 +5009,20 @@ function AuthScreen({ onJoinViaCode, onOpenFAQ }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // APP HOME
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeague, onDeleteLeague, onDuplicateLeague, onLogout, onJoinViaCode, onOpenAdmin, onOpenFAQ, allLeaguesCount, announcement }) {
-  const [inviteCode, setInviteCode] = useState("");
+function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeague, onDeleteLeague, onDuplicateLeague, onLogout, onJoinViaCode, onOpenAdmin, onOpenFAQ, allLeaguesCount, announcement, pendingJoinCode }) {
+  const [inviteCode, setInviteCode] = useState(pendingJoinCode || "");
   const [error, setError] = useState("");
+
+  // Check for ?join= URL parameter
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const joinCode = params.get("join");
+    if (joinCode) {
+      setPendingJoinCode(joinCode.toUpperCase());
+      // Clean URL without reload
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
 
   // Check for pending invite code (from join-league signup flow)
   useEffect(() => {
@@ -4952,7 +5075,7 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
           <div style={{ fontSize:12,fontWeight:600,color:"#8888aa",marginBottom:6 }}>Join a League</div>
           <div style={{ display:"flex",gap:6 }}>
             <input value={inviteCode} onChange={e=>setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,""))}
-              placeholder="Invite code" maxLength={6} onKeyDown={e=>{if(e.key==="Enter")handleJoin()}}
+              placeholder="Invite code" maxLength={8} onKeyDown={e=>{if(e.key==="Enter")handleJoin()}}
               style={{ flex:1,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
                 color:"#e8e8f0",fontSize:16,fontFamily:"monospace",letterSpacing:"0.15em",textAlign:"center" }} />
             <Btn small onClick={handleJoin} disabled={inviteCode.length<6}>Join</Btn>
