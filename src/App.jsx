@@ -4806,7 +4806,7 @@ function AuthScreen({ onJoinViaCode, onOpenFAQ }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [inviteCode, setInviteCode] = useState(pendingJoinCode || "");
+  const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
