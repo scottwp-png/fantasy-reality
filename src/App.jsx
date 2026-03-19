@@ -4380,7 +4380,7 @@ export default function FantasyRealityTV() {
         <button onClick={()=>{
           const subject = encodeURIComponent("FRTV Feedback");
           const body = encodeURIComponent("\n\n---\nApp: v1.9.0.0\nUser: " + (authUser?.email||"unknown") + "\nPage: " + view);
-          window.open("mailto:scottwpii@gmail.com?subject=" + subject + "&body=" + body);
+          window.open("mailto:admin@fantasyrealitytv.com?subject=" + subject + "&body=" + body);
         }} style={{
           position:"fixed",bottom:20,right:20,width:44,height:44,borderRadius:22,
           background:"linear-gradient(135deg,#e94560,#c23152)",border:"none",cursor:"pointer",
@@ -4707,7 +4707,7 @@ function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }
             </div>
             <div style={{ padding:"10px 14px",background:"#12121f",borderRadius:8,border:"1px solid #1e1e38",marginBottom:8 }}>
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
-                <span style={{ fontSize:13,color:"#e8e8f0" }}>scottwpii@gmail.com</span>
+                <span style={{ fontSize:13,color:"#e8e8f0" }}>admin@fantasyrealitytv.com</span>
                 <span style={{ fontSize:10,color:"#f5a623",fontWeight:700 }}>PRIMARY</span>
               </div>
             </div>
