@@ -1945,6 +1945,13 @@ function ScoringTab({ league, onUpdate }) {
     setEdits({});
   }
 
+  function reverseWeek() {
+    if ((league.currentWeek||1) <= 1) return;
+    if (!confirm("Go back to Week " + ((league.currentWeek||1)-1) + "? This won't delete any scoring data — it just moves the current week pointer back.")) return;
+    // Don't touch linked leagues — only adjust this league's week
+    onUpdate({ ...league, currentWeek: (league.currentWeek||1) - 1 });
+  }
+
   function advanceWeek() {
     const nextWeek = (league.currentWeek||1) + 1;
     const currentWk = String(league.currentWeek||1);
@@ -2271,8 +2278,9 @@ function ScoringTab({ league, onUpdate }) {
           <Btn onClick={saveScores}><Icon name="save" size={14}/> Save Week {selectedWeek}</Btn>
         </div>
       ) : (
-        <div style={{ display:"flex",gap:8,marginTop:20 }}>
-          <Btn variant="secondary" onClick={advanceWeek} small>Advance to Week {(league.currentWeek||1)+1}</Btn>
+        <div style={{ display:"flex",gap:8,marginTop:20,flexWrap:"wrap" }}>
+          {(league.currentWeek||1) > 1 && <Btn variant="ghost" onClick={reverseWeek} small>← Back to Week {(league.currentWeek||1)-1}</Btn>}
+          <Btn variant="secondary" onClick={advanceWeek} small>Advance to Week {(league.currentWeek||1)+1} →</Btn>
         </div>
       )}
     </div>
@@ -2433,14 +2441,19 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
   const [localChart, setLocalChart] = useState({});
   const [editingName, setEditingName] = useState(false);
   const [teamName, setTeamName] = useState("");
+  const [rosterWeek, setRosterWeek] = useState(String(league.currentWeek || 1));
+  const [editingWeek, setEditingWeek] = useState(null); // null = current week, number = past week
 
   const team = (league.teams||[]).find(t=>t.id===selectedTeam);
   const regularSlots = league.captainsConfig?.regularSlots || 3;
   const activeContestants = (league.contestants||[]).filter(c=>c.status!=="eliminated");
   const currentWeek = league.currentWeek || 1;
+  const effectiveWeek = editingWeek || currentWeek;
   const weeks = Object.keys(league.weeklyScores || {}).sort((a,b)=>+a - +b);
 
-  const savedChart = team?.depthChart || { captain: null, coCaptain: null, regulars: [] };
+  const savedChart = editingWeek
+    ? (team?.weeklyDepthCharts?.[String(editingWeek)] || team?.depthChart || { captain: null, coCaptain: null, regulars: [] })
+    : (team?.depthChart || { captain: null, coCaptain: null, regulars: [] });
   const hasChanges = useMemo(() => {
     if (!team) return false;
     if (localChart.captain !== savedChart.captain) return true;
@@ -2496,10 +2509,14 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
 
   useEffect(() => {
     if (team) {
-      setLocalChart(team.depthChart || { captain: null, coCaptain: null, regulars: [] });
+      if (editingWeek) {
+        setLocalChart(team.weeklyDepthCharts?.[String(editingWeek)] || team.depthChart || { captain: null, coCaptain: null, regulars: [] });
+      } else {
+        setLocalChart(team.depthChart || { captain: null, coCaptain: null, regulars: [] });
+      }
       setTeamName(team.name || "");
     }
-  }, [selectedTeam, league]);
+  }, [selectedTeam, league, editingWeek]);
 
   function isNewPlayer(cid) {
     if (!lastWeekChart || lastWeekRosterIds.size === 0) return false;
@@ -2559,11 +2576,12 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
   }
 
   function saveDepthChart() {
-    const weekNum = String(currentWeek);
+    const weekNum = String(effectiveWeek);
     const updatedTeams = league.teams.map(t => t.id !== selectedTeam ? t : {
       ...t,
       name: teamName.trim() || t.name,
-      depthChart: { ...localChart },
+      // Only update current depthChart if editing current week
+      depthChart: editingWeek ? t.depthChart : { ...localChart },
       weeklyDepthCharts: { ...(t.weeklyDepthCharts||{}), [weekNum]: { ...localChart } },
     });
     onUpdate({ ...league, teams: updatedTeams });
@@ -2571,7 +2589,13 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
   }
 
   function discardRosterChanges() {
-    if (team) setLocalChart(team.depthChart || { captain: null, coCaptain: null, regulars: [] });
+    if (team) {
+      if (editingWeek) {
+        setLocalChart(team.weeklyDepthCharts?.[String(editingWeek)] || team.depthChart || { captain: null, coCaptain: null, regulars: [] });
+      } else {
+        setLocalChart(team.depthChart || { captain: null, coCaptain: null, regulars: [] });
+      }
+    }
   }
 
   function saveNameOnly() {
@@ -2599,7 +2623,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
     const c = isInDropdown ? (league.contestants||[]).find(x=>x.id===currentId) : null;
     const isSwapped = isNewPlayer(currentId);
     const tribeColor = c ? getTribeColor(league, c) : "#2a2a4a";
-    const weekBasePts = c ? calcContestantWeekPoints(league.weeklyScores?.[String(currentWeek)]||{}, c.id) : 0;
+    const weekBasePts = c ? calcContestantWeekPoints(league.weeklyScores?.[String(effectiveWeek)]||{}, c.id) : 0;
     const weekMultPts = Math.round(weekBasePts * multiplierNum * 10) / 10;
 
     // Mark players already on roster in dropdown
@@ -2715,8 +2739,53 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
         <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>
           {lockedToTeamId ? "My Roster" : "Depth Chart"}
         </h3>
-        <Badge color="#f5a623">Week {currentWeek}</Badge>
+        <Badge color="#f5a623">Week {effectiveWeek}</Badge>
       </div>
+
+      {/* Week selector for commissioners to edit past weeks */}
+      {isCommissioner && (
+        <div style={{ display:"flex",gap:6,marginBottom:14,overflowX:"auto",paddingBottom:4 }}>
+          <button onClick={()=>setEditingWeek(null)} style={{
+            padding:"6px 12px",borderRadius:99,fontSize:11,fontWeight:!editingWeek?700:500,cursor:"pointer",
+            background:!editingWeek?"#f5a62322":"transparent",border:!editingWeek?"1px solid #f5a62366":"1px solid #2a2a4a",
+            color:!editingWeek?"#f5a623":"#6a6a8a",fontFamily:"'Outfit',sans-serif",flexShrink:0,
+          }}>Current (Wk {currentWeek})</button>
+          {Array.from({length:currentWeek-1},(_,i)=>i+1).reverse().map(wk => (
+            <button key={wk} onClick={()=>setEditingWeek(wk)} style={{
+              padding:"6px 12px",borderRadius:99,fontSize:11,fontWeight:editingWeek===wk?700:500,cursor:"pointer",
+              background:editingWeek===wk?"#e9456022":"transparent",border:editingWeek===wk?"1px solid #e9456066":"1px solid #2a2a4a",
+              color:editingWeek===wk?"#e94560":"#6a6a8a",fontFamily:"'Outfit',sans-serif",flexShrink:0,
+            }}>Wk {wk}</button>
+          ))}
+        </div>
+      )}
+      {editingWeek && (
+        <div style={{ padding:"10px 14px",background:"#e9456011",borderRadius:8,border:"1px solid #e9456033",marginBottom:14 }}>
+          <div style={{ fontSize:12,color:"#e94560",lineHeight:1.5,fontWeight:600 }}>Editing Week {editingWeek} roster for {team?.name || "this team"}. Changes will only affect this week's scoring.</div>
+        </div>
+      )}
+
+      {/* Commissioner: edit roster for a specific week */}
+      {isCommissioner && !lockedToTeamId && (
+        <div style={{ display:"flex",gap:8,alignItems:"center",marginBottom:14,flexWrap:"wrap" }}>
+          <Select label="" value={rosterWeek} onChange={e=>setRosterWeek(e.target.value)}
+            options={Array.from({length:Math.max(currentWeek,1)+1},(_,i)=>({value:String(i+1),label:"Week "+(i+1)+" roster"}))} />
+          <Btn small variant="ghost" onClick={()=>{
+            if (!team) return;
+            const weekChart = team.weeklyDepthCharts?.[rosterWeek];
+            if (weekChart) setLocalChart({...weekChart});
+          }}>Load Week {rosterWeek}</Btn>
+          <Btn small variant="secondary" onClick={()=>{
+            if (!team || !confirm("Save this roster as Week " + rosterWeek + " for " + team.name + "?")) return;
+            const updatedTeams = league.teams.map(t => t.id !== selectedTeam ? t : {
+              ...t,
+              weeklyDepthCharts: { ...(t.weeklyDepthCharts||{}), [rosterWeek]: { ...localChart } },
+              ...(rosterWeek === String(currentWeek) ? { depthChart: { ...localChart } } : {}),
+            });
+            onUpdate({ ...league, teams: updatedTeams });
+          }}>Save to Week {rosterWeek}</Btn>
+        </div>
+      )}
 
       {/* Best Ball banner */}
       {league.bestBall && (
@@ -2810,7 +2879,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
         <div style={{ display:"flex",alignItems:"center",padding:"10px 12px",background:"#0d0d18",borderBottom:"1px solid #1e1e38" }}>
           <div style={{ width:38,fontSize:10,fontWeight:600,color:"#4a4a6a",textAlign:"center",flexShrink:0 }}>Slot</div>
           <div style={{ flex:1,fontSize:10,fontWeight:600,color:"#4a4a6a",paddingLeft:10 }}>Player</div>
-          <div style={{ width:46,fontSize:10,fontWeight:600,color:"#4a4a6a",textAlign:"right" }}>Wk {currentWeek}</div>
+          <div style={{ width:46,fontSize:10,fontWeight:600,color:"#4a4a6a",textAlign:"right" }}>Wk {effectiveWeek}</div>
         </div>
         <RosterRow label="H" slot="captain" currentId={localChart.captain} multiplierLabel="2×" multiplierNum={2} color="#f5a623" />
         <RosterRow label="SK" slot="coCaptain" currentId={localChart.coCaptain} multiplierLabel="1.5×" multiplierNum={1.5} color="#4ecdc4" />
