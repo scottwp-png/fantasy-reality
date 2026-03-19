@@ -4491,8 +4491,6 @@ function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }
   const [tab, setTab] = useState("stats");
   const [users, setUsers] = useState(null);
   const [announcement, setAnnouncement] = useState("");
-  const [pendingJoinCode, setPendingJoinCode] = useState("");
-  const [featureFlags, setFeatureFlags] = useState({ new_formats: true, h2h: true, best_ball: true, roto: true });
   const [savedAnnouncement, setSavedAnnouncement] = useState("");
 
   useEffect(() => {
