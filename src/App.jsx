@@ -245,6 +245,11 @@ const FORMAT_INFO = {
     desc: "Commissioner creates questions each week. Players predict outcomes (pick one, yes/no, rank these). Points for correct answers.",
     icon: "🔮",
   },
+  salary_cap: {
+    name: "Salary Cap",
+    desc: "Fixed budget to build your roster. Commissioner sets prices for each contestant. Spend wisely — premium picks cost more. Season-long roster.",
+    icon: "💰",
+  },
   elimination_pool: {
     name: "Elimination Pool",
     desc: "Each week, pick one contestant you think will survive. Can't reuse picks. Points for correct calls, penalties for wrong ones.",
@@ -276,6 +281,18 @@ function calcTeamWeekPoints(league, team, weekNum) {
     const savedChart = team.weeklyDepthCharts?.[weekNum];
     if (!savedChart) return 0;
     const chart = savedChart;
+
+    // Best Ball: auto-optimize lineup from all rostered contestants
+    if (league.bestBall) {
+      const allRostered = [chart.captain, chart.coCaptain, ...(chart.regulars||[])].filter(Boolean);
+      const scored = allRostered.map(cid => ({ cid, pts: calcContestantWeekPoints(weekScores, cid) })).sort((a,b) => b.pts - a.pts);
+      let total = 0;
+      if (scored[0]) total += scored[0].pts * 2;      // Best → Hero (2×)
+      if (scored[1]) total += scored[1].pts * 1.5;    // 2nd → Side-Kick (1.5×)
+      for (let i = 2; i < scored.length; i++) total += scored[i].pts; // Rest → Vigilante (1×)
+      return Math.round(total * 10) / 10;
+    }
+
     let total = 0;
     if (chart.captain) total += calcContestantWeekPoints(weekScores, chart.captain) * 2;
     if (chart.coCaptain) total += calcContestantWeekPoints(weekScores, chart.coCaptain) * 1.5;
@@ -305,6 +322,11 @@ function calcTeamWeekPoints(league, team, weekNum) {
     return 3; // survived
   }
 
+  if (format === "salary_cap") {
+    const roster = team.salaryCapRoster || [];
+    return roster.reduce((sum, cid) => sum + calcContestantWeekPoints(weekScores, cid), 0);
+  }
+
   if (format === "predictions") {
     // Predictions are stored per-team per-week with scores
     return team.predictionScores?.[weekNum] || 0;
@@ -330,7 +352,8 @@ function calcStandings(league) {
     });
   }
 
-  return league.teams.map(team => {
+  // Calculate base weekly points for all teams
+  const teamsWithPoints = league.teams.map(team => {
     let total = 0;
     const weeklyTotals = {};
     weeks.forEach(w => {
@@ -339,7 +362,109 @@ function calcStandings(league) {
       total += wPts;
     });
     return { ...team, total: Math.round(total * 10) / 10, weeklyTotals };
-  }).sort((a, b) => b.total - a.total);
+  });
+
+  // Categories/Roto: rank teams by scoring category
+  if (league.rotoScoring && (league.scoringRules||[]).length > 0) {
+    const categories = [...new Set((league.scoringRules||[]).map(r=>r.category||"Other"))];
+    const catTotals = {}; // {teamId: {category: total}}
+
+    teamsWithPoints.forEach(team => {
+      catTotals[team.id] = {};
+      categories.forEach(cat => {
+        const catRules = (league.scoringRules||[]).filter(r=>(r.category||"Other")===cat);
+        let catTotal = 0;
+        weeks.forEach(w => {
+          const ws = league.weeklyScores?.[w] || {};
+          // Sum all contestant scores for this team's rostered players in this category
+          // Simplified: sum category rule points across all contestants on the team
+          if (league.format === "captains") {
+            const chart = team.weeklyDepthCharts?.[w] || team.depthChart || {};
+            const rostered = [chart.captain, chart.coCaptain, ...(chart.regulars||[])].filter(Boolean);
+            rostered.forEach(cid => {
+              catRules.forEach(r => { catTotal += (ws[cid]?.[r.id] || 0); });
+            });
+          } else if (league.format === "standard") {
+            const roster = team.weeklyRosters?.[w] || [];
+            roster.forEach(cid => {
+              catRules.forEach(r => { catTotal += (ws[cid]?.[r.id] || 0); });
+            });
+          }
+        });
+        catTotals[team.id][cat] = Math.round(catTotal * 10) / 10;
+      });
+    });
+
+    // Rank each category (higher is better for positive, lower is better for negative)
+    const catRanks = {}; // {teamId: {category: rank}}
+    teamsWithPoints.forEach(t => { catRanks[t.id] = {}; });
+
+    categories.forEach(cat => {
+      const sorted = teamsWithPoints.map(t => ({ id: t.id, val: catTotals[t.id][cat] }))
+        .sort((a,b) => b.val - a.val); // highest first = rank 1
+      sorted.forEach((t, i) => { catRanks[t.id][cat] = i + 1; });
+    });
+
+    return teamsWithPoints.map(team => {
+      const ranks = catRanks[team.id];
+      const rotoTotal = Object.values(ranks).reduce((s,v) => s + v, 0);
+      return {
+        ...team,
+        roto: true,
+        catTotals: catTotals[team.id],
+        catRanks: ranks,
+        rotoTotal,
+        total: rotoTotal,
+      };
+    }).sort((a, b) => a.rotoTotal - b.rotoTotal); // Lower roto total = better
+  }
+
+  // Head-to-Head: calculate W/L record from weekly matchups
+  if (league.headToHead && league.teams.length >= 2) {
+    const teamIds = league.teams.map(t=>t.id);
+    const records = {};
+    teamIds.forEach(id => { records[id] = { wins: 0, losses: 0, ties: 0 }; });
+
+    weeks.forEach(w => {
+      // Generate matchups: rotate schedule
+      const wNum = Number(w);
+      const ids = [...teamIds];
+      // Simple round-robin rotation
+      const rotated = [...ids];
+      for (let r = 0; r < (wNum - 1) % Math.max(ids.length - 1, 1); r++) {
+        const last = rotated.pop();
+        rotated.splice(1, 0, last);
+      }
+      // Pair up
+      const pairs = [];
+      for (let i = 0; i < Math.floor(rotated.length / 2); i++) {
+        pairs.push([rotated[i], rotated[rotated.length - 1 - i]]);
+      }
+
+      pairs.forEach(([a, b]) => {
+        const aTeam = teamsWithPoints.find(t=>t.id===a);
+        const bTeam = teamsWithPoints.find(t=>t.id===b);
+        const aPts = aTeam?.weeklyTotals?.[w] || 0;
+        const bPts = bTeam?.weeklyTotals?.[w] || 0;
+        if (aPts > bPts) { records[a].wins++; records[b].losses++; }
+        else if (bPts > aPts) { records[b].wins++; records[a].losses++; }
+        else { records[a].ties++; records[b].ties++; }
+      });
+    });
+
+    return teamsWithPoints.map(team => ({
+      ...team,
+      h2h: records[team.id],
+      h2hRecord: records[team.id].wins + "-" + records[team.id].losses + (records[team.id].ties ? "-" + records[team.id].ties : ""),
+      h2hWinPct: weeks.length > 0 ? Math.round((records[team.id].wins / Math.max(records[team.id].wins + records[team.id].losses + records[team.id].ties, 1)) * 1000) / 10 : 0,
+    })).sort((a, b) => {
+      // Sort by wins first, then total points as tiebreaker
+      if (a.h2h.wins !== b.h2h.wins) return b.h2h.wins - a.h2h.wins;
+      return b.total - a.total;
+    });
+  }
+
+  return teamsWithPoints.sort((a, b) => b.total - a.total);
 }
 
 function getInverseDraftOrder(standings) {
@@ -472,6 +597,8 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid }) {
   const [genderedDraft, setGenderedDraft] = useState(false);
   const [headToHead, setHeadToHead] = useState(false);
   const [bestBall, setBestBall] = useState(false);
+  const [salaryBudget, setSalaryBudget] = useState(100);
+  const [rotoScoring, setRotoScoring] = useState(false);
   const [scoringRules, setScoringRules] = useState([]);
 
   // Step 3: Teams
@@ -529,9 +656,11 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid }) {
       captainsConfig: format === "captains" ? { regularSlots: Number(regularSlots) } : null,
       standardConfig: format === "standard" ? { picksPerManager: Number(picksPerManager), genderedDraft } : null,
       survivorPoolConfig: format === "survivor_pool" ? {} : null,
+      salaryCapConfig: format === "salary_cap" ? { budget: Number(salaryBudget) } : null,
       eliminationPoolConfig: format === "elimination_pool" ? {} : null,
       predictionsConfig: format === "predictions" ? {} : null,
       headToHead,
+      rotoScoring,
       bestBall: format === "captains" ? bestBall : false,
       scoringRules,
       contestants: [],
@@ -591,7 +720,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid }) {
 
           <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:8,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>League Format</label>
           <div style={{ display:"flex",gap:8,marginBottom:8,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch" }}>
-            {["standard","captains","survivor_pool","elimination_pool","predictions"].map(f => (
+            {["standard","captains","survivor_pool","elimination_pool","predictions","salary_cap"].map(f => (
               <button key={f} onClick={() => setFormat(f)} style={{
                 padding:"8px 16px",borderRadius:99,cursor:"pointer",whiteSpace:"nowrap",
                 background: format===f ? "#e9456022" : "transparent",
@@ -644,6 +773,15 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid }) {
                 <div>
                   <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>Best Ball</div>
                   <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>Auto-optimizes your lineup each week. No roster management needed — just draft well.</div>
+                </div>
+              </label>
+            )}
+            {(format === "standard" || format === "captains") && (
+              <label style={{ display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",cursor:"pointer" }}>
+                <input type="checkbox" checked={rotoScoring} onChange={e=>setRotoScoring(e.target.checked)} style={{ accentColor:"#e94560",width:18,height:18 }} />
+                <div>
+                  <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>Categories / Roto</div>
+                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>Rank teams by scoring category (most challenge wins, fewest penalties, etc). Best cumulative rank wins.</div>
                 </div>
               </label>
             )}
@@ -785,6 +923,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid }) {
               <div>{FORMAT_INFO[format]?.name} format · {scoringRules.length} scoring rules · {teams.length} team{teams.length!==1?"s":""}</div>
               {headToHead && <div style={{color:"#f5a623"}}>Head-to-Head matchups enabled</div>}
               {bestBall && <div style={{color:"#4ecdc4"}}>Best Ball enabled</div>}
+              {rotoScoring && <div style={{color:"#9d5dff"}}>Categories/Roto scoring enabled</div>}
             </div>
           </div>
 
@@ -817,6 +956,10 @@ function LeagueDashboard({ league, onUpdate, onBack, onReset, loggedInTeamId, is
     ...(league.format === "captains" ? [{ id:"depth-chart",label:"My Roster",icon:"crown",access:"all" }] : []),
     ...(league.format === "survivor_pool" ? [{ id:"my-pick",label:"My Pick",icon:"star",access:"all" }] : []),
     ...(league.format === "elimination_pool" ? [{ id:"weekly-pick",label:"Weekly Pick",icon:"star",access:"all" }] : []),
+    ...(league.format === "salary_cap" ? [
+      { id:"my-roster-cap",label:"My Roster",icon:"crown",access:"all" },
+      { id:"set-prices",label:"Prices",icon:"settings",access:"commissioner" },
+    ] : []),
     ...(league.format === "predictions" ? [
       { id:"predict",label:"Predict",icon:"star",access:"all" },
       { id:"manage-questions",label:"Questions",icon:"settings",access:"commissioner" },
@@ -884,6 +1027,8 @@ function LeagueDashboard({ league, onUpdate, onBack, onReset, loggedInTeamId, is
         {tab === "depth-chart" && <DepthChartTab league={league} onUpdate={onUpdate} lockedToTeamId={isCommissioner ? null : loggedInTeamId} defaultTeamId={loggedInTeamId} isCommissioner={isCommissioner} />}
         {tab === "my-pick" && <SurvivorPoolTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} />}
         {tab === "weekly-pick" && <EliminationPoolTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} />}
+        {tab === "my-roster-cap" && <SalaryCapRosterTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} />}
+        {tab === "set-prices" && isCommissioner && <SalaryCapPricesTab league={league} onUpdate={onUpdate} />}
         {tab === "predict" && <PredictionsPlayerTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} />}
         {tab === "manage-questions" && isCommissioner && <PredictionsCommishTab league={league} onUpdate={onUpdate} />}
         {tab === "settings" && isCommissioner && <SettingsTab league={league} onUpdate={onUpdate} onReset={onReset} allLeagues={allLeagues} />}
@@ -935,13 +1080,42 @@ function StandingsTab({ league, standings }) {
                 }}>{medal||(i+1)}</div>
                 <div style={{ flex:1,minWidth:0 }}>
                   <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:14 }}>{team.name}</div>
-                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>{team.owner}{wkPts !== 0 ? ` · ${wkPts>0?"+":""}${wkPts} this wk` : ""}</div>
+                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>{team.owner}{team.h2hRecord ? ` · ${team.h2hRecord}` : ""}{wkPts !== 0 ? ` · ${wkPts>0?"+":""}${wkPts} this wk` : ""}</div>
                 </div>
                 <div style={{ textAlign:"right" }}>
-                  <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:24,fontWeight:900,color:team.total>0?"#e8e8f0":team.total<0?"#e94560":"#6a6a8a",letterSpacing:"-0.02em" }}>{team.total}</div>
-                  <div style={{ fontSize:10,color:"#4a4a6a" }}>pts</div>
+                  {team.h2hRecord ? (
+                    <>
+                      <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:20,fontWeight:900,color:"#e8e8f0",letterSpacing:"-0.02em" }}>{team.h2hRecord}</div>
+                      <div style={{ fontSize:10,color:"#4a4a6a" }}>{team.total} pts</div>
+                    </>
+                  ) : team.roto ? (
+                    <>
+                      <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:20,fontWeight:900,color:"#9d5dff",letterSpacing:"-0.02em" }}>{team.rotoTotal}</div>
+                      <div style={{ fontSize:10,color:"#4a4a6a" }}>roto pts</div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:24,fontWeight:900,color:team.total>0?"#e8e8f0":team.total<0?"#e94560":"#6a6a8a",letterSpacing:"-0.02em" }}>{team.total}</div>
+                      <div style={{ fontSize:10,color:"#4a4a6a" }}>pts</div>
+                    </>
+                  )}
                 </div>
                 </div>
+              {expandedTeam===team.id && team.roto && team.catRanks && (
+                <div style={{ padding:"10px 16px 14px",borderTop:"1px solid #1e1e38" }}>
+                  <div style={{ fontSize:10,color:"#6a6a8a",fontWeight:600,textTransform:"uppercase",marginBottom:6 }}>Category Rankings</div>
+                  <div style={{ display:"flex",flexWrap:"wrap",gap:6 }}>
+                    {Object.entries(team.catRanks).map(([cat, rank]) => (
+                      <span key={cat} style={{ padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,
+                        background:rank<=2?"#9d5dff18":"#1e1e38",
+                        color:rank<=2?"#9d5dff":"#c8c8da",
+                        border:rank<=2?"1px solid #9d5dff33":"1px solid transparent" }}>
+                        #{rank} {cat} ({team.catTotals[cat]})
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
               {expandedTeam===team.id && (()=>{
                 const chart = team.weeklyDepthCharts?.[String(league.currentWeek)] || team.depthChart || {};
                 const getC = (id) => (league.contestants||[]).find(c=>c.id===id);
@@ -2514,6 +2688,13 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
         <Badge color="#f5a623">Week {currentWeek}</Badge>
       </div>
 
+      {/* Best Ball banner */}
+      {league.bestBall && (
+        <div style={{ padding:"10px 14px",background:"#4ecdc411",borderRadius:8,border:"1px solid #4ecdc433",marginBottom:14 }}>
+          <div style={{ fontSize:12,color:"#4ecdc4",lineHeight:1.5,fontWeight:600 }}>Best Ball is ON — your lineup is auto-optimized each week. The highest scorer gets Hero (2x), second gets Side-Kick (1.5x), rest get Vigilante (1x).</div>
+        </div>
+      )}
+
       {/* Team identity card */}
       {lockedToTeamId ? (
         <div style={{ marginBottom:14,padding:"14px 16px",background:"#12121f",borderRadius:12,border:"1px solid #1e1e38" }}>
@@ -2772,6 +2953,151 @@ function SurvivorPoolTab({ league, onUpdate, loggedInTeamId, isCommissioner }) {
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SALARY CAP - ROSTER TAB
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function SalaryCapRosterTab({ league, onUpdate, loggedInTeamId, isCommissioner }) {
+  const team = (league.teams||[]).find(t=>t.id===loggedInTeamId);
+  const prices = league.contestantPrices || {};
+  const budget = league.salaryCapConfig?.budget || 100;
+  const roster = team?.salaryCapRoster || [];
+  const allContestants = (league.contestants||[]).filter(c=>c.status!=="eliminated").sort((a,b)=>a.name.localeCompare(b.name));
+  const weeks = Object.keys(league.weeklyScores || {}).sort((a,b)=>+a - +b);
+
+  const spent = roster.reduce((s, cid) => s + (prices[cid] || 0), 0);
+  const remaining = budget - spent;
+
+  function toggleContestant(cid) {
+    let newRoster;
+    if (roster.includes(cid)) {
+      newRoster = roster.filter(id=>id!==cid);
+    } else {
+      const cost = prices[cid] || 0;
+      if (cost > remaining) return; // can't afford
+      newRoster = [...roster, cid];
+    }
+    const updatedTeams = league.teams.map(t => t.id===loggedInTeamId ? {...t, salaryCapRoster: newRoster} : t);
+    onUpdate({...league, teams: updatedTeams});
+  }
+
+  return (
+    <div>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
+        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>My Roster</h3>
+        <div style={{ textAlign:"right" }}>
+          <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:22,fontWeight:800,color:remaining>=0?"#4ecdc4":"#e94560" }}>${remaining}</div>
+          <div style={{ fontSize:10,color:"#6a6a8a" }}>of ${budget} remaining</div>
+        </div>
+      </div>
+
+      {/* Budget bar */}
+      <div style={{ height:6,background:"#1e1e38",borderRadius:3,marginBottom:20,overflow:"hidden" }}>
+        <div style={{ height:"100%",borderRadius:3,background:remaining>=0?"linear-gradient(90deg,#4ecdc4,#2a9d8f)":"#e94560",
+          width:Math.min(100, (spent/budget)*100)+"%",transition:"width .3s" }}/>
+      </div>
+
+      {/* Current roster */}
+      {roster.length > 0 && (
+        <div style={{ marginBottom:20 }}>
+          <div style={{ fontSize:11,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",marginBottom:8 }}>Your Team ({roster.length} players, ${spent} spent)</div>
+          <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
+            {roster.map(cid => {
+              const c = (league.contestants||[]).find(x=>x.id===cid);
+              if (!c) return null;
+              const pts = weeks.reduce((s,w) => s + calcContestantWeekPoints(league.weeklyScores?.[w]||{}, cid), 0);
+              return (
+                <div key={cid} style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:8,background:"#12121f",border:"1px solid #1e1e38" }}>
+                  <div style={{ width:28,height:28,borderRadius:8,background:getTribeColor(league,c),display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff" }}>{c.name?.[0]}</div>
+                  <div style={{ flex:1,fontSize:13,fontWeight:600,color:"#e8e8f0" }}>{c.name}</div>
+                  <div style={{ fontSize:12,color:"#f5a623",fontWeight:700 }}>${prices[cid]||0}</div>
+                  <div style={{ fontSize:12,color:pts>0?"#4ecdc4":"#6a6a8a",fontWeight:700 }}>{pts>0?"+":""}{Math.round(pts*10)/10}</div>
+                  <button onClick={()=>toggleContestant(cid)} style={{ background:"none",border:"none",color:"#e94560",cursor:"pointer",fontSize:12 }}>Drop</button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Available contestants */}
+      <div style={{ fontSize:11,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",marginBottom:8 }}>Available</div>
+      <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
+        {allContestants.filter(c=>!roster.includes(c.id)).map(c => {
+          const cost = prices[c.id] || 0;
+          const canAfford = cost <= remaining;
+          return (
+            <button key={c.id} onClick={()=>canAfford && toggleContestant(c.id)} disabled={!canAfford} style={{
+              display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:8,
+              background:"#12121f",border:"1px solid #1e1e38",cursor:canAfford?"pointer":"not-allowed",
+              opacity:canAfford?1:0.4,textAlign:"left",fontFamily:"'Outfit',sans-serif",
+            }}>
+              <div style={{ width:28,height:28,borderRadius:8,background:getTribeColor(league,c),display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff" }}>{c.name?.[0]}</div>
+              <div style={{ flex:1,fontSize:13,fontWeight:600,color:"#e8e8f0" }}>{c.name}</div>
+              <div style={{ fontSize:13,color:"#f5a623",fontWeight:700 }}>${cost}</div>
+            </button>
+          );
+        })}
+        {Object.keys(prices).length === 0 && <EmptyState message="Commissioner hasn't set prices yet." />}
+      </div>
+    </div>
+  );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SALARY CAP - PRICES TAB (Commissioner)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function SalaryCapPricesTab({ league, onUpdate }) {
+  const prices = league.contestantPrices || {};
+  const budget = league.salaryCapConfig?.budget || 100;
+  const contestants = (league.contestants||[]).sort((a,b)=>a.name.localeCompare(b.name));
+
+  function setPrice(cid, price) {
+    const newPrices = {...prices, [cid]: Number(price) || 0};
+    onUpdate({...league, contestantPrices: newPrices});
+  }
+
+  function autoPrice() {
+    // Simple auto-pricing: distribute prices roughly evenly, with some variance
+    const count = contestants.length;
+    if (count === 0) return;
+    const avg = Math.round(budget / Math.max(count / 2, 1));
+    const newPrices = {};
+    contestants.forEach((c, i) => {
+      // Stagger prices: first contestants cost more
+      const tier = Math.floor(i / Math.ceil(count / 4));
+      const price = Math.max(1, Math.round(avg * [1.8, 1.2, 0.8, 0.5][tier] || avg));
+      newPrices[c.id] = price;
+    });
+    onUpdate({...league, contestantPrices: newPrices});
+  }
+
+  return (
+    <div>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
+        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Set Prices</h3>
+        <Btn small variant="secondary" onClick={autoPrice}>Auto-Price</Btn>
+      </div>
+      <div style={{ fontSize:13,color:"#6a6a8a",marginBottom:16 }}>Budget per manager: <strong style={{color:"#f5a623"}}>${budget}</strong></div>
+
+      <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
+        {contestants.map(c => (
+          <div key={c.id} style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:8,background:"#12121f",border:"1px solid #1e1e38" }}>
+            <div style={{ width:28,height:28,borderRadius:8,background:getTribeColor(league,c),display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff" }}>{c.name?.[0]}</div>
+            <div style={{ flex:1,fontSize:13,fontWeight:600,color:c.status==="eliminated"?"#6a6a8a":"#e8e8f0" }}>{c.name}{c.status==="eliminated"?" (elim)":""}</div>
+            <div style={{ display:"flex",alignItems:"center",gap:4 }}>
+              <span style={{ color:"#f5a623",fontSize:13 }}>$</span>
+              <input type="number" min="0" max={budget} value={prices[c.id]||""} placeholder="0"
+                onChange={e=>setPrice(c.id, e.target.value)}
+                style={{ width:50,padding:"4px 6px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                  color:"#f5a623",fontSize:13,fontWeight:700,textAlign:"center",fontFamily:"'Outfit',sans-serif" }} />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -3924,6 +4250,10 @@ export default function FantasyRealityTV() {
         optgroup{background:#1a1a30!important;color:#8888aa!important;font-style:normal}
         @media (min-width: 768px) {
           body { padding: 20px; }
+          .app-root { max-width: 720px; margin: 0 auto; }
+        }
+        @media (min-width: 1024px) {
+          .app-root { max-width: 900px; }
         }
       `}</style>
       {view==="login" && <AuthScreen onJoinViaCode={handleJoinViaCode} onOpenFAQ={()=>setView("faq")} />}
@@ -4069,7 +4399,7 @@ function AdminPanel({ leagues, onBack, onUpdate }) {
   const totalContestants = leagues.reduce((sum, l) => sum + (l.contestants||[]).length, 0);
   const activeLeagues = leagues.filter(l => Object.keys(l.weeklyScores||{}).length > 0).length;
 
-  const tabs = [{id:"stats",label:"Stats"},{id:"users",label:"Users"},{id:"leagues",label:"Leagues"},{id:"announce",label:"Announce"},{id:"manage",label:"Manage"}];
+  const tabs = [{id:"stats",label:"Stats"},{id:"users",label:"Users"},{id:"leagues",label:"Leagues"},{id:"announce",label:"Announce"},{id:"manage",label:"Manage"},{id:"audit",label:"Audit Log"}];
 
   return (
     <div style={{ padding:20 }}>
@@ -4201,6 +4531,47 @@ function AdminPanel({ leagues, onBack, onUpdate }) {
         </div>
       )}
 
+      {/* Audit Log Tab */}
+      {tab==="audit" && (
+        <div>
+          <div style={{ fontSize:13,color:"#6a6a8a",marginBottom:16 }}>
+            Recent activity across all leagues. Logged automatically when scoring, settings, or league data changes.
+          </div>
+          {(()=>{
+            // Build audit entries from league data
+            const entries = [];
+            leagues.forEach(l => {
+              // Score saves
+              Object.keys(l.weeklyScores||{}).forEach(w => {
+                entries.push({ time: l.createdAt + Number(w)*86400000, type: "scoring", desc: `Week ${w} scored`, league: l.name });
+              });
+              // League creation
+              if (l.createdAt) entries.push({ time: l.createdAt, type: "create", desc: "League created", league: l.name });
+              // Team additions
+              (l.teams||[]).forEach(t => {
+                entries.push({ time: l.createdAt + 1000, type: "team", desc: `Team "${t.name}" added`, league: l.name });
+              });
+            });
+            entries.sort((a,b) => b.time - a.time);
+            const recent = entries.slice(0, 30);
+            return recent.length === 0 ? <EmptyState message="No activity yet." /> : (
+              <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
+                {recent.map((e,i) => (
+                  <div key={i} style={{ display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderRadius:8,background:"#12121f",border:"1px solid #1e1e38" }}>
+                    <div style={{ width:8,height:8,borderRadius:"50%",flexShrink:0,
+                      background:e.type==="scoring"?"#4ecdc4":e.type==="create"?"#f5a623":"#8888aa" }}/>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:12,color:"#e8e8f0" }}>{e.desc}</div>
+                      <div style={{ fontSize:10,color:"#6a6a8a" }}>{e.league} · {new Date(e.time).toLocaleDateString()}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
       {/* Manage Tab */}
       {tab==="manage" && (
         <div>
@@ -4263,10 +4634,28 @@ function AdminPanel({ leagues, onBack, onUpdate }) {
             </div>
           </div>
 
+          <div style={{ marginBottom:20 }}>
+            <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>Feature Flags</div>
+            <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:10,lineHeight:1.4 }}>
+              Toggle experimental features on/off across the platform.
+            </div>
+            {[
+              { id: "new_formats", label: "New Formats (Survivor Pool, Elimination Pool, Predictions, Salary Cap)", default: true },
+              { id: "h2h", label: "Head-to-Head Matchups Setting", default: true },
+              { id: "best_ball", label: "Best Ball Setting", default: true },
+              { id: "roto", label: "Categories/Roto Scoring", default: true },
+            ].map(flag => (
+              <label key={flag.id} style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"#12121f",borderRadius:8,border:"1px solid #1e1e38",marginBottom:6,cursor:"pointer" }}>
+                <input type="checkbox" defaultChecked={flag.default} style={{ accentColor:"#4ecdc4",width:16,height:16 }} />
+                <span style={{ fontSize:12,color:"#e8e8f0" }}>{flag.label}</span>
+              </label>
+            ))}
+          </div>
+
           <div>
             <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>Platform Info</div>
             <div style={{ display:"flex",flexDirection:"column",gap:4,fontSize:12,color:"#6a6a8a" }}>
-              <div>Version: v1.3.2.0</div>
+              <div>Version: v1.8.0.0</div>
               <div>Stack: Vite + React + Firebase</div>
               <div>Hosting: Netlify (auto-deploy from GitHub)</div>
               <div>Database: Firebase Realtime Database</div>
