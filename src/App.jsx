@@ -235,6 +235,21 @@ const FORMAT_INFO = {
     desc: "One-time draft to build a roster. Hero (2× pts), Side-Kick (1.5× pts), and Vigilante slots. Weekly swap of 1 contestant + reorganize depth chart. Multiple managers can roster the same contestant.",
     icon: "🦸",
   },
+  survivor_pool: {
+    name: "Survivor Pool",
+    desc: "Everyone picks one contestant before the season. If your pick is eliminated, you're out. Last person standing wins.",
+    icon: "🎯",
+  },
+  predictions: {
+    name: "Predictions",
+    desc: "Commissioner creates questions each week. Players predict outcomes (pick one, yes/no, rank these). Points for correct answers.",
+    icon: "🔮",
+  },
+  elimination_pool: {
+    name: "Elimination Pool",
+    desc: "Each week, pick one contestant you think will survive. Can't reuse picks. Points for correct calls, penalties for wrong ones.",
+    icon: "💀",
+  },
 };
 
 function generateId() {
@@ -259,7 +274,6 @@ function calcTeamWeekPoints(league, team, weekNum) {
 
   if (format === "captains") {
     const savedChart = team.weeklyDepthCharts?.[weekNum];
-    // If no roster was saved for this week, don't score it
     if (!savedChart) return 0;
     const chart = savedChart;
     let total = 0;
@@ -268,12 +282,54 @@ function calcTeamWeekPoints(league, team, weekNum) {
     (chart.regulars || []).forEach(cid => { total += calcContestantWeekPoints(weekScores, cid); });
     return Math.round(total * 10) / 10;
   }
+
+  if (format === "survivor_pool") {
+    // Survivor pool: 1 point per week your pick is still alive
+    const pick = team.survivorPoolPick;
+    if (!pick) return 0;
+    const contestant = (league.contestants||[]).find(c=>c.id===pick);
+    if (!contestant || contestant.status === "eliminated") {
+      // Check if they were eliminated this week or before
+      if (contestant?.eliminatedWeek && contestant.eliminatedWeek <= Number(weekNum)) return 0;
+    }
+    return 1; // survived this week
+  }
+
+  if (format === "elimination_pool") {
+    const weekPick = team.weeklyPicks?.[weekNum];
+    if (!weekPick) return 0;
+    const contestant = (league.contestants||[]).find(c=>c.id===weekPick);
+    if (!contestant) return 0;
+    // Did this contestant survive this week?
+    if (contestant.status === "eliminated" && contestant.eliminatedWeek === Number(weekNum)) return -5;
+    return 3; // survived
+  }
+
+  if (format === "predictions") {
+    // Predictions are stored per-team per-week with scores
+    return team.predictionScores?.[weekNum] || 0;
+  }
+
   return 0;
 }
 
 function calcStandings(league) {
   if (!league.teams?.length) return [];
   const weeks = Object.keys(league.weeklyScores || {}).sort((a, b) => +a - +b);
+
+  if (league.format === "survivor_pool") {
+    return league.teams.map(team => {
+      const pick = team.survivorPoolPick;
+      const contestant = pick ? (league.contestants||[]).find(c=>c.id===pick) : null;
+      const isAlive = contestant && contestant.status !== "eliminated";
+      const weeksAlive = contestant?.eliminatedWeek ? contestant.eliminatedWeek - 1 : weeks.length;
+      return { ...team, total: weeksAlive, isAlive, pick: contestant?.name || "No pick", weeklyTotals: {} };
+    }).sort((a,b) => {
+      if (a.isAlive !== b.isAlive) return a.isAlive ? -1 : 1;
+      return b.total - a.total;
+    });
+  }
+
   return league.teams.map(team => {
     let total = 0;
     const weeklyTotals = {};
@@ -401,19 +457,64 @@ function MultiplierBadge({ role }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function CreateLeagueScreen({ onSave, onCancel, commissionerUid }) {
+  const [step, setStep] = useState(1);
+
+  // Step 1: Basics
   const [name, setName] = useState("");
   const [showType, setShowType] = useState("survivor");
   const [showName, setShowName] = useState("");
   const [seasonName, setSeasonName] = useState("");
   const [format, setFormat] = useState("captains");
+
+  // Step 2: Format config + scoring
   const [regularSlots, setRegularSlots] = useState(3);
   const [picksPerManager, setPicksPerManager] = useState(2);
   const [genderedDraft, setGenderedDraft] = useState(false);
+  const [headToHead, setHeadToHead] = useState(false);
+  const [bestBall, setBestBall] = useState(false);
+  const [scoringRules, setScoringRules] = useState([]);
+
+  // Step 3: Teams
+  const [teams, setTeams] = useState([]);
+  const [newTeamName, setNewTeamName] = useState("");
+  const [newTeamOwner, setNewTeamOwner] = useState("");
+
+  // Custom rule creation
+  const [newRuleName, setNewRuleName] = useState("");
+  const [newRulePoints, setNewRulePoints] = useState("");
+  const [newRuleCategory, setNewRuleCategory] = useState("");
+  const [customCategory, setCustomCategory] = useState("");
 
   useEffect(() => {
     const preset = SHOW_PRESETS[showType];
-    if (preset) setFormat(preset.defaultFormat);
+    if (preset) {
+      setFormat(preset.defaultFormat);
+      setScoringRules(DEFAULT_SCORING_RULES.filter(r => preset.scoringDefaults.includes(r.id)));
+    }
   }, [showType]);
+
+  function addTeam() {
+    if (!newTeamName.trim()) return;
+    setTeams([...teams, { id: generateId(), name: newTeamName.trim(), owner: newTeamOwner.trim() || newTeamName.trim(), depthChart: { captain: null, coCaptain: null, regulars: [] }, weeklyRosters: {}, weeklyDepthCharts: {} }]);
+    setNewTeamName("");
+    setNewTeamOwner("");
+  }
+
+  function removeTeam(id) { setTeams(teams.filter(t=>t.id!==id)); }
+
+  function toggleRule(ruleId) {
+    const exists = scoringRules.find(r=>r.id===ruleId);
+    if (exists) {
+      setScoringRules(scoringRules.filter(r=>r.id!==ruleId));
+    } else {
+      const rule = DEFAULT_SCORING_RULES.find(r=>r.id===ruleId);
+      if (rule) setScoringRules([...scoringRules, rule]);
+    }
+  }
+
+  function updateRulePoints(ruleId, points) {
+    setScoringRules(scoringRules.map(r=>r.id===ruleId?{...r,points:Number(points)}:r));
+  }
 
   function handleSave() {
     if (!name.trim()) return;
@@ -427,9 +528,14 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid }) {
       format,
       captainsConfig: format === "captains" ? { regularSlots: Number(regularSlots) } : null,
       standardConfig: format === "standard" ? { picksPerManager: Number(picksPerManager), genderedDraft } : null,
-      scoringRules: DEFAULT_SCORING_RULES.filter(r => preset.scoringDefaults.includes(r.id)),
+      survivorPoolConfig: format === "survivor_pool" ? {} : null,
+      eliminationPoolConfig: format === "elimination_pool" ? {} : null,
+      predictionsConfig: format === "predictions" ? {} : null,
+      headToHead,
+      bestBall: format === "captains" ? bestBall : false,
+      scoringRules,
       contestants: [],
-      teams: [],
+      teams,
       weeklyScores: {},
       currentWeek: 1,
       commissionerUid: commissionerUid || null,
@@ -437,65 +543,257 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid }) {
     });
   }
 
+  const preset = SHOW_PRESETS[showType];
+  const availableRules = DEFAULT_SCORING_RULES.filter(r => preset?.scoringDefaults?.includes(r.id));
+  const allShowRules = DEFAULT_SCORING_RULES;
+
+  // Group available rules by category
+  const rulesByCategory = {};
+  allShowRules.forEach(r => {
+    const cat = r.category || "Other";
+    if (!rulesByCategory[cat]) rulesByCategory[cat] = [];
+    rulesByCategory[cat].push(r);
+  });
+
+  // Step indicator
+  const steps = ["Basics", "Scoring", "Teams"];
+
   return (
     <div style={{ padding:20 }}>
-      <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:24 }}>
-        <button onClick={onCancel} style={{ background:"none",border:"none",color:"#8888aa",cursor:"pointer",padding:4 }}><Icon name="back" size={20}/></button>
-        <h2 style={{ margin:0,fontSize:20,fontFamily:"'Anybody',sans-serif",fontWeight:800,color:"#e8e8f0" }}>Create League</h2>
+      <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:20 }}>
+        <button onClick={step>1?()=>setStep(step-1):onCancel} style={{ background:"none",border:"none",color:"#8888aa",cursor:"pointer",padding:4 }}><Icon name="back" size={20}/></button>
+        <h2 style={{ margin:0,fontSize:20,fontFamily:"'Anybody',sans-serif",fontWeight:800,color:"#e8e8f0",flex:1 }}>Create League</h2>
+        <div style={{ fontSize:12,color:"#6a6a8a" }}>Step {step} of 3</div>
       </div>
 
-      <Input label="League Name" placeholder="e.g. Top Chef Fantasy 2026" value={name} onChange={e=>setName(e.target.value)} />
-
-      <Select label="Show" value={showType} onChange={e=>setShowType(e.target.value)} options={[
-        { value:"survivor",label:"Survivor" },{ value:"top_chef",label:"Top Chef" },
-        { value:"love_island",label:"Love Island" },{ value:"the_bachelor",label:"The Bachelor/ette" },
-        { value:"bake_off",label:"Great British Bake Off" },
-        { value:"the_traitors",label:"The Traitors" },{ value:"big_brother",label:"Big Brother" },
-        { value:"the_challenge",label:"The Challenge" },{ value:"drag_race",label:"RuPaul's Drag Race" },
-        { value:"amazing_race",label:"The Amazing Race" },{ value:"love_is_blind",label:"Love is Blind" },{ value:"custom",label:"Custom Show" },
-      ]} />
-      {showType === "custom" && <Input label="Show Name" placeholder="e.g. The Traitors" value={showName} onChange={e=>setShowName(e.target.value)} />}
-      <Input label="Season Name" placeholder="e.g. Season 22" value={seasonName} onChange={e=>setSeasonName(e.target.value)} />
-
-      <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:8,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>League Format</label>
-      <div style={{ display:"flex",gap:10,marginBottom:16 }}>
-        {["standard","captains"].map(f => (
-          <button key={f} onClick={() => setFormat(f)} style={{
-            flex:1,padding:"14px 16px",borderRadius:10,cursor:"pointer",textAlign:"left",
-            background: format===f ? "#1e1e38" : "#12121f",
-            border: format===f ? "2px solid #e94560" : "1px solid #2a2a4a",
-            transition:"all 0.15s ease",
-          }}>
-            <div style={{ fontSize:20,marginBottom:4 }}>{FORMAT_INFO[f].icon}</div>
-            <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:14,fontFamily:"'Anybody',sans-serif" }}>{FORMAT_INFO[f].name}</div>
-            <div style={{ color:"#6a6a8a",fontSize:11,marginTop:4,lineHeight:1.4 }}>{FORMAT_INFO[f].desc}</div>
-          </button>
+      {/* Step indicator pills */}
+      <div style={{ display:"flex",gap:6,marginBottom:24 }}>
+        {steps.map((s,i) => (
+          <div key={i} style={{ flex:1,height:4,borderRadius:2,background:i<step?"#e94560":"#1e1e38",transition:"all .3s" }}/>
         ))}
       </div>
 
-      {format === "captains" && (
-        <div style={{ padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",marginBottom:16 }}>
-          <div style={{ fontSize:12,fontWeight:600,color:"#f5a623",marginBottom:10 }}>HEROES CONFIG</div>
-          <div style={{ color:"#8888aa",fontSize:12,marginBottom:8 }}>Hero (2×) and Side-Kick (1.5×) are always included.</div>
-          <Input label="Number of Regular Roster Spots" type="number" min="1" max="10" value={regularSlots} onChange={e=>setRegularSlots(e.target.value)} />
-        </div>
-      )}
-      {format === "standard" && (
-        <div style={{ padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",marginBottom:16 }}>
-          <div style={{ fontSize:12,fontWeight:600,color:"#4ecdc4",marginBottom:10 }}>🔄 STANDARD CONFIG</div>
-          <Input label="Picks Per Manager (per week)" type="number" min="1" max="10" value={picksPerManager} onChange={e=>setPicksPerManager(e.target.value)} />
-          <label style={{ display:"flex",alignItems:"center",gap:8,cursor:"pointer",color:"#ccc",fontSize:13 }}>
-            <input type="checkbox" checked={genderedDraft} onChange={e=>setGenderedDraft(e.target.checked)} style={{ accentColor:"#e94560" }} />
-            Gendered draft (equal picks per gender category)
-          </label>
-          {genderedDraft && <div style={{ color:"#6a6a8a",fontSize:11,marginTop:6 }}>Tag each contestant with a gender category. Draft enforces equal picks.</div>}
+      {/* ─── STEP 1: BASICS ─── */}
+      {step === 1 && (
+        <div>
+          <Input label="League Name" placeholder="e.g. Top Chef Fantasy 2026" value={name} onChange={e=>setName(e.target.value)} />
+
+          <Select label="Show" value={showType} onChange={e=>setShowType(e.target.value)} options={[
+            { value:"survivor",label:"Survivor" },{ value:"top_chef",label:"Top Chef" },
+            { value:"love_island",label:"Love Island" },{ value:"the_bachelor",label:"The Bachelor/ette" },
+            { value:"bake_off",label:"Great British Bake Off" },
+            { value:"the_traitors",label:"The Traitors" },{ value:"big_brother",label:"Big Brother" },
+            { value:"the_challenge",label:"The Challenge" },{ value:"drag_race",label:"RuPaul's Drag Race" },
+            { value:"amazing_race",label:"The Amazing Race" },{ value:"love_is_blind",label:"Love is Blind" },{ value:"custom",label:"Custom Show" },
+          ]} />
+          {showType === "custom" && <Input label="Show Name" placeholder="e.g. The Traitors" value={showName} onChange={e=>setShowName(e.target.value)} />}
+          <Input label="Season Name" placeholder="e.g. Season 22" value={seasonName} onChange={e=>setSeasonName(e.target.value)} />
+
+          <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:8,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>League Format</label>
+          <div style={{ display:"flex",gap:8,marginBottom:8,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch" }}>
+            {["standard","captains","survivor_pool","elimination_pool","predictions"].map(f => (
+              <button key={f} onClick={() => setFormat(f)} style={{
+                padding:"8px 16px",borderRadius:99,cursor:"pointer",whiteSpace:"nowrap",
+                background: format===f ? "#e9456022" : "transparent",
+                border: format===f ? "1px solid #e9456066" : "1px solid #2a2a4a",
+                color: format===f ? "#e94560" : "#7a7a9a",
+                fontSize:13,fontWeight:format===f?700:500,fontFamily:"'Outfit',sans-serif",
+                transition:"all 0.15s ease",flexShrink:0,
+              }}>
+                {FORMAT_INFO[f]?.name||f}
+              </button>
+            ))}
+          </div>
+          <div style={{ padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",marginBottom:16 }}>
+            <div style={{ color:"#e8e8f0",fontSize:13,lineHeight:1.6 }}>{FORMAT_INFO[format]?.desc}</div>
+          </div>
+
+          {/* Format-specific config */}
+          {format === "captains" && (
+            <div style={{ padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",marginBottom:16 }}>
+              <div style={{ fontSize:12,fontWeight:600,color:"#f5a623",marginBottom:10 }}>HEROES CONFIG</div>
+              <Input label="Number of Vigilante Spots" type="number" min="1" max="10" value={regularSlots} onChange={e=>setRegularSlots(e.target.value)} />
+            </div>
+          )}
+          {format === "standard" && (
+            <div style={{ padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",marginBottom:16 }}>
+              <div style={{ fontSize:12,fontWeight:600,color:"#4ecdc4",marginBottom:10 }}>STANDARD CONFIG</div>
+              <Input label="Picks Per Manager (per week)" type="number" min="1" max="10" value={picksPerManager} onChange={e=>setPicksPerManager(e.target.value)} />
+              <label style={{ display:"flex",alignItems:"center",gap:8,cursor:"pointer",color:"#ccc",fontSize:13 }}>
+                <input type="checkbox" checked={genderedDraft} onChange={e=>setGenderedDraft(e.target.checked)} style={{ accentColor:"#e94560" }} />
+                Gendered draft (equal picks per gender category)
+              </label>
+            </div>
+          )}
+
+          {/* Settings toggles */}
+          <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:8,marginTop:8,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>League Settings</label>
+          <div style={{ display:"flex",flexDirection:"column",gap:8,marginBottom:16 }}>
+            {(format === "standard" || format === "captains") && (
+              <label style={{ display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",cursor:"pointer" }}>
+                <input type="checkbox" checked={headToHead} onChange={e=>setHeadToHead(e.target.checked)} style={{ accentColor:"#e94560",width:18,height:18 }} />
+                <div>
+                  <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>Head-to-Head Matchups</div>
+                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>Weekly paired matchups. W/L record determines standings instead of total points.</div>
+                </div>
+              </label>
+            )}
+            {format === "captains" && (
+              <label style={{ display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",cursor:"pointer" }}>
+                <input type="checkbox" checked={bestBall} onChange={e=>setBestBall(e.target.checked)} style={{ accentColor:"#e94560",width:18,height:18 }} />
+                <div>
+                  <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>Best Ball</div>
+                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>Auto-optimizes your lineup each week. No roster management needed — just draft well.</div>
+                </div>
+              </label>
+            )}
+          </div>
+
+          <Btn onClick={()=>setStep(2)} disabled={!name.trim()} style={{ width:"100%",justifyContent:"center" }}>Next: Scoring Rules</Btn>
         </div>
       )}
 
-      <div style={{ display:"flex",gap:10,marginTop:20 }}>
-        <Btn variant="ghost" onClick={onCancel} style={{ flex:1,justifyContent:"center" }}>Cancel</Btn>
-        <Btn onClick={handleSave} disabled={!name.trim()} style={{ flex:1,justifyContent:"center" }}>Create League</Btn>
-      </div>
+      {/* ─── STEP 2: SCORING ─── */}
+      {step === 2 && (
+        <div>
+          <div style={{ fontSize:13,color:"#6a6a8a",marginBottom:16,lineHeight:1.5 }}>
+            Pre-loaded from the <strong style={{color:"#e8e8f0"}}>{preset?.name||"Custom"}</strong> template. Toggle rules on/off, adjust points, or add your own.
+          </div>
+
+          {/* Existing rules grouped by category */}
+          {(()=>{
+            const cats = {};
+            scoringRules.forEach(r => { const c = r.category||"Other"; if(!cats[c]) cats[c]=[]; cats[c].push(r); });
+            // Also show template rules not yet added
+            const templateRules = DEFAULT_SCORING_RULES.filter(r => preset?.scoringDefaults?.includes(r.id));
+            templateRules.forEach(r => { if (!scoringRules.some(sr=>sr.id===r.id)) { const c = r.category||"Other"; if(!cats[c]) cats[c]=[]; cats[c].push({...r, _inactive: true}); }});
+            return Object.entries(cats).map(([cat, rules]) => (
+              <div key={cat} style={{ marginBottom:16 }}>
+                <div style={{ fontSize:11,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6 }}>{cat}</div>
+                <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
+                  {rules.map(r => {
+                    const active = !r._inactive;
+                    const current = scoringRules.find(sr=>sr.id===r.id);
+                    return (
+                      <div key={r.id} style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:8,
+                        background:active?"#12121f":"#0d0d18",border:active?"1px solid #1e1e38":"1px solid #1a1a2a",opacity:active?1:0.5 }}>
+                        <input type="checkbox" checked={active} onChange={()=>toggleRule(r.id)} style={{ accentColor:"#e94560",width:16,height:16,flexShrink:0 }} />
+                        <div style={{ flex:1,fontSize:13,color:"#e8e8f0",fontWeight:active?600:400 }}>{r.label}</div>
+                        {active && (
+                          <>
+                            <input type="number" value={current?.points||r.points} onChange={e=>updateRulePoints(r.id,e.target.value)}
+                              style={{ width:60,padding:"4px 8px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                                color:(current?.points||r.points)>=0?"#4ecdc4":"#e94560",fontSize:13,fontWeight:700,textAlign:"center",fontFamily:"'Outfit',sans-serif" }} />
+                            <button onClick={()=>setScoringRules(scoringRules.filter(sr=>sr.id!==r.id))} style={{
+                              background:"none",border:"none",color:"#4a4a6a",cursor:"pointer",padding:2,fontSize:14 }}>x</button>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ));
+          })()}
+
+          {/* Add custom rule */}
+          <div style={{ padding:"14px 16px",background:"#0d0d18",borderRadius:12,border:"1px dashed #2a2a4a",marginBottom:16 }}>
+            <div style={{ fontSize:13,fontWeight:700,color:"#f0f0f5",marginBottom:10 }}>Add Custom Rule</div>
+            <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+              <div style={{ flex:"2 1 140px" }}>
+                <Input label="Rule Name" placeholder='e.g. "Won a bet"' value={newRuleName} onChange={e=>setNewRuleName(e.target.value)} />
+              </div>
+              <div style={{ flex:"1 1 70px" }}>
+                <Input label="Points" type="number" placeholder="5" value={newRulePoints} onChange={e=>setNewRulePoints(e.target.value)} />
+              </div>
+            </div>
+            <div style={{ display:"flex",gap:8,alignItems:"flex-end" }}>
+              <div style={{ flex:1 }}>
+                <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>Category</label>
+                <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:8 }}>
+                  {(()=>{
+                    const existingCats = [...new Set(scoringRules.map(r=>r.category||"Other"))];
+                    if (newRuleCategory && !existingCats.includes(newRuleCategory)) existingCats.push(newRuleCategory);
+                    return existingCats.map(c => (
+                      <button key={c} onClick={()=>setNewRuleCategory(c)} style={{
+                        padding:"5px 12px",borderRadius:99,fontSize:11,fontWeight:600,cursor:"pointer",
+                        background:newRuleCategory===c?"#e9456022":"transparent",
+                        border:newRuleCategory===c?"1px solid #e9456066":"1px solid #2a2a4a",
+                        color:newRuleCategory===c?"#e94560":"#7a7a9a",fontFamily:"'Outfit',sans-serif",
+                      }}>{c}</button>
+                    ));
+                  })()}
+                </div>
+                <Input label="Or create new category" placeholder="e.g. Social" value={customCategory} onChange={e=>{setCustomCategory(e.target.value);if(e.target.value) setNewRuleCategory(e.target.value)}} />
+              </div>
+            </div>
+            <Btn small onClick={()=>{
+              if (!newRuleName.trim()) return;
+              const id = newRuleName.trim().toLowerCase().replace(/[^a-z0-9]+/g,"_");
+              const rule = { id, label: newRuleName.trim(), points: Number(newRulePoints)||0, category: newRuleCategory || "Custom" };
+              setScoringRules([...scoringRules, rule]);
+              setNewRuleName("");
+              setNewRulePoints("");
+              setCustomCategory("");
+            }} disabled={!newRuleName.trim()}>Add Rule</Btn>
+          </div>
+
+          <div style={{ display:"flex",gap:10,marginTop:20 }}>
+            <Btn variant="ghost" onClick={()=>setStep(1)} style={{ flex:1,justifyContent:"center" }}>Back</Btn>
+            <Btn onClick={()=>setStep(3)} style={{ flex:1,justifyContent:"center" }}>Next: Teams</Btn>
+          </div>
+        </div>
+      )}
+
+      {/* ─── STEP 3: TEAMS ─── */}
+      {step === 3 && (
+        <div>
+          <div style={{ fontSize:13,color:"#6a6a8a",marginBottom:16,lineHeight:1.5 }}>
+            Add teams now, or skip and add them later. You can generate invite codes after creation.
+          </div>
+
+          {teams.length > 0 && (
+            <div style={{ display:"flex",flexDirection:"column",gap:6,marginBottom:16 }}>
+              {teams.map(t => (
+                <div key={t.id} style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"#12121f",borderRadius:8,border:"1px solid #1e1e38" }}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:13,fontWeight:600,color:"#e8e8f0" }}>{t.name}</div>
+                    <div style={{ fontSize:11,color:"#6a6a8a" }}>{t.owner}</div>
+                  </div>
+                  <button onClick={()=>removeTeam(t.id)} style={{ background:"none",border:"none",color:"#e94560",cursor:"pointer",fontSize:12,fontFamily:"'Outfit',sans-serif" }}>Remove</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ padding:"14px 16px",background:"#0d0d18",borderRadius:10,border:"1px solid #1e1e38",marginBottom:16 }}>
+            <div style={{ display:"flex",gap:8,marginBottom:8 }}>
+              <div style={{ flex:1 }}>
+                <Input label="Team Name" placeholder="e.g. Team Scott" value={newTeamName} onChange={e=>setNewTeamName(e.target.value)} />
+              </div>
+              <div style={{ flex:1 }}>
+                <Input label="Owner Name" placeholder="e.g. Scott" value={newTeamOwner} onChange={e=>setNewTeamOwner(e.target.value)} />
+              </div>
+            </div>
+            <Btn small variant="secondary" onClick={addTeam} disabled={!newTeamName.trim()}>Add Team</Btn>
+          </div>
+
+          <div style={{ padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",marginBottom:20 }}>
+            <div style={{ fontSize:13,fontWeight:600,color:"#f0f0f5",marginBottom:6 }}>League Summary</div>
+            <div style={{ fontSize:12,color:"#6a6a8a",lineHeight:1.6 }}>
+              <div>{name || "Untitled"} · {preset?.name||showName||"Custom"} · {seasonName||"Season 1"}</div>
+              <div>{FORMAT_INFO[format]?.name} format · {scoringRules.length} scoring rules · {teams.length} team{teams.length!==1?"s":""}</div>
+              {headToHead && <div style={{color:"#f5a623"}}>Head-to-Head matchups enabled</div>}
+              {bestBall && <div style={{color:"#4ecdc4"}}>Best Ball enabled</div>}
+            </div>
+          </div>
+
+          <div style={{ display:"flex",gap:10 }}>
+            <Btn variant="ghost" onClick={()=>setStep(2)} style={{ flex:1,justifyContent:"center" }}>Back</Btn>
+            <Btn onClick={handleSave} disabled={!name.trim()} style={{ flex:1,justifyContent:"center" }}>Create League</Btn>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -517,6 +815,12 @@ function LeagueDashboard({ league, onUpdate, onBack, onReset, loggedInTeamId, is
     { id:"scoring",label:"Scoring",icon:"chart",access:"commissioner" },
     ...(league.format === "standard" ? [{ id:"weekly-draft",label:"Draft",icon:"grid",access:"commissioner" }] : []),
     ...(league.format === "captains" ? [{ id:"depth-chart",label:"My Roster",icon:"crown",access:"all" }] : []),
+    ...(league.format === "survivor_pool" ? [{ id:"my-pick",label:"My Pick",icon:"star",access:"all" }] : []),
+    ...(league.format === "elimination_pool" ? [{ id:"weekly-pick",label:"Weekly Pick",icon:"star",access:"all" }] : []),
+    ...(league.format === "predictions" ? [
+      { id:"predict",label:"Predict",icon:"star",access:"all" },
+      { id:"manage-questions",label:"Questions",icon:"settings",access:"commissioner" },
+    ] : []),
     { id:"settings",label:"Settings",icon:"settings",access:"commissioner" },
   ];
 
@@ -578,6 +882,10 @@ function LeagueDashboard({ league, onUpdate, onBack, onReset, loggedInTeamId, is
         {tab === "scoring" && isCommissioner && <ScoringTab league={league} onUpdate={onUpdate} />}
         {tab === "weekly-draft" && isCommissioner && <WeeklyDraftTab league={league} onUpdate={onUpdate} standings={standings} />}
         {tab === "depth-chart" && <DepthChartTab league={league} onUpdate={onUpdate} lockedToTeamId={isCommissioner ? null : loggedInTeamId} defaultTeamId={loggedInTeamId} isCommissioner={isCommissioner} />}
+        {tab === "my-pick" && <SurvivorPoolTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} />}
+        {tab === "weekly-pick" && <EliminationPoolTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} />}
+        {tab === "predict" && <PredictionsPlayerTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} />}
+        {tab === "manage-questions" && isCommissioner && <PredictionsCommishTab league={league} onUpdate={onUpdate} />}
         {tab === "settings" && isCommissioner && <SettingsTab league={league} onUpdate={onUpdate} onReset={onReset} allLeagues={allLeagues} />}
       </div>
 
@@ -1307,20 +1615,15 @@ function TeamCardActions({ team, league, onUpdate, setEditing, setModal }) {
     const newCode = generateCode();
     const newCodes = { ...inviteCodes, [team.id]: newCode };
     const newUsed = usedCodes.filter(c => c !== inviteCodes[team.id]);
-    // Also clear the PIN so the team can re-register
-    const newPins = { ...pins };
-    delete newPins[team.id];
-    onUpdate({ ...league, inviteCodes: newCodes, usedCodes: newUsed, pins: newPins });
+    onUpdate({ ...league, inviteCodes: newCodes, usedCodes: newUsed });
     setShowCode(true);
   }
 
   function resetRegistration() {
     if (!confirm(`Reset registration for ${team.name}? They will need a new invite code to rejoin.`)) return;
-    const newPins = { ...pins };
-    delete newPins[team.id];
     const newCodes = { ...inviteCodes };
     delete newCodes[team.id];
-    onUpdate({ ...league, pins: newPins, inviteCodes: newCodes });
+    onUpdate({ ...league, inviteCodes: newCodes });
   }
 
   function copyCode() {
@@ -2390,6 +2693,327 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
           <Btn onClick={saveDepthChart}><Icon name="save" size={14}/> Save Roster</Btn>
         </div>
       )}
+    </div>
+  );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SURVIVOR POOL TAB
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function SurvivorPoolTab({ league, onUpdate, loggedInTeamId, isCommissioner }) {
+  const team = (league.teams||[]).find(t=>t.id===loggedInTeamId);
+  const activeContestants = (league.contestants||[]).filter(c=>c.status!=="eliminated").sort((a,b)=>a.name.localeCompare(b.name));
+  const allContestants = (league.contestants||[]).sort((a,b)=>a.name.localeCompare(b.name));
+
+  // Which contestants are already picked by other teams?
+  const takenPicks = new Set();
+  (league.teams||[]).forEach(t => { if (t.survivorPoolPick && t.id !== loggedInTeamId) takenPicks.add(t.survivorPoolPick); });
+
+  function setPick(contestantId) {
+    const updatedTeams = league.teams.map(t => t.id === loggedInTeamId ? { ...t, survivorPoolPick: contestantId || null } : t);
+    onUpdate({ ...league, teams: updatedTeams });
+  }
+
+  const myPick = team?.survivorPoolPick;
+  const myContestant = myPick ? allContestants.find(c=>c.id===myPick) : null;
+  const isEliminated = myContestant?.status === "eliminated";
+  const canChange = (league.currentWeek||1) <= 1;
+
+  return (
+    <div>
+      <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em",marginBottom:16 }}>My Pick</h3>
+
+      {myContestant ? (
+        <div style={{ padding:"20px",background:isEliminated?"#1a0a10":"#0a1a18",borderRadius:14,border:isEliminated?"1px solid #e9456044":"1px solid #4ecdc444",marginBottom:16,textAlign:"center" }}>
+          <div style={{ width:56,height:56,borderRadius:14,background:isEliminated?"#2a2a4a":getTribeColor(league,myContestant),display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,fontWeight:700,color:"#fff",margin:"0 auto 12px" }}>{myContestant.name?.[0]}</div>
+          <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:22,fontWeight:800,color:isEliminated?"#e94560":"#4ecdc4" }}>{myContestant.name}</div>
+          <div style={{ fontSize:13,color:isEliminated?"#e94560":"#4ecdc4",marginTop:4 }}>
+            {isEliminated ? "ELIMINATED" + (myContestant.eliminatedWeek ? " — Week " + myContestant.eliminatedWeek : "") + " — YOU'RE OUT" : "STILL ALIVE"}
+          </div>
+          {canChange && <Btn small variant="ghost" onClick={()=>setPick(null)} style={{marginTop:12}}>Change Pick</Btn>}
+        </div>
+      ) : (
+        <div>
+          <div style={{ fontSize:13,color:"#6a6a8a",marginBottom:12 }}>Pick one contestant. If they get eliminated, you're out.</div>
+          <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
+            {activeContestants.map(c => {
+              const taken = takenPicks.has(c.id);
+              return (
+                <button key={c.id} onClick={()=>!taken && setPick(c.id)} disabled={taken} style={{
+                  display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,
+                  background:"#12121f",border:"1px solid #1e1e38",cursor:taken?"not-allowed":"pointer",
+                  opacity:taken?0.4:1,textAlign:"left",fontFamily:"'Outfit',sans-serif",transition:"all .15s"
+                }}>
+                  <div style={{ width:32,height:32,borderRadius:8,background:getTribeColor(league,c),display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:"#fff" }}>{c.name?.[0]}</div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ color:"#e8e8f0",fontSize:14,fontWeight:600 }}>{c.name}</div>
+                    {taken && <div style={{ fontSize:11,color:"#e94560" }}>Already picked</div>}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* All picks overview */}
+      <div style={{ marginTop:24 }}>
+        <h4 style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:15,color:"#f0f0f5",marginBottom:10 }}>All Picks</h4>
+        <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
+          {(league.teams||[]).map(t => {
+            const c = t.survivorPoolPick ? allContestants.find(x=>x.id===t.survivorPoolPick) : null;
+            const elim = c?.status === "eliminated";
+            return (
+              <div key={t.id} style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:8,background:"#12121f",border:"1px solid #1e1e38",opacity:elim?0.5:1 }}>
+                <div style={{ flex:1,fontSize:13,fontWeight:600,color:"#e8e8f0" }}>{t.name}</div>
+                <div style={{ fontSize:13,color:c?(elim?"#e94560":"#4ecdc4"):"#6a6a8a",fontWeight:600 }}>{c?c.name:"No pick yet"}</div>
+                {elim && <Badge color="#e94560">OUT</Badge>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ELIMINATION POOL TAB
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function EliminationPoolTab({ league, onUpdate, loggedInTeamId, isCommissioner }) {
+  const team = (league.teams||[]).find(t=>t.id===loggedInTeamId);
+  const activeContestants = (league.contestants||[]).filter(c=>c.status!=="eliminated").sort((a,b)=>a.name.localeCompare(b.name));
+  const allContestants = (league.contestants||[]).sort((a,b)=>a.name.localeCompare(b.name));
+  const currentWeek = String(league.currentWeek || 1);
+
+  const weeklyPicks = team?.weeklyPicks || {};
+  const currentPick = weeklyPicks[currentWeek];
+  const usedPicks = new Set(Object.values(weeklyPicks));
+
+  function makePick(cid) {
+    const newPicks = { ...weeklyPicks, [currentWeek]: cid };
+    const updatedTeams = league.teams.map(t => t.id === loggedInTeamId ? { ...t, weeklyPicks: newPicks } : t);
+    onUpdate({ ...league, teams: updatedTeams });
+  }
+
+  return (
+    <div>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
+        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Weekly Pick</h3>
+        <Badge color="#f5a623">Week {currentWeek}</Badge>
+      </div>
+      <div style={{ fontSize:13,color:"#6a6a8a",marginBottom:16 }}>Pick one contestant you think will survive this week. You can't reuse picks.</div>
+
+      {currentPick ? (
+        <div style={{ padding:"16px",background:"#0a1a18",borderRadius:12,border:"1px solid #4ecdc444",textAlign:"center",marginBottom:16 }}>
+          <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:6 }}>Your pick for Week {currentWeek}:</div>
+          <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:20,fontWeight:800,color:"#4ecdc4" }}>{allContestants.find(c=>c.id===currentPick)?.name || "Unknown"}</div>
+          {!league.rostersLocked && <Btn small variant="ghost" onClick={()=>makePick(null)} style={{marginTop:8}}>Change</Btn>}
+        </div>
+      ) : (
+        <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
+          {activeContestants.filter(c=>!usedPicks.has(c.id)).map(c => (
+            <button key={c.id} onClick={()=>makePick(c.id)} style={{
+              display:"flex",alignItems:"center",gap:10,padding:"12px 14px",borderRadius:10,
+              background:"#12121f",border:"1px solid #1e1e38",cursor:"pointer",textAlign:"left",fontFamily:"'Outfit',sans-serif",
+            }}>
+              <div style={{ width:32,height:32,borderRadius:8,background:getTribeColor(league,c),display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:"#fff" }}>{c.name?.[0]}</div>
+              <span style={{ color:"#e8e8f0",fontSize:14,fontWeight:600 }}>{c.name}</span>
+            </button>
+          ))}
+          {activeContestants.filter(c=>!usedPicks.has(c.id)).length === 0 && <EmptyState message="No unused contestants available." />}
+        </div>
+      )}
+
+      {/* Pick history */}
+      {Object.keys(weeklyPicks).length > 0 && (
+        <div style={{ marginTop:20 }}>
+          <h4 style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:15,color:"#f0f0f5",marginBottom:10 }}>Pick History</h4>
+          <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
+            {Object.entries(weeklyPicks).sort((a,b)=>+b[0]-+a[0]).map(([wk,cid]) => {
+              const c = allContestants.find(x=>x.id===cid);
+              const survived = !c || c.status !== "eliminated" || (c.eliminatedWeek && c.eliminatedWeek > Number(wk));
+              return (
+                <div key={wk} style={{ display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderRadius:8,background:"#12121f",border:"1px solid #1e1e38" }}>
+                  <Badge color="#6a6a8a">Wk {wk}</Badge>
+                  <span style={{ flex:1,color:"#e8e8f0",fontSize:13,fontWeight:600 }}>{c?.name||"?"}</span>
+                  <span style={{ fontSize:12,fontWeight:700,color:survived?"#4ecdc4":"#e94560" }}>{survived?"+3":"-5"}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// PREDICTIONS - PLAYER TAB
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function PredictionsPlayerTab({ league, onUpdate, loggedInTeamId }) {
+  const team = (league.teams||[]).find(t=>t.id===loggedInTeamId);
+  const currentWeek = String(league.currentWeek || 1);
+  const questions = league.weeklyQuestions?.[currentWeek] || [];
+  const myAnswers = team?.weeklyAnswers?.[currentWeek] || {};
+
+  function setAnswer(qId, answer) {
+    const newAnswers = { ...(team?.weeklyAnswers||{}), [currentWeek]: { ...myAnswers, [qId]: answer } };
+    const updatedTeams = league.teams.map(t => t.id === loggedInTeamId ? { ...t, weeklyAnswers: newAnswers } : t);
+    onUpdate({ ...league, teams: updatedTeams });
+  }
+
+  const allContestants = (league.contestants||[]).filter(c=>c.status!=="eliminated").sort((a,b)=>a.name.localeCompare(b.name));
+
+  return (
+    <div>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
+        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Predictions</h3>
+        <Badge color="#f5a623">Week {currentWeek}</Badge>
+      </div>
+
+      {questions.length === 0 ? (
+        <EmptyState message="No questions posted yet for this week. Check back before the episode!" />
+      ) : (
+        <div style={{ display:"flex",flexDirection:"column",gap:12 }}>
+          {questions.map((q,qi) => (
+            <div key={q.id||qi} style={{ padding:"14px 16px",background:"#12121f",borderRadius:12,border:"1px solid #1e1e38" }}>
+              <div style={{ fontSize:14,fontWeight:600,color:"#e8e8f0",marginBottom:4 }}>{q.text}</div>
+              <div style={{ fontSize:11,color:"#6a6a8a",marginBottom:10 }}>{q.points} pts · {q.type==="pick_one"?"Pick one":q.type==="yes_no"?"Yes or No":"Rank"}</div>
+
+              {q.type === "pick_one" && (
+                <div style={{ display:"flex",flexWrap:"wrap",gap:6 }}>
+                  {(q.options||allContestants.map(c=>c.name)).map(opt => (
+                    <button key={opt} onClick={()=>setAnswer(q.id,opt)} style={{
+                      padding:"8px 14px",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:600,
+                      background:myAnswers[q.id]===opt?"#e9456022":"#1e1e38",
+                      border:myAnswers[q.id]===opt?"1px solid #e9456066":"1px solid #2a2a4a",
+                      color:myAnswers[q.id]===opt?"#e94560":"#c8c8da",fontFamily:"'Outfit',sans-serif",
+                    }}>{opt}</button>
+                  ))}
+                </div>
+              )}
+
+              {q.type === "yes_no" && (
+                <div style={{ display:"flex",gap:8 }}>
+                  {["Yes","No"].map(opt => (
+                    <button key={opt} onClick={()=>setAnswer(q.id,opt)} style={{
+                      flex:1,padding:"10px",borderRadius:8,cursor:"pointer",fontSize:14,fontWeight:700,
+                      background:myAnswers[q.id]===opt?"#e9456022":"#1e1e38",
+                      border:myAnswers[q.id]===opt?"1px solid #e9456066":"1px solid #2a2a4a",
+                      color:myAnswers[q.id]===opt?"#e94560":"#c8c8da",fontFamily:"'Outfit',sans-serif",
+                    }}>{opt}</button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// PREDICTIONS - COMMISSIONER TAB
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function PredictionsCommishTab({ league, onUpdate }) {
+  const [newText, setNewText] = useState("");
+  const [newType, setNewType] = useState("pick_one");
+  const [newPoints, setNewPoints] = useState(5);
+  const [selectedWeek, setSelectedWeek] = useState(String(league.currentWeek || 1));
+  const [newOptions, setNewOptions] = useState("");
+
+  const questions = league.weeklyQuestions?.[selectedWeek] || [];
+
+  function addQuestion() {
+    if (!newText.trim()) return;
+    const q = {
+      id: generateId(),
+      text: newText.trim(),
+      type: newType,
+      points: Number(newPoints),
+      options: newType === "pick_one" && newOptions.trim() ? newOptions.split(",").map(s=>s.trim()).filter(Boolean) : null,
+      answer: null,
+    };
+    const weekQs = [...questions, q];
+    const allQs = { ...(league.weeklyQuestions||{}), [selectedWeek]: weekQs };
+    onUpdate({ ...league, weeklyQuestions: allQs });
+    setNewText("");
+    setNewOptions("");
+  }
+
+  function removeQuestion(qId) {
+    const weekQs = questions.filter(q=>q.id!==qId);
+    const allQs = { ...(league.weeklyQuestions||{}), [selectedWeek]: weekQs };
+    onUpdate({ ...league, weeklyQuestions: allQs });
+  }
+
+  function setCorrectAnswer(qId, answer) {
+    const weekQs = questions.map(q=>q.id===qId?{...q,answer}:q);
+    const allQs = { ...(league.weeklyQuestions||{}), [selectedWeek]: weekQs };
+
+    // Score all teams
+    const updatedTeams = league.teams.map(t => {
+      const teamAnswers = t.weeklyAnswers?.[selectedWeek] || {};
+      let weekScore = 0;
+      weekQs.forEach(q => {
+        if (q.answer && teamAnswers[q.id] === q.answer) weekScore += q.points;
+      });
+      return { ...t, predictionScores: { ...(t.predictionScores||{}), [selectedWeek]: weekScore } };
+    });
+
+    onUpdate({ ...league, weeklyQuestions: allQs, teams: updatedTeams });
+  }
+
+  return (
+    <div>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
+        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Manage Questions</h3>
+        <Select value={selectedWeek} onChange={e=>setSelectedWeek(e.target.value)}
+          options={Array.from({length:Math.max(league.currentWeek||1,1)+2},(_,i)=>({value:String(i+1),label:"Week "+(i+1)}))} />
+      </div>
+
+      {/* Existing questions */}
+      {questions.length > 0 && (
+        <div style={{ display:"flex",flexDirection:"column",gap:8,marginBottom:20 }}>
+          {questions.map(q => (
+            <div key={q.id} style={{ padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
+                <div>
+                  <div style={{ fontSize:14,fontWeight:600,color:"#e8e8f0" }}>{q.text}</div>
+                  <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>{q.type} · {q.points} pts{q.answer ? ` · Answer: ${q.answer}` : ""}</div>
+                </div>
+                <div style={{ display:"flex",gap:4 }}>
+                  {!q.answer && (
+                    <Btn small variant="secondary" onClick={()=>{
+                      const ans = prompt("What's the correct answer?");
+                      if (ans) setCorrectAnswer(q.id, ans);
+                    }}>Set Answer</Btn>
+                  )}
+                  <Btn small variant="danger" onClick={()=>removeQuestion(q.id)}>X</Btn>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add new question */}
+      <div style={{ padding:"14px 16px",background:"#0d0d18",borderRadius:12,border:"1px solid #1e1e38" }}>
+        <div style={{ fontSize:13,fontWeight:700,color:"#f0f0f5",marginBottom:10 }}>Add Question</div>
+        <Input label="Question" placeholder='e.g. "Who gets eliminated this week?"' value={newText} onChange={e=>setNewText(e.target.value)} />
+        <div style={{ display:"flex",gap:10,marginBottom:14 }}>
+          <Select label="Type" value={newType} onChange={e=>setNewType(e.target.value)} options={[
+            {value:"pick_one",label:"Pick One"},{value:"yes_no",label:"Yes / No"},
+          ]} />
+          <Input label="Points" type="number" value={newPoints} onChange={e=>setNewPoints(e.target.value)} style={{width:80}} />
+        </div>
+        {newType === "pick_one" && (
+          <Input label="Custom Options (comma-separated, leave blank for contestant list)" placeholder="Option A, Option B, Option C" value={newOptions} onChange={e=>setNewOptions(e.target.value)} />
+        )}
+        <Btn small onClick={addQuestion} disabled={!newText.trim()}>Add Question</Btn>
+      </div>
     </div>
   );
 }
