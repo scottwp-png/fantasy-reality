@@ -38,7 +38,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:14px 16px;display:fl
 .nav-right{display:flex;gap:24px;align-items:center}
 .nav-right a{font-size:14px;font-weight:500;color:var(--muted);transition:color .2s}
 .nav-right a:hover{color:var(--text)}
-.btn-play{padding:10px 22px;border-radius:10px;font-weight:700;font-size:13px;background:var(--red);color:#fff;border:none;cursor:pointer;transition:all .2s}
+.btn-play{padding:10px 22px;border-radius:10px;font-weight:700;font-size:13px;background:var(--red);color:#fff!important;border:none;cursor:pointer;transition:all .2s}
 .btn-play:hover{transform:translateY(-2px);box-shadow:0 6px 24px rgba(255,77,106,0.35);background:#ff3358}
 @media(max-width:640px){.nav-right a:not(.btn-play){display:none}.logo-text{font-size:15px}.btn-play{padding:8px 14px;font-size:12px}nav{padding:12px 16px}}
 
@@ -100,18 +100,17 @@ section{padding:80px 24px}
 .feat-sec{background:var(--bg2)}
 .feat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:48px}
 @media(max-width:640px){.feat-grid{grid-template-columns:1fr}}
-@media(max-width:900px){.shows-grid{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:640px){.shows-grid{grid-template-columns:repeat(2,1fr)}}
+
 .feat{padding:24px;border-radius:12px;border:1px solid var(--border);background:var(--surface);transition:all .3s}
 .feat:hover{border-color:var(--border-light);transform:translateY(-2px)}
 .feat h3{font-size:14px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:8px}
 .feat h3 .fi{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .feat p{font-size:13px;color:var(--muted);line-height:1.6}
 
-.shows-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:36px;overflow:hidden}
-.show-tile{padding:16px 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface);text-align:center;transition:all .3s;cursor:default}
+.shows-grid-desktop{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:36px}.shows-carousel{position:relative;margin-top:36px;display:none}.shows-track{display:flex;gap:12px;justify-content:center}.show-arrow{position:absolute;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;transition:all .2s;z-index:2}.show-arrow:hover{background:var(--border);color:var(--text)}.show-arrow.left{left:-8px}.show-arrow.right{right:-8px}@media(max-width:768px){.shows-grid-desktop{display:none}.shows-carousel{display:block}.shows-dots-wrap{display:flex!important}}
+.show-tile{padding:18px 16px;border-radius:10px;border:1px solid var(--border);background:var(--surface);text-align:center;transition:all .3s;cursor:default;flex:1;min-width:0}
 .show-tile:hover{transform:translateY(-2px);border-color:var(--border-light)}
-.show-tile h3{font-size:14px;font-weight:800;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.show-tile h3{font-size:14px;font-weight:800;letter-spacing:-.01em}
 
 .faq-sec{background:var(--bg2)}
 .faq-list{display:flex;flex-direction:column;gap:8px;margin-top:40px;max-width:700px}
@@ -263,7 +262,7 @@ footer a{color:var(--red);font-weight:600}
   <div class="sec-inner">
     <div class="sec-label">Shows</div>
     <div class="sec-title">If you watch it, you can draft it.</div>
-    <div class="shows-grid">
+    <div class="shows-grid-desktop">
       <div class="show-tile"><h3 style="color:#d4a24e">SURVIVOR</h3><p style="font-size:11px;color:var(--muted)">Outwit. Outplay.</p></div>
       <div class="show-tile"><h3 style="color:var(--teal)">TOP CHEF</h3><p style="font-size:11px;color:var(--muted)">Pack your knives.</p></div>
       <div class="show-tile"><h3 style="color:var(--pink)">LOVE ISLAND</h3><p style="font-size:11px;color:var(--muted)">I got a text!</p></div>
@@ -275,6 +274,51 @@ footer a{color:var(--red);font-weight:600}
       <div class="show-tile"><h3 style="color:var(--green)">AMAZING RACE</h3><p style="font-size:11px;color:var(--muted)">The world is waiting.</p></div>
       <div class="show-tile"><h3 style="background:linear-gradient(135deg,var(--red),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent">ANY SHOW</h3><p style="font-size:11px;color:var(--muted)">Your show. Your rules.</p></div>
     </div>
+    <div class="shows-carousel" id="showsCarousel">
+      <button class="show-arrow left" onclick="moveShows(-1)">&#8249;</button>
+      <div class="shows-track" id="showsTrack"></div>
+      <button class="show-arrow right" onclick="moveShows(1)">&#8250;</button>
+    </div>
+    <div class="shows-dots-wrap" style="display:none;justify-content:center;gap:6px;margin-top:14px" id="showsDots"></div>
+    <script>
+    (function(){
+      var shows = [
+        {name:"SURVIVOR",color:"#d4a24e",sub:"Outwit. Outplay.",style:""},
+        {name:"TOP CHEF",color:"var(--teal)",sub:"Pack your knives.",style:""},
+        {name:"LOVE ISLAND",color:"var(--pink)",sub:"I got a text!",style:""},
+        {name:"The Bachelor/ette",color:"#e86b8a",sub:"Accept this rose?",style:"font-style:italic;font-weight:700"},
+        {name:"THE TRAITORS",color:"var(--red)",sub:"Murder. Banish.",style:""},
+        {name:"BIG BROTHER",color:"var(--blue)",sub:"Expect the unexpected.",style:""},
+        {name:"THE CHALLENGE",color:"var(--orange)",sub:"Are you the one?",style:""},
+        {name:"LOVE IS BLIND",color:"var(--purple)",sub:"Is love truly blind?",style:""},
+        {name:"AMAZING RACE",color:"var(--green)",sub:"The world is waiting.",style:""},
+        {name:"ANY SHOW",color:"",sub:"Your show. Your rules.",style:"background:linear-gradient(135deg,var(--red),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent"}
+      ];
+      var page=0, perPage=2, totalPages=Math.ceil(shows.length/perPage);
+      function render(){
+        var track=document.getElementById("showsTrack");
+        var start=page*perPage;
+        var pair=shows.slice(start,start+perPage);
+        track.innerHTML=pair.map(function(s){
+          var colorStyle=s.style||("color:"+s.color);
+          return '<div class="show-tile"><h3 style="'+colorStyle+'">'+s.name+'</h3><p style="font-size:11px;color:var(--muted)">'+s.sub+'</p></div>';
+        }).join("");
+        var dots=document.getElementById("showsDots");
+        dots.innerHTML="";
+        for(var i=0;i<totalPages;i++){
+          var d=document.createElement("div");
+          d.style.cssText="width:8px;height:8px;border-radius:50%;background:"+(i===page?"var(--red)":"var(--border)")+";cursor:pointer;transition:all .2s";
+          d.onclick=(function(idx){return function(){page=idx;render()}})(i);
+          dots.appendChild(d);
+        }
+      }
+      window.moveShows=function(dir){
+        page=(page+dir+totalPages)%totalPages;
+        render();
+      };
+      render();
+    })();
+    </script>
   </div>
 </section>
 
