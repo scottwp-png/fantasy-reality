@@ -258,6 +258,11 @@ const FORMAT_INFO = {
   },
 };
 
+function formatPts(val, league) {
+  if (league?.decimalScoring === false) return Math.round(val).toString();
+  return (Math.round(val * 100) / 100).toFixed(2);
+}
+
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
@@ -298,7 +303,7 @@ function calcTeamWeekPoints(league, team, weekNum) {
     if (chart.captain) total += calcContestantWeekPoints(weekScores, chart.captain) * 2;
     if (chart.coCaptain) total += calcContestantWeekPoints(weekScores, chart.coCaptain) * 1.5;
     (chart.regulars || []).forEach(cid => { total += calcContestantWeekPoints(weekScores, cid); });
-    return Math.round(total * 10) / 10;
+    return Math.round(total * 100) / 100;
   }
 
   if (format === "survivor_pool") {
@@ -362,7 +367,7 @@ function calcStandings(league) {
       weeklyTotals[w] = wPts;
       total += wPts;
     });
-    return { ...team, total: Math.round(total * 10) / 10, weeklyTotals };
+    return { ...team, total: Math.round(total * 100) / 100, weeklyTotals };
   });
 
   // Categories/Roto: rank teams by scoring category
@@ -656,6 +661,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
   const [bestBall, setBestBall] = useState(false);
   const [salaryBudget, setSalaryBudget] = useState(100);
   const [rotoScoring, setRotoScoring] = useState(false);
+  const [decimalScoring, setDecimalScoring] = useState(true);
   const [scoringRules, setScoringRules] = useState([]);
 
   // Step 3: Teams
@@ -718,6 +724,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
       predictionsConfig: format === "predictions" ? {} : null,
       headToHead,
       rotoScoring,
+      decimalScoring,
       bestBall: format === "captains" ? bestBall : false,
       scoringRules,
       contestants: [],
@@ -843,6 +850,13 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
                 </div>
               </label>
             )}
+            <label style={{ display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",cursor:"pointer" }}>
+              <input type="checkbox" checked={decimalScoring} onChange={e=>setDecimalScoring(e.target.checked)} style={{ accentColor:"#e94560",width:18,height:18 }} />
+              <div>
+                <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>Decimal Scoring</div>
+                <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>Show scores to two decimal places (e.g. 66.80 instead of 67). Turn off for whole numbers only.</div>
+              </div>
+            </label>
           </div>
 
           <Btn onClick={()=>setStep(2)} disabled={!name.trim()} style={{ width:"100%",justifyContent:"center" }}>Next: Scoring Rules</Btn>
@@ -1131,11 +1145,21 @@ function StandingsTab({ league, standings }) {
                 transition:"all 0.2s",
               }}>
                 <div style={{ display:"flex",alignItems:"center",gap:12,padding:"16px" }}>
-                <div style={{ width:36,height:36,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",
-                  background:i===0?"rgba(255,77,106,0.15)":i===1?"rgba(200,200,220,0.1)":i===2?"rgba(205,127,50,0.1)":"#1a1a2e",
-                  fontSize:medal?18:14,fontWeight:800,color:i===0?"#ff4d6a":i===1?"#c0c0d0":i===2?"#cd7f32":"#6a6a8a",
-                  fontFamily:"'Anybody',sans-serif",
-                }}>{medal||(i+1)}</div>
+                <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+                  <div style={{ fontSize:i<3?22:14,width:28,textAlign:"center",flexShrink:0,
+                    fontFamily:"'Anybody',sans-serif",fontWeight:800,
+                    color:i===0?"#ff4d6a":i===1?"#c0c0d0":i===2?"#cd7f32":"#4a4a6a" }}>
+                    {i===0?"🥇":i===1?"🥈":i===2?"🥉":(i+1)}
+                  </div>
+                  {team.teamAvatar ? (
+                    <img src={team.teamAvatar} alt={team.name} style={{ width:40,height:40,borderRadius:12,objectFit:"cover",border:"2px solid "+(team.teamColor||"#e94560"),flexShrink:0 }} />
+                  ) : (
+                    <div style={{ width:40,height:40,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",
+                      background:team.teamColor||"#1a1a2e",fontSize:16,fontWeight:800,color:"#fff",
+                      fontFamily:"'Anybody',sans-serif",flexShrink:0,
+                    }}>{team.name?.[0]}</div>
+                  )}
+                </div>
                 <div style={{ flex:1,minWidth:0 }}>
                   <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:14 }}>{team.name}</div>
                   <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>{team.owner}{team.h2hRecord ? ` · ${team.h2hRecord}` : ""}{wkPts !== 0 ? ` · ${wkPts>0?"+":""}${wkPts} this wk` : ""}</div>
@@ -1773,7 +1797,11 @@ function TeamsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
               <div key={team.id} style={{ background:"#12121f",border:"1px solid #1e1e38",borderRadius:10,overflow:"hidden" }}>
                 <div style={{ display:"flex",alignItems:"center",gap:12,padding:"14px 16px",cursor:"pointer" }}
                   onClick={()=>setExpanded(isExp?null:team.id)}>
-                  <div style={{ width:40,height:40,borderRadius:10,background:"linear-gradient(135deg,#2a2a5a,#3a3a6a)",display:"flex",alignItems:"center",justifyContent:"center" }}><Icon name="users" size={20}/></div>
+                  {team.teamAvatar ? (
+                    <img src={team.teamAvatar} alt={team.name} style={{ width:40,height:40,borderRadius:10,objectFit:"cover",border:"2px solid "+(team.teamColor||"#e94560"),flexShrink:0 }} />
+                  ) : (
+                    <div style={{ width:40,height:40,borderRadius:10,background:team.teamColor||"linear-gradient(135deg,#2a2a5a,#3a3a6a)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:800,color:"#fff",flexShrink:0 }}>{team.name?.[0]}</div>
+                  )}
                   <div style={{ flex:1 }}>
                     <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:14 }}>{team.name}</div>
                     <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>{team.owner} · {roster.length} rostered</div>
@@ -1805,10 +1833,7 @@ function TeamsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                           return (
                             <div key={c.id+(c.role||idx)} style={{ padding:"10px 0",borderBottom:"1px solid #1a1a30" }}>
                               <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                                <div style={{ width:30,height:30,borderRadius:"50%",flexShrink:0,
-                                  background:c.status==="eliminated"?"#2a2a4a":tribeColor,
-                                  display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:"#fff"
-                                }}>{c.name?.[0]?.toUpperCase()}</div>
+                                <ContestantAvatar contestant={c} league={league} size={30} />
                                 <div style={{ flex:1 }}>
                                   <div style={{ display:"flex",alignItems:"center",gap:4 }}>
                                     <span style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>{c.name}</span>
