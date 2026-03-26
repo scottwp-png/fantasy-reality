@@ -593,9 +593,15 @@ function ContestantAvatar({ contestant, league, size=32 }) {
   return (
     <>
       {hasPhoto ? (
-        <img src={contestant.photoUrl} alt={contestant?.name} onClick={(e)=>{e.stopPropagation();setShowFull(true)}}
-          onError={()=>setImgError(true)}
-          style={{ width:size,height:size,borderRadius:radius,objectFit:"cover",border:`2px solid ${color}`,cursor:"pointer",flexShrink:0 }} />
+        <div onClick={(e)=>{e.stopPropagation();setShowFull(true)}} style={{
+          width:size,height:size,borderRadius:radius,border:`2px solid ${color}`,cursor:"pointer",flexShrink:0,overflow:"hidden"
+        }}>
+          <img src={contestant.photoUrl} alt={contestant?.name} onError={()=>setImgError(true)}
+            style={{ width:"100%",height:"100%",objectFit:"cover",
+              objectPosition:`center ${contestant?.photoCropY||20}%`,
+              transform:`scale(${contestant?.photoCropZoom||1})`,
+              transformOrigin:`center ${contestant?.photoCropY||20}%` }} />
+        </div>
       ) : (
         <div style={{ width:size,height:size,borderRadius:radius,background:color,display:"flex",alignItems:"center",justifyContent:"center",fontSize,fontWeight:700,color:"#fff",flexShrink:0 }}>
           {contestant?.name?.[0] || "?"}
@@ -1460,9 +1466,21 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                   style={{ flex:1,padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
                     color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",minWidth:0 }}
                 />
-                {c.photoUrl && <div style={{ width:24,height:24,borderRadius:4,overflow:"hidden",flexShrink:0 }}>
-                  <img src={c.photoUrl} style={{ width:"100%",height:"100%",objectFit:"cover" }} onError={e=>{e.target.style.display="none"}} />
-                </div>}
+                {c.photoUrl && <>
+                  <input type="range" min="0" max="100" defaultValue={c.photoCropY||20}
+                    onChange={e=>{
+                      onUpdate({...league, contestants: league.contestants.map(x=>x.id===c.id?{...x,photoCropY:Number(e.target.value)}:x)});
+                    }}
+                    style={{ width:50,accentColor:"#e94560",flexShrink:0 }} title="Position" />
+                  <input type="range" min="1" max="3" step="0.1" defaultValue={c.photoCropZoom||1}
+                    onChange={e=>{
+                      onUpdate({...league, contestants: league.contestants.map(x=>x.id===c.id?{...x,photoCropZoom:Number(e.target.value)}:x)});
+                    }}
+                    style={{ width:40,accentColor:"#4ecdc4",flexShrink:0 }} title="Zoom" />
+                  <div style={{ width:28,height:28,borderRadius:6,overflow:"hidden",flexShrink:0 }}>
+                    <img src={c.photoUrl} style={{ width:"100%",height:"100%",objectFit:"cover",objectPosition:`center ${c.photoCropY||20}%`,transform:`scale(${c.photoCropZoom||1})`,transformOrigin:`center ${c.photoCropY||20}%` }} onError={e=>{e.target.style.display="none"}} />
+                  </div>
+                </>}
               </div>
             ))}
           </div>
@@ -1551,7 +1569,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                   {!c.photoUrl && <Btn small variant="ghost" onClick={()=>{
                     const url = prompt("Paste a photo URL for " + c.name + ":");
                     if (url && url.trim()) {
-                      onUpdate({...league, contestants: league.contestants.map(x=>x.id===c.id?{...x,photoUrl:url.trim()}:x)});
+                      onUpdate({...league, contestants: league.contestants.map(x=>x.id===c.id?{...x,photoUrl:url.trim(),photoCropY:20}:x)});
                     }
                   }}>Add Photo</Btn>}
                 </div>)}
@@ -2992,7 +3010,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
             <div style={{ display:"flex",gap:8,marginTop:20 }}>
               <Btn variant="ghost" onClick={()=>setShowCustomize(false)} style={{ flex:1,justifyContent:"center" }}>Cancel</Btn>
               <Btn onClick={()=>{
-                const updatedTeams = league.teams.map(t=>t.id===team.id?{...t,name:customName.trim()||team.name,teamColor:customColor,teamAvatar:customAvatar.trim()}:t);
+                const updatedTeams = league.teams.map(t=>t.id===team.id?{...t,name:customName.trim()||team.name,teamColor:customColor,teamAvatar:customAvatar.trim()||null}:t);
                 onUpdate({...league, teams: updatedTeams});
                 setShowCustomize(false);
               }} style={{ flex:1,justifyContent:"center" }}>Save</Btn>
@@ -4311,15 +4329,17 @@ function AddContestantModal({ open, onClose, league, onUpdate, editing }) {
   const [bio, setBio] = useState("");
   const [gender, setGender] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
+  const [photoCropY, setPhotoCropY] = useState(20);
+  const [photoCropZoom, setPhotoCropZoom] = useState(1);
 
   useEffect(() => {
-    if (editing) { setName(editing.name||""); setBio(editing.bio||""); setGender(editing.gender||""); setPhotoUrl(editing.photoUrl||""); }
+    if (editing) { setName(editing.name||""); setBio(editing.bio||""); setGender(editing.gender||""); setPhotoUrl(editing.photoUrl||""); setPhotoCropY(editing.photoCropY||20); setPhotoCropZoom(editing.photoCropZoom||1); }
     else { setName(""); setBio(""); setGender(""); setPhotoUrl(""); }
   }, [editing, open]);
 
   function handleSave() {
     if (!name.trim()) return;
-    const contestant = { id: editing?.id || generateId(), name: name.trim(), bio: bio.trim(), gender: gender.trim(), photoUrl: photoUrl.trim(), status: editing?.status || "active", tribe: editing?.tribe || "" };
+    const contestant = { id: editing?.id || generateId(), name: name.trim(), bio: bio.trim(), gender: gender.trim(), photoUrl: photoUrl.trim(), photoCropY: Number(photoCropY), photoCropZoom: Number(photoCropZoom), status: editing?.status || "active", tribe: editing?.tribe || "" };
     if (editing) onUpdate({ ...league, contestants: league.contestants.map(c=>c.id===editing.id?{...c,...contestant}:c) });
     else onUpdate({ ...league, contestants: [...(league.contestants||[]), contestant] });
     onClose();
@@ -4345,8 +4365,28 @@ function AddContestantModal({ open, onClose, league, onUpdate, editing }) {
       </div>
       {showGender && <Input label="Gender Category" placeholder="e.g. Male, Female" value={gender} onChange={e=>setGender(e.target.value)} />}
       {photoUrl && (
-        <div style={{ marginBottom:14,textAlign:"center" }}>
-          <img src={photoUrl} alt="Preview" style={{ width:64,height:64,borderRadius:14,objectFit:"cover",border:"2px solid #2a2a4a" }} onError={e=>{e.target.style.display="none"}} />
+        <div style={{ marginBottom:14 }}>
+          <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>Thumbnail Position</label>
+          <div style={{ display:"flex",alignItems:"center",gap:14 }}>
+            <div style={{ width:72,height:72,borderRadius:14,overflow:"hidden",border:"2px solid #2a2a4a",flexShrink:0 }}>
+              <img src={photoUrl} alt="Preview" style={{ width:"100%",height:"100%",objectFit:"cover",objectPosition:`center ${photoCropY}%`,transform:`scale(${photoCropZoom})`,transformOrigin:`center ${photoCropY}%` }} onError={e=>{e.target.style.display="none"}} />
+            </div>
+            <div style={{ flex:1 }}>
+              <input type="range" min="0" max="100" value={photoCropY} onChange={e=>setPhotoCropY(e.target.value)}
+                style={{ width:"100%",accentColor:"#e94560" }} />
+              <div style={{ display:"flex",justifyContent:"space-between",fontSize:10,color:"#4a4a6a",marginTop:2 }}>
+                <span>Top</span><span>Center</span><span>Bottom</span>
+              </div>
+              <div style={{ marginTop:8 }}>
+                <div style={{ fontSize:11,color:"#6a6a8a",marginBottom:2 }}>Zoom: {Math.round(photoCropZoom*100)}%</div>
+                <input type="range" min="1" max="3" step="0.1" value={photoCropZoom} onChange={e=>setPhotoCropZoom(e.target.value)}
+                  style={{ width:"100%",accentColor:"#4ecdc4" }} />
+              </div>
+            </div>
+          </div>
+          <div style={{ width:72,height:72,borderRadius:14,overflow:"hidden",border:"2px solid #2a2a4a",flexShrink:0 }}>
+            <img src={photoUrl} alt="Zoomed" style={{ width:"100%",height:"100%",objectFit:"cover",objectPosition:`center ${photoCropY}%`,transform:`scale(${photoCropZoom})`,transformOrigin:`center ${photoCropY}%` }} onError={e=>{e.target.style.display="none"}} />
+          </div>
         </div>
       )}
       <div style={{ display:"flex",gap:8,marginTop:16 }}>
