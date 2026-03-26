@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
+import ReactDOM from "react-dom"
 import { loadData, saveData, deleteData, loadAllLeagues, saveAllLeagues, clearAllStorage, loadUserProfile, saveUserProfile, loadAllUserProfiles, onAuthChange, signUp, signIn, signInWithGoogle, signOut, resetPassword, ADMIN_EMAIL } from "./firebase.js"
 import * as XLSX from "xlsx"
 
@@ -579,24 +580,26 @@ function Spinner({ size=20, color="#e94560" }) {
 
 function ContestantAvatar({ contestant, league, size=32 }) {
   const [showFull, setShowFull] = useState(false);
+  const [imgError, setImgError] = useState(false);
   const color = getTribeColor(league, contestant);
   const radius = Math.round(size * 0.25);
   const fontSize = Math.round(size * 0.4);
-  const hasPhoto = !!contestant?.photoUrl;
+  const hasPhoto = !!contestant?.photoUrl && !imgError;
   return (
     <>
       {hasPhoto ? (
-        <img src={contestant.photoUrl} alt={contestant?.name} onClick={()=>setShowFull(true)}
+        <img src={contestant.photoUrl} alt={contestant?.name} onClick={(e)=>{e.stopPropagation();setShowFull(true)}}
+          onError={()=>setImgError(true)}
           style={{ width:size,height:size,borderRadius:radius,objectFit:"cover",border:`2px solid ${color}`,cursor:"pointer",flexShrink:0 }} />
       ) : (
         <div style={{ width:size,height:size,borderRadius:radius,background:color,display:"flex",alignItems:"center",justifyContent:"center",fontSize,fontWeight:700,color:"#fff",flexShrink:0 }}>
           {contestant?.name?.[0] || "?"}
         </div>
       )}
-      {showFull && hasPhoto && (
+      {showFull && hasPhoto && ReactDOM.createPortal(
         <div onClick={()=>setShowFull(false)} style={{
-          position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.85)",
-          display:"flex",alignItems:"flex-start",justifyContent:"center",zIndex:999,cursor:"pointer",
+          position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.92)",
+          display:"flex",alignItems:"flex-start",justifyContent:"center",zIndex:9999,cursor:"pointer",
           padding:"40px 20px",overflowY:"auto",WebkitOverflowScrolling:"touch"
         }}>
           <div style={{ maxWidth:400,width:"100%",textAlign:"center",flexShrink:0 }} onClick={e=>e.stopPropagation()}>
@@ -618,7 +621,8 @@ function ContestantAvatar({ contestant, league, size=32 }) {
             )}
             <button onClick={()=>setShowFull(false)} style={{ marginTop:16,marginBottom:20,background:"#2a2a4a",border:"none",borderRadius:8,padding:"8px 20px",color:"#ccc",fontSize:13,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>Close</button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
