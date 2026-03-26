@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import ReactDOM from "react-dom"
-import { loadData, saveData, deleteData, loadAllLeagues, saveAllLeagues, clearAllStorage, loadUserProfile, saveUserProfile, loadAllUserProfiles, onAuthChange, signUp, signIn, signInWithGoogle, signOut, resetPassword, ADMIN_EMAIL } from "./firebase.js"
+import { loadData, saveData, deleteData, loadAllLeagues, saveAllLeagues, saveLeague, clearAllStorage, loadUserProfile, saveUserProfile, loadAllUserProfiles, onAuthChange, signUp, signIn, signInWithGoogle, signOut, resetPassword, ADMIN_EMAIL } from "./firebase.js"
 import * as XLSX from "xlsx"
 
 
@@ -4500,6 +4500,24 @@ export default function FantasyRealityTV() {
     await saveAllLeagues(updated);
   }
 
+  // Use this for all in-session league edits (scoring, rosters, settings, etc.)
+  // Writes only the changed league path — avoids last-write-wins race condition
+  // where two managers saving simultaneously would overwrite each other's changes.
+  async function persistLeague(updatedLeague, allUpdated) {
+    const updated = allUpdated || leagues.map(l => l.id === updatedLeague.id ? updatedLeague : l);
+    setLeagues(updated);
+    await saveLeague(updatedLeague);
+    // If linked leagues were also touched, save those too
+    if (allUpdated) {
+      const others = allUpdated.filter(l => l.id !== updatedLeague.id);
+      for (const l of others) {
+        if (l !== leagues.find(x => x.id === l.id)) {
+          await saveLeague(l);
+        }
+      }
+    }
+  }
+
   async function handleJoinViaCode(inviteCode) {
     if (!authUser || !userProfile) return "Not logged in.";
     const freshLeagues = await refreshLeagues();
@@ -4707,7 +4725,7 @@ export default function FantasyRealityTV() {
             }
             return l;
           });
-          persist(updated);
+          persistLeague(u, updated);
         }}
         onBack={()=>{refreshLeagues();setView("home")}}
         loggedInTeamId={(isAdmin || selected?.commissionerUid === authUser?.uid) ? (selected.adminTeamId || myTeamIn(selected.id)) : myTeamIn(selected.id)}

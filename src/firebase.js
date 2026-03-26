@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { getDatabase, ref, get, set, remove } from 'firebase/database'
+import { getDatabase, ref, get, set, update, remove } from 'firebase/database'
 import {
   getAuth,
   createUserWithEmailAndPassword,
@@ -73,6 +73,17 @@ export async function loadAllLeagues() {
 }
 export async function saveAllLeagues(leagues) {
   const index = leagues.map(l => l.id); await saveData("league_index", index); for (const league of leagues) { await saveData("league_" + league.id, league); }
+}
+// Saves a single league by path — avoids the race condition where saveAllLeagues
+// replaces the entire league object, causing concurrent edits to overwrite each other.
+// Use this for all in-session league updates (scoring, roster changes, settings, etc.)
+// Only use saveAllLeagues for bulk operations (import, initial seed).
+export async function saveLeague(league) {
+  try {
+    await update(ref(db, "frtv"), { ["league_" + league.id]: league });
+  } catch (e) {
+    console.error("Firebase saveLeague error:", e);
+  }
 }
 export async function clearAllStorage() {
   try { const index = await loadData("league_index", []); for (const id of index) { await deleteData("league_" + id); } await deleteData("league_index"); await deleteData("users"); } catch (e) { console.error("Clear error:", e) }
