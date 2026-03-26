@@ -577,6 +577,53 @@ function Spinner({ size=20, color="#e94560" }) {
   return <div style={{ width:size,height:size,border:`2px solid ${color}33`,borderTop:`2px solid ${color}`,borderRadius:"50%",animation:"spin 0.6s linear infinite" }}/>;
 }
 
+function ContestantAvatar({ contestant, league, size=32 }) {
+  const [showFull, setShowFull] = useState(false);
+  const color = getTribeColor(league, contestant);
+  const radius = Math.round(size * 0.25);
+  const fontSize = Math.round(size * 0.4);
+  const hasPhoto = !!contestant?.photoUrl;
+  return (
+    <>
+      {hasPhoto ? (
+        <img src={contestant.photoUrl} alt={contestant?.name} onClick={()=>setShowFull(true)}
+          style={{ width:size,height:size,borderRadius:radius,objectFit:"cover",border:`2px solid ${color}`,cursor:"pointer",flexShrink:0 }} />
+      ) : (
+        <div style={{ width:size,height:size,borderRadius:radius,background:color,display:"flex",alignItems:"center",justifyContent:"center",fontSize,fontWeight:700,color:"#fff",flexShrink:0 }}>
+          {contestant?.name?.[0] || "?"}
+        </div>
+      )}
+      {showFull && hasPhoto && (
+        <div onClick={()=>setShowFull(false)} style={{
+          position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.85)",
+          display:"flex",alignItems:"flex-start",justifyContent:"center",zIndex:999,cursor:"pointer",
+          padding:"40px 20px",overflowY:"auto",WebkitOverflowScrolling:"touch"
+        }}>
+          <div style={{ maxWidth:400,width:"100%",textAlign:"center",flexShrink:0 }} onClick={e=>e.stopPropagation()}>
+            <img src={contestant.photoUrl} alt={contestant?.name} style={{ width:"100%",maxWidth:360,borderRadius:14,objectFit:"contain",border:`3px solid ${color}` }} />
+            <div style={{ marginTop:12,color:"#e8e8f0",fontFamily:"'Anybody',sans-serif",fontSize:22,fontWeight:700 }}>{contestant?.name}</div>
+            {contestant?.bio && (
+              <div style={{ marginTop:12,textAlign:"left",padding:"0 8px",fontSize:13,lineHeight:1.8 }}>
+                {contestant.bio.split("\n").map((line, i) => {
+                  const colonIdx = line.indexOf(":");
+                  if (colonIdx > 0 && colonIdx < 30 && i < 10) {
+                    const label = line.slice(0, colonIdx + 1);
+                    const value = line.slice(colonIdx + 1);
+                    return <div key={i}><span style={{ fontWeight:700,color:"#e8e8f0" }}>{label}</span><span style={{ color:"#8888aa" }}>{value}</span></div>;
+                  }
+                  if (!line.trim()) return <div key={i} style={{ height:8 }}/>;
+                  return <div key={i} style={{ color:"#8888aa" }}>{line}</div>;
+                })}
+              </div>
+            )}
+            <button onClick={()=>setShowFull(false)} style={{ marginTop:16,marginBottom:20,background:"#2a2a4a",border:"none",borderRadius:8,padding:"8px 20px",color:"#ccc",fontSize:13,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>Close</button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function MultiplierBadge({ role }) {
   if (role === "captain") return <span style={{ fontSize:10,fontWeight:800,color:"#f5a623",background:"#f5a62322",padding:"1px 6px",borderRadius:4,marginLeft:6 }}>Hero 2×</span>;
   if (role === "coCaptain") return <span style={{ fontSize:10,fontWeight:800,color:"#4ecdc4",background:"#4ecdc422",padding:"1px 6px",borderRadius:4,marginLeft:6 }}>SK 1.5×</span>;
@@ -1177,6 +1224,7 @@ function StandingsTab({ league, standings }) {
 // CONTESTANTS TAB
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
+  const [managePhotos, setManagePhotos] = useState(false);
   const [filter, setFilter] = useState("all");
   const [expandedId, setExpandedId] = useState(null);
   const [sortBy, setSortBy] = useState("total");
@@ -1343,7 +1391,10 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
         <div style={{display:"flex",gap:6}}>
           {!readOnly&&onUpdate&&<Btn small variant="ghost" onClick={()=>setTribeMode(true)}>Tribes</Btn>}
           {!readOnly&&<Btn small variant="ghost" onClick={()=>setBulkAddOpen(true)}>Bulk Add</Btn>}
-          {!readOnly&&<Btn small onClick={()=>{setEditing(null);setModal("add-contestant")}}><Icon name="plus" size={14}/> Add</Btn>}
+          {!readOnly&&<div style={{display:"flex",gap:6}}>
+            <Btn small onClick={()=>{setEditing(null);setModal("add-contestant")}}><Icon name="plus" size={14}/> Add</Btn>
+            <Btn small variant="ghost" onClick={()=>setManagePhotos(!managePhotos)}>Manage Photos</Btn>
+          </div>}
         </div>
       </div>
       {isMerged&&(<div style={{padding:"8px 12px",background:"#f5a62311",borderRadius:8,border:"1px solid #f5a62333",marginBottom:12,fontSize:12,color:"#f5a623",display:"flex",alignItems:"center",gap:6}}>
@@ -1357,6 +1408,39 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
           {[{id:"total",label:"Season"},{id:"lastWeek",label:"Last Wk"},{id:"best",label:"Best"},{id:"worst",label:"Worst"},{id:"name",label:"A-Z"}].map(s=>(<button key={s.id} onClick={()=>setSortBy(s.id)} style={{padding:"5px 10px",borderRadius:99,border:sortBy===s.id?"1px solid #e9456044":"1px solid transparent",cursor:"pointer",fontSize:11,fontWeight:600,background:sortBy===s.id?"#e9456018":"transparent",color:sortBy===s.id?"#e94560":"#6a6a8a",fontFamily:"'Outfit',sans-serif",transition:"all .15s"}}>{s.label}</button>))}
         </div>
       </div>
+      {/* Manage Photos panel */}
+      {managePhotos && !readOnly && (
+        <div style={{ marginBottom:16,padding:"14px 16px",background:"#0d0d18",borderRadius:12,border:"1px solid #1e1e38" }}>
+          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
+            <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>Manage Photos</div>
+            <button onClick={()=>setManagePhotos(false)} style={{ background:"none",border:"none",color:"#6a6a8a",cursor:"pointer" }}>Done</button>
+          </div>
+          <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
+            {(league.contestants||[]).map(c => (
+              <div key={c.id} style={{ display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"#12121f",borderRadius:8,border:"1px solid #1e1e38" }}>
+                <ContestantAvatar contestant={c} league={league} size={32} />
+                <div style={{ width:100,fontSize:12,fontWeight:600,color:c.status==="eliminated"?"#6a6a8a":"#e8e8f0",flexShrink:0 }}>{c.name}</div>
+                <input
+                  placeholder="Photo URL"
+                  defaultValue={c.photoUrl||""}
+                  onBlur={e=>{
+                    const url = e.target.value.trim();
+                    if (url !== (c.photoUrl||"")) {
+                      onUpdate({...league, contestants: league.contestants.map(x=>x.id===c.id?{...x,photoUrl:url}:x)});
+                    }
+                  }}
+                  style={{ flex:1,padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                    color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",minWidth:0 }}
+                />
+                {c.photoUrl && <div style={{ width:24,height:24,borderRadius:4,overflow:"hidden",flexShrink:0 }}>
+                  <img src={c.photoUrl} style={{ width:"100%",height:"100%",objectFit:"cover" }} onError={e=>{e.target.style.display="none"}} />
+                </div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {filtered.length===0?<EmptyState message="No contestants found."/>:(
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {filtered.map((c,rank)=>{
@@ -1371,7 +1455,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
             return(<div key={c.id} style={{borderRadius:12,background:"#12121f",border:"1px solid #1e1e38",opacity:c.status==="eliminated"?0.5:1,overflow:"hidden",transition:"all 0.2s"}}>
               <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",cursor:"pointer"}} onClick={()=>setExpandedId(isExp?null:c.id)}>
                 <div style={{width:28,textAlign:"center",fontSize:13,fontWeight:700,color:"#6a6a8a"}}>{sortBy!=="name"?(rank+1):""}</div>
-                <div style={{width:36,height:36,borderRadius:10,flexShrink:0,background:c.status==="eliminated"?"#2a2a4a":getTribeColor(league,c),display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:"#fff"}}>{c.name?.[0]?.toUpperCase()||"?"}</div>
+                <ContestantAvatar contestant={c} league={league} size={36} />
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{color:"#e8e8f0",fontWeight:600,fontSize:13,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
                     {c.name}
@@ -1434,7 +1518,15 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                     })}
                   </div>
                 </div>):(<div style={{color:"#4a4a6a",fontSize:12,marginTop:8}}>No scores yet.</div>)}
-                {!readOnly&&(<div style={{marginTop:10}}><Btn small variant="ghost" onClick={()=>{setEditing(c);setModal("add-contestant")}}><Icon name="edit" size={12}/> Edit</Btn></div>)}
+                {!readOnly&&(<div style={{display:"flex",gap:6,marginTop:10}}>
+                  <Btn small variant="ghost" onClick={()=>{setEditing(c);setModal("add-contestant")}}><Icon name="edit" size={12}/> Edit</Btn>
+                  {!c.photoUrl && <Btn small variant="ghost" onClick={()=>{
+                    const url = prompt("Paste a photo URL for " + c.name + ":");
+                    if (url && url.trim()) {
+                      onUpdate({...league, contestants: league.contestants.map(x=>x.id===c.id?{...x,photoUrl:url.trim()}:x)});
+                    }
+                  }}>Add Photo</Btn>}
+                </div>)}
               </div>)}
             </div>);
           })}
@@ -2419,7 +2511,7 @@ function WeeklyDraftTab({ league, onUpdate, standings }) {
                 display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:"#12121f",
                 border:"1px solid #1e1e38",borderRadius:8,cursor:"pointer",textAlign:"left",fontFamily:"'Outfit',sans-serif",transition:"all 0.1s ease",
               }} onMouseEnter={e=>{e.currentTarget.style.borderColor="#4ecdc4"}} onMouseLeave={e=>{e.currentTarget.style.borderColor="#1e1e38"}}>
-                <div style={{ width:30,height:30,borderRadius:"50%",background:"linear-gradient(135deg,#e94560,#f5a623)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:"#fff" }}>{c.name?.[0]?.toUpperCase()}</div>
+                <ContestantAvatar contestant={c} league={league} size={30} />
                 <div style={{ flex:1 }}>
                   <div style={{ color:"#e8e8f0",fontWeight:600,fontSize:13 }}>{c.name} {c.gender && <span style={{ color:"#6a6a8a",fontSize:10 }}>({c.gender})</span>}</div>
                   <div style={{ color:"#6a6a8a",fontSize:11 }}>{c.bio||"—"}</div>
@@ -2442,7 +2534,10 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
   const [localChart, setLocalChart] = useState({});
   const [editingName, setEditingName] = useState(false);
   const [teamName, setTeamName] = useState("");
-  const [rosterWeek, setRosterWeek] = useState(String(league.currentWeek || 1));
+  const [showCustomize, setShowCustomize] = useState(false);
+  const [customColor, setCustomColor] = useState("");
+  const [customAvatar, setCustomAvatar] = useState("");
+  const [customName, setCustomName] = useState("");
   const [editingWeek, setEditingWeek] = useState(null); // null = current week, number = past week
 
   const team = (league.teams||[]).find(t=>t.id===selectedTeam);
@@ -2639,13 +2734,8 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
             <div style={{ fontSize:12,fontWeight:800,color,lineHeight:1 }}>{label}</div>
             <div style={{ fontSize:9,color:`${color}99` }}>{multiplierLabel}</div>
           </div>
-          {/* Tribe avatar (only if player set) */}
-          {c && (
-            <div style={{ width:28,height:28,borderRadius:"50%",background:c.status==="eliminated"?"#2a2a4a":tribeColor,
-              display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff",flexShrink:0 }}>
-              {c.name?.[0]?.toUpperCase()}
-            </div>
-          )}
+          {/* Contestant avatar */}
+          {c && <ContestantAvatar contestant={c} league={league} size={28} />}
           {/* Player selector — always the dropdown */}
           <div style={{ flex:1,minWidth:0,position:"relative" }}>
             <select value={isInDropdown ? (currentId||"") : ""} onChange={e=>setSlotWithSwap(slot,e.target.value)} style={{
@@ -2744,47 +2834,20 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
       </div>
 
       {/* Week selector for commissioners to edit past weeks */}
-      {isCommissioner && (
-        <div style={{ display:"flex",gap:6,marginBottom:14,overflowX:"auto",paddingBottom:4 }}>
-          <button onClick={()=>setEditingWeek(null)} style={{
-            padding:"6px 12px",borderRadius:99,fontSize:11,fontWeight:!editingWeek?700:500,cursor:"pointer",
-            background:!editingWeek?"#f5a62322":"transparent",border:!editingWeek?"1px solid #f5a62366":"1px solid #2a2a4a",
-            color:!editingWeek?"#f5a623":"#6a6a8a",fontFamily:"'Outfit',sans-serif",flexShrink:0,
-          }}>Current (Wk {currentWeek})</button>
-          {Array.from({length:currentWeek-1},(_,i)=>i+1).reverse().map(wk => (
-            <button key={wk} onClick={()=>setEditingWeek(wk)} style={{
-              padding:"6px 12px",borderRadius:99,fontSize:11,fontWeight:editingWeek===wk?700:500,cursor:"pointer",
-              background:editingWeek===wk?"#e9456022":"transparent",border:editingWeek===wk?"1px solid #e9456066":"1px solid #2a2a4a",
-              color:editingWeek===wk?"#e94560":"#6a6a8a",fontFamily:"'Outfit',sans-serif",flexShrink:0,
-            }}>Wk {wk}</button>
-          ))}
+      {isCommissioner && currentWeek > 1 && (
+        <div style={{ marginBottom:14 }}>
+          <Select label="" value={editingWeek ? String(editingWeek) : ""} onChange={e=>{
+            const v = e.target.value;
+            setEditingWeek(v ? Number(v) : null);
+          }} options={[
+            { value: "", label: "Current week (" + currentWeek + ")" },
+            ...Array.from({length:currentWeek-1},(_,i)=>({ value: String(i+1), label: "Week " + (i+1) + " (past)" })).reverse()
+          ]} />
         </div>
       )}
       {editingWeek && (
         <div style={{ padding:"10px 14px",background:"#e9456011",borderRadius:8,border:"1px solid #e9456033",marginBottom:14 }}>
           <div style={{ fontSize:12,color:"#e94560",lineHeight:1.5,fontWeight:600 }}>Editing Week {editingWeek} roster for {team?.name || "this team"}. Changes will only affect this week's scoring.</div>
-        </div>
-      )}
-
-      {/* Commissioner: edit roster for a specific week */}
-      {isCommissioner && !lockedToTeamId && (
-        <div style={{ display:"flex",gap:8,alignItems:"center",marginBottom:14,flexWrap:"wrap" }}>
-          <Select label="" value={rosterWeek} onChange={e=>setRosterWeek(e.target.value)}
-            options={Array.from({length:Math.max(currentWeek,1)+1},(_,i)=>({value:String(i+1),label:"Week "+(i+1)+" roster"}))} />
-          <Btn small variant="ghost" onClick={()=>{
-            if (!team) return;
-            const weekChart = team.weeklyDepthCharts?.[rosterWeek];
-            if (weekChart) setLocalChart({...weekChart});
-          }}>Load Week {rosterWeek}</Btn>
-          <Btn small variant="secondary" onClick={()=>{
-            if (!team || !confirm("Save this roster as Week " + rosterWeek + " for " + team.name + "?")) return;
-            const updatedTeams = league.teams.map(t => t.id !== selectedTeam ? t : {
-              ...t,
-              weeklyDepthCharts: { ...(t.weeklyDepthCharts||{}), [rosterWeek]: { ...localChart } },
-              ...(rosterWeek === String(currentWeek) ? { depthChart: { ...localChart } } : {}),
-            });
-            onUpdate({ ...league, teams: updatedTeams });
-          }}>Save to Week {rosterWeek}</Btn>
         </div>
       )}
 
@@ -2808,10 +2871,18 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
               <Btn small variant="ghost" onClick={()=>{setEditingName(false);setTeamName(team.name)}}>Cancel</Btn>
             </div>
           ) : (
+            <>
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
-              <div>
-                <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:18,fontFamily:"'Anybody',sans-serif" }}>{team.name}</div>
-                <div style={{ color:"#6a6a8a",fontSize:12,marginTop:2 }}>Managed by {team.owner}</div>
+              <div style={{ display:"flex",alignItems:"center",gap:12 }}>
+                {team.teamAvatar ? (
+                  <img src={team.teamAvatar} alt={team.name} style={{ width:40,height:40,borderRadius:10,objectFit:"cover",border:"2px solid "+(team.teamColor||"#e94560") }} />
+                ) : (
+                  <div style={{ width:40,height:40,borderRadius:10,background:team.teamColor||"#e94560",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:800,color:"#fff" }}>{team.name?.[0]}</div>
+                )}
+                <div>
+                  <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:18,fontFamily:"'Anybody',sans-serif" }}>{team.name}</div>
+                  <div style={{ color:"#6a6a8a",fontSize:12,marginTop:2 }}>Managed by {team.owner}</div>
+                </div>
               </div>
               <div style={{ display:"flex",alignItems:"center",gap:12 }}>
                 <div style={{ textAlign:"right" }}>
@@ -2826,11 +2897,79 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
                 </button>
               </div>
             </div>
+            </>
           )}
         </div>
       ) : (
-        <Select label="Select Team" value={selectedTeam} onChange={e=>setSelectedTeam(e.target.value)}
-          options={(league.teams||[]).map(t=>({value:t.id,label:`${t.name} (${t.owner})`}))} />
+        <div style={{ marginBottom:14 }}>
+          <Select label="Select Team" value={selectedTeam} onChange={e=>setSelectedTeam(e.target.value)}
+            options={(league.teams||[]).map(t=>({value:t.id,label:`${t.name} (${t.owner})`}))} />
+        </div>
+      )}
+
+      {/* Customize button — always visible when a team is selected */}
+      {team && (
+        <div style={{ marginBottom:14 }}>
+          <Btn small variant="ghost" onClick={()=>{
+            setCustomColor(team.teamColor||"#e94560");
+            setCustomAvatar(team.teamAvatar||"");
+            setCustomName(team.name||"");
+            setShowCustomize(true);
+          }}><Icon name="edit" size={12}/> Customize Team</Btn>
+        </div>
+      )}
+
+      {/* Customize Team Overlay */}
+      {showCustomize && team && (
+        <div onClick={()=>setShowCustomize(false)} style={{
+          position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.7)",
+          display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20
+        }}>
+          <div onClick={e=>e.stopPropagation()} style={{
+            background:"#12121f",borderRadius:16,border:"1px solid #2a2a4a",padding:"24px",
+            width:360,maxWidth:"90vw",maxHeight:"85vh",overflowY:"auto",
+            boxShadow:"0 24px 80px rgba(0,0,0,0.5)"
+          }}>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
+              <h3 style={{ margin:0,fontSize:18,color:"#e8e8f0",fontFamily:"'Anybody',sans-serif",fontWeight:700 }}>Customize Team</h3>
+              <button onClick={()=>setShowCustomize(false)} style={{ background:"none",border:"none",color:"#888",cursor:"pointer",padding:4 }}><Icon name="x" size={20}/></button>
+            </div>
+
+            {/* Preview */}
+            <div style={{ textAlign:"center",marginBottom:20 }}>
+              {customAvatar ? (
+                <img src={customAvatar} alt="Team" style={{ width:64,height:64,borderRadius:16,objectFit:"cover",border:"3px solid "+customColor,margin:"0 auto" }} onError={e=>{e.target.style.display="none"}} />
+              ) : (
+                <div style={{ width:64,height:64,borderRadius:16,background:customColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,fontWeight:800,color:"#fff",margin:"0 auto" }}>{customName?.[0]||"?"}</div>
+              )}
+              <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:16,fontFamily:"'Anybody',sans-serif",marginTop:8 }}>{customName}</div>
+            </div>
+
+            <Input label="Team Name" value={customName} onChange={e=>setCustomName(e.target.value)} />
+            <Input label="Avatar URL (optional)" placeholder="https://example.com/avatar.png" value={customAvatar} onChange={e=>setCustomAvatar(e.target.value)} />
+
+            <div style={{ marginBottom:14 }}>
+              <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>Team Color</label>
+              <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+                {["#e94560","#4ecdc4","#f5a623","#9d5dff","#4d8aff","#ff5da0","#3ddc84","#ff8a3d","#ff4d6a","#6a6aff","#ff6b35","#00b4d8"].map(c => (
+                  <button key={c} onClick={()=>setCustomColor(c)} style={{
+                    width:32,height:32,borderRadius:8,background:c,border:customColor===c?"3px solid #fff":"2px solid transparent",
+                    cursor:"pointer",transition:"all .15s"
+                  }}/>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display:"flex",gap:8,marginTop:20 }}>
+              <Btn variant="ghost" onClick={()=>setShowCustomize(false)} style={{ flex:1,justifyContent:"center" }}>Cancel</Btn>
+              <Btn onClick={()=>{
+                const updatedTeams = league.teams.map(t=>t.id===team.id?{...t,name:customName.trim()||team.name,teamColor:customColor,teamAvatar:customAvatar.trim()}:t);
+                onUpdate({...league, teams: updatedTeams});
+                setShowCustomize(false);
+              }} style={{ flex:1,justifyContent:"center" }}>Save</Btn>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Swap tracker */}
@@ -2914,7 +3053,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
             <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
               {ranked.map((c,i) => (
                 <div key={c.id} style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-                  <div style={{ width:28,height:28,borderRadius:8,background:c.tribeColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff",flexShrink:0 }}>{c.name?.[0]}</div>
+                  <ContestantAvatar contestant={c} league={league} size={28} />
                   <div style={{ flex:1,minWidth:0 }}>
                     <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{c.name}</div>
                     <div style={{ fontSize:10,color:"#6a6a8a" }}>#{contestantRankings[c.id]?.rank || "?"} overall{c.lastWk!==0?` · Last wk: ${c.lastWk>0?"+":""}${c.lastWk}`:""}</div>
@@ -3006,7 +3145,7 @@ function SurvivorPoolTab({ league, onUpdate, loggedInTeamId, isCommissioner }) {
 
       {myContestant ? (
         <div style={{ padding:"20px",background:isEliminated?"#1a0a10":"#0a1a18",borderRadius:14,border:isEliminated?"1px solid #e9456044":"1px solid #4ecdc444",marginBottom:16,textAlign:"center" }}>
-          <div style={{ width:56,height:56,borderRadius:14,background:isEliminated?"#2a2a4a":getTribeColor(league,myContestant),display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,fontWeight:700,color:"#fff",margin:"0 auto 12px" }}>{myContestant.name?.[0]}</div>
+          <div style={{margin:"0 auto 12px"}}><ContestantAvatar contestant={myContestant} league={league} size={56} /></div>
           <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:22,fontWeight:800,color:isEliminated?"#e94560":"#4ecdc4" }}>{myContestant.name}</div>
           <div style={{ fontSize:13,color:isEliminated?"#e94560":"#4ecdc4",marginTop:4 }}>
             {isEliminated ? "ELIMINATED" + (myContestant.eliminatedWeek ? " — Week " + myContestant.eliminatedWeek : "") + " — YOU'RE OUT" : "STILL ALIVE"}
@@ -3025,7 +3164,7 @@ function SurvivorPoolTab({ league, onUpdate, loggedInTeamId, isCommissioner }) {
                   background:"#12121f",border:"1px solid #1e1e38",cursor:taken?"not-allowed":"pointer",
                   opacity:taken?0.4:1,textAlign:"left",fontFamily:"'Outfit',sans-serif",transition:"all .15s"
                 }}>
-                  <div style={{ width:32,height:32,borderRadius:8,background:getTribeColor(league,c),display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:"#fff" }}>{c.name?.[0]}</div>
+                  <ContestantAvatar contestant={c} league={league} size={32} />
                   <div style={{ flex:1 }}>
                     <div style={{ color:"#e8e8f0",fontSize:14,fontWeight:600 }}>{c.name}</div>
                     {taken && <div style={{ fontSize:11,color:"#e94560" }}>Already picked</div>}
@@ -3112,7 +3251,7 @@ function SalaryCapRosterTab({ league, onUpdate, loggedInTeamId, isCommissioner }
               const pts = weeks.reduce((s,w) => s + calcContestantWeekPoints(league.weeklyScores?.[w]||{}, cid), 0);
               return (
                 <div key={cid} style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:8,background:"#12121f",border:"1px solid #1e1e38" }}>
-                  <div style={{ width:28,height:28,borderRadius:8,background:getTribeColor(league,c),display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff" }}>{c.name?.[0]}</div>
+                  <ContestantAvatar contestant={c} league={league} size={28} />
                   <div style={{ flex:1,fontSize:13,fontWeight:600,color:"#e8e8f0" }}>{c.name}</div>
                   <div style={{ fontSize:12,color:"#f5a623",fontWeight:700 }}>${prices[cid]||0}</div>
                   <div style={{ fontSize:12,color:pts>0?"#4ecdc4":"#6a6a8a",fontWeight:700 }}>{pts>0?"+":""}{Math.round(pts*10)/10}</div>
@@ -3136,7 +3275,7 @@ function SalaryCapRosterTab({ league, onUpdate, loggedInTeamId, isCommissioner }
               background:"#12121f",border:"1px solid #1e1e38",cursor:canAfford?"pointer":"not-allowed",
               opacity:canAfford?1:0.4,textAlign:"left",fontFamily:"'Outfit',sans-serif",
             }}>
-              <div style={{ width:28,height:28,borderRadius:8,background:getTribeColor(league,c),display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff" }}>{c.name?.[0]}</div>
+              <ContestantAvatar contestant={c} league={league} size={28} />
               <div style={{ flex:1,fontSize:13,fontWeight:600,color:"#e8e8f0" }}>{c.name}</div>
               <div style={{ fontSize:13,color:"#f5a623",fontWeight:700 }}>${cost}</div>
             </button>
@@ -3187,7 +3326,7 @@ function SalaryCapPricesTab({ league, onUpdate }) {
       <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
         {contestants.map(c => (
           <div key={c.id} style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:8,background:"#12121f",border:"1px solid #1e1e38" }}>
-            <div style={{ width:28,height:28,borderRadius:8,background:getTribeColor(league,c),display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff" }}>{c.name?.[0]}</div>
+            <ContestantAvatar contestant={c} league={league} size={28} />
             <div style={{ flex:1,fontSize:13,fontWeight:600,color:c.status==="eliminated"?"#6a6a8a":"#e8e8f0" }}>{c.name}{c.status==="eliminated"?" (elim)":""}</div>
             <div style={{ display:"flex",alignItems:"center",gap:4 }}>
               <span style={{ color:"#f5a623",fontSize:13 }}>$</span>
@@ -3243,7 +3382,7 @@ function EliminationPoolTab({ league, onUpdate, loggedInTeamId, isCommissioner }
               display:"flex",alignItems:"center",gap:10,padding:"12px 14px",borderRadius:10,
               background:"#12121f",border:"1px solid #1e1e38",cursor:"pointer",textAlign:"left",fontFamily:"'Outfit',sans-serif",
             }}>
-              <div style={{ width:32,height:32,borderRadius:8,background:getTribeColor(league,c),display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:"#fff" }}>{c.name?.[0]}</div>
+              <ContestantAvatar contestant={c} league={league} size={32} />
               <span style={{ color:"#e8e8f0",fontSize:14,fontWeight:600 }}>{c.name}</span>
             </button>
           ))}
@@ -4142,16 +4281,17 @@ function AddContestantModal({ open, onClose, league, onUpdate, editing }) {
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
   const [gender, setGender] = useState("");
+  const [photoUrl, setPhotoUrl] = useState("");
 
   useEffect(() => {
-    if (editing) { setName(editing.name||""); setBio(editing.bio||""); setGender(editing.gender||""); }
-    else { setName(""); setBio(""); setGender(""); }
+    if (editing) { setName(editing.name||""); setBio(editing.bio||""); setGender(editing.gender||""); setPhotoUrl(editing.photoUrl||""); }
+    else { setName(""); setBio(""); setGender(""); setPhotoUrl(""); }
   }, [editing, open]);
 
   function handleSave() {
     if (!name.trim()) return;
-    const contestant = { id: editing?.id || generateId(), name: name.trim(), bio: bio.trim(), gender: gender.trim(), status: editing?.status || "active" };
-    if (editing) onUpdate({ ...league, contestants: league.contestants.map(c=>c.id===editing.id?contestant:c) });
+    const contestant = { id: editing?.id || generateId(), name: name.trim(), bio: bio.trim(), gender: gender.trim(), photoUrl: photoUrl.trim(), status: editing?.status || "active", tribe: editing?.tribe || "" };
+    if (editing) onUpdate({ ...league, contestants: league.contestants.map(c=>c.id===editing.id?{...c,...contestant}:c) });
     else onUpdate({ ...league, contestants: [...(league.contestants||[]), contestant] });
     onClose();
   }
@@ -4166,8 +4306,20 @@ function AddContestantModal({ open, onClose, league, onUpdate, editing }) {
   return (
     <Modal open={open} onClose={onClose} title={editing?"Edit Contestant":"Add Contestant"}>
       <Input label="Name" placeholder="e.g. Buddha Lo" value={name} onChange={e=>setName(e.target.value)} />
-      <Input label="Bio / Description" placeholder="e.g. Executive Chef from Sydney" value={bio} onChange={e=>setBio(e.target.value)} />
+      <Input label="Photo URL" placeholder="https://example.com/headshot.jpg" value={photoUrl} onChange={e=>setPhotoUrl(e.target.value)} />
+      <div style={{ marginBottom:14 }}>
+        <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>Bio</label>
+        <textarea value={bio} onChange={e=>setBio(e.target.value)} placeholder={"Paste the full bio here. Lines like \"Hometown: City\" will auto-format with bold labels."} rows={5} style={{
+          width:"100%",padding:"10px 14px",background:"#12121f",border:"1px solid #2a2a4a",
+          borderRadius:8,color:"#e8e8f0",fontSize:14,fontFamily:"'Outfit',sans-serif",resize:"vertical",boxSizing:"border-box",lineHeight:1.5
+        }} />
+      </div>
       {showGender && <Input label="Gender Category" placeholder="e.g. Male, Female" value={gender} onChange={e=>setGender(e.target.value)} />}
+      {photoUrl && (
+        <div style={{ marginBottom:14,textAlign:"center" }}>
+          <img src={photoUrl} alt="Preview" style={{ width:64,height:64,borderRadius:14,objectFit:"cover",border:"2px solid #2a2a4a" }} onError={e=>{e.target.style.display="none"}} />
+        </div>
+      )}
       <div style={{ display:"flex",gap:8,marginTop:16 }}>
         {editing && <Btn variant="danger" onClick={handleDelete}><Icon name="trash" size={14}/> Delete</Btn>}
         <div style={{ flex:1 }}/>
@@ -4219,7 +4371,12 @@ export default function FantasyRealityTV() {
   const [userProfile, setUserProfile] = useState(null); // {displayName, activations: {leagueId: teamId}}
   const [authLoading, setAuthLoading] = useState(true);
   const [announcement, setAnnouncement] = useState("");
-  const [pendingJoinCode, setPendingJoinCode] = useState("");
+  const [pendingJoinCode, setPendingJoinCode] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const joinCode = params.get("join");
+    if (joinCode) window.history.replaceState({}, "", window.location.pathname);
+    return joinCode ? joinCode.toUpperCase() : "";
+  });
   const [featureFlags, setFeatureFlags] = useState({ new_formats: true, h2h: true, best_ball: true, roto: true });
 
   const isAdmin = authUser?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
@@ -4424,6 +4581,7 @@ export default function FantasyRealityTV() {
         }
       `}</style>
       {view==="login" && <AuthScreen onJoinViaCode={handleJoinViaCode} onOpenFAQ={()=>setView("faq")} />}
+      {view==="settings" && authUser && <UserSettingsScreen user={authUser} onBack={()=>setView("home")} onLogout={handleLogout} />}
       {view==="faq" && <FAQPage onBack={()=>setView(authUser?"home":"login")} />}
       {view==="admin" && isAdmin && <AdminPanel leagues={leagues} onBack={()=>setView("home")} onUpdate={persist} featureFlags={featureFlags} setFeatureFlags={setFeatureFlags} />}
       {view==="home" && authUser && <AppHome
@@ -4431,6 +4589,7 @@ export default function FantasyRealityTV() {
         isAdmin={isAdmin} onSelectLeague={id=>{setSelectedId(id);setView("league")}}
         onCreateLeague={()=>setView("create")} onDeleteLeague={deleteLeague} onDuplicateLeague={duplicateLeague}
         onLogout={handleLogout}
+        onOpenSettings={()=>setView("settings")}
         onJoinViaCode={handleJoinViaCode}
         onOpenAdmin={()=>setView("admin")}
         onOpenFAQ={()=>setView("faq")}
@@ -4485,6 +4644,52 @@ export default function FantasyRealityTV() {
         loggedInTeamId={(isAdmin || selected?.commissionerUid === authUser?.uid) ? (selected.adminTeamId || myTeamIn(selected.id)) : myTeamIn(selected.id)}
         isCommissioner={isAdmin || selected?.commissionerUid === authUser?.uid || (selected?.commissionerTeamId && userProfile?.activations?.[selected.id] === selected.commissionerTeamId)}
         skipLogin={true} />}
+    </div>
+  );
+}
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// USER SETTINGS SCREEN
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function UserSettingsScreen({ user, onBack, onLogout }) {
+  return (
+    <div style={{ padding:20 }}>
+      <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:24 }}>
+        <button onClick={onBack} style={{ background:"#12121f",border:"1px solid #1e1e38",borderRadius:8,color:"#8888aa",cursor:"pointer",padding:6,display:"flex",alignItems:"center",justifyContent:"center" }}><Icon name="back" size={18}/></button>
+        <h2 style={{ margin:0,fontSize:20,fontFamily:"'Anybody',sans-serif",fontWeight:800,color:"#e8e8f0" }}>Settings</h2>
+      </div>
+
+      {/* Account info */}
+      <div style={{ padding:"16px",background:"#12121f",borderRadius:12,border:"1px solid #1e1e38",marginBottom:16 }}>
+        <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>Account</div>
+        <div style={{ fontSize:13,color:"#8888aa",lineHeight:1.6 }}>
+          <div>Email: {user?.email}</div>
+          <div>Display name: {user?.displayName || "Not set"}</div>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
+        <Btn variant="ghost" onClick={onLogout} style={{ justifyContent:"center" }}>Log Out</Btn>
+        <Btn variant="danger" onClick={async ()=>{
+          if (!confirm("Delete your account? This removes your profile and all team links. Your teams stay in leagues but become unassigned. This cannot be undone.")) return;
+          const final = prompt("Type DELETE to permanently delete your account:");
+          if (final !== "DELETE") return;
+          try {
+            const { deleteData } = await import("./firebase.js");
+            await deleteData("frtv_users/" + user.uid);
+            const { getAuth, deleteUser } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js");
+            await deleteUser(getAuth().currentUser);
+          } catch(e) { alert("Error: " + e.message + ". You may need to log out and log back in first, then try again."); }
+        }} style={{ justifyContent:"center" }}>Delete My Account</Btn>
+      </div>
+
+      <div style={{ marginTop:20,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+        <div style={{ fontSize:12,color:"#6a6a8a",lineHeight:1.5 }}>
+          Need help? Contact <a href="mailto:admin@fantasyrealitytv.com" style={{color:"#4ecdc4"}}>admin@fantasyrealitytv.com</a>
+        </div>
+      </div>
     </div>
   );
 }
@@ -5090,20 +5295,11 @@ function AuthScreen({ onJoinViaCode, onOpenFAQ }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // APP HOME
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeague, onDeleteLeague, onDuplicateLeague, onLogout, onJoinViaCode, onOpenAdmin, onOpenFAQ, allLeaguesCount, announcement, pendingJoinCode }) {
+function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeague, onDeleteLeague, onDuplicateLeague, onLogout, onJoinViaCode, onOpenAdmin, onOpenFAQ, onOpenSettings, allLeaguesCount, announcement, pendingJoinCode }) {
   const [inviteCode, setInviteCode] = useState(pendingJoinCode || "");
   const [error, setError] = useState("");
 
-  // Check for ?join= URL parameter
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const joinCode = params.get("join");
-    if (joinCode) {
-      setPendingJoinCode(joinCode.toUpperCase());
-      // Clean URL without reload
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-  }, []);
+
 
   // Check for pending invite code (from join-league signup flow)
   useEffect(() => {
@@ -5140,8 +5336,9 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
             color:"#f5a623",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif",fontWeight:600 }}>Admin</button>}
           <button onClick={onOpenFAQ} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",
             color:"#6a6a8a",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>FAQ</button>
-          <button onClick={onLogout} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",
-            color:"#6a6a8a",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>Log Out</button>
+          <button onClick={onOpenSettings} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",
+            color:"#6a6a8a",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>Settings</button>
+
         </div>
       </div>
 
