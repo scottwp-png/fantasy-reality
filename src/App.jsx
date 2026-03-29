@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import ReactDOM from "react-dom"
-import { loadData, saveData, deleteData, loadAllLeagues, saveAllLeagues, saveLeague, clearAllStorage, loadUserProfile, saveUserProfile, loadAllUserProfiles, onAuthChange, signUp, signIn, signInWithGoogle, signOut, resetPassword, ADMIN_EMAIL } from "./firebase.js"
+import { loadData, saveData, deleteData, loadAllLeagues, saveAllLeagues, saveLeague, loadUserProfile, saveUserProfile, loadAllUserProfiles, onAuthChange, signUp, signIn, signInWithGoogle, signOut, resetPassword, ADMIN_EMAIL } from "./firebase.js"
 import * as XLSX from "xlsx"
 
 
@@ -311,10 +311,9 @@ function calcTeamWeekPoints(league, team, weekNum) {
     const pick = team.survivorPoolPick;
     if (!pick) return 0;
     const contestant = (league.contestants||[]).find(c=>c.id===pick);
-    if (!contestant || contestant.status === "eliminated") {
-      // Check if they were eliminated this week or before
-      if (contestant?.eliminatedWeek && contestant.eliminatedWeek <= Number(weekNum)) return 0;
-    }
+    if (!contestant) return 0;
+    // Check if eliminated on or before this week
+    if (contestant.eliminatedWeek && contestant.eliminatedWeek <= Number(weekNum)) return 0;
     return 1; // survived this week
   }
 
@@ -1018,7 +1017,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // LEAGUE DASHBOARD
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissioner, skipLogin, allLeagues }) {
+function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissioner, allLeagues }) {
   const [tab, setTab] = useState("standings");
   const [modal, setModal] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
@@ -1380,17 +1379,17 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
                 <input type="color" value={tribeCol} onChange={e=>onUpdate({...league,tribeColors:{...(league.tribeColors||{}),[tribe]:e.target.value}})}
-                  style={{width:20,height:20,border:"none",borderRadius:4,cursor:"pointer",padding:0,background:"transparent"}} title="Change tribe color" />
+                  style={{width:32,height:32,border:"none",borderRadius:4,cursor:"pointer",padding:0,background:"transparent"}} title="Change tribe color" />
                 <div style={{fontSize:13,fontWeight:700,color:tribeCol}}>{tribe}</div>
                 <span style={{fontSize:11,color:"#6a6a8a"}}>({members.length})</span>
-                <button onClick={()=>selectTribe(tribe)} style={{background:"none",border:"1px solid #2a2a4a",borderRadius:4,padding:"2px 8px",fontSize:10,color:"#8888aa",cursor:"pointer",fontFamily:"'Outfit',sans-serif"}}>Select All</button>
+                <button onClick={()=>selectTribe(tribe)} style={{background:"none",border:"1px solid #2a2a4a",borderRadius:4,padding:"6px 12px",fontSize:12,color:"#8888aa",cursor:"pointer",fontFamily:"'Outfit',sans-serif"}}>Select All</button>
               </div>
               <button onClick={()=>removeTribe(tribe)} style={{background:"none",border:"none",color:"#4a4a6a",cursor:"pointer",padding:2}}><Icon name="trash" size={12}/></button>
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:3}}>
               {members.map(c=>{const sel=selectedForMove.has(c.id);return(
                 <div key={c.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,background:sel?"#e9456018":"#12121f",border:sel?"1px solid #e9456033":"1px solid #1e1e38"}}>
-                  <button onClick={()=>toggleSelect(c.id)} style={{width:22,height:22,borderRadius:4,border:sel?"none":"2px solid #3a3a5a",cursor:"pointer",background:sel?"#e94560":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{sel&&<Icon name="check" size={12}/>}</button>
+                  <button onClick={()=>toggleSelect(c.id)} style={{width:32,height:32,borderRadius:4,border:sel?"none":"2px solid #3a3a5a",cursor:"pointer",background:sel?"#e94560":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{sel&&<Icon name="check" size={12}/>}</button>
                   <span style={{flex:1,color:"#e8e8f0",fontSize:13,fontWeight:500}}>{c.name}</span>
                   <select value={c.tribe||""} onChange={e=>reassignSingle(c.id,e.target.value)} style={{padding:"3px 8px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:4,color:"#8888aa",fontSize:11,fontFamily:"'Outfit',sans-serif"}}>
                     {tribeNames.map(t=><option key={t} value={t}>{t}</option>)}
@@ -1406,7 +1405,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
           <div style={{display:"flex",flexDirection:"column",gap:3}}>
             {unassigned.map(c=>{const sel=selectedForMove.has(c.id);return(
               <div key={c.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,background:sel?"#e9456018":"#12121f",border:sel?"1px solid #e9456033":"1px solid #1e1e38"}}>
-                <button onClick={()=>toggleSelect(c.id)} style={{width:22,height:22,borderRadius:4,border:sel?"none":"2px solid #3a3a5a",cursor:"pointer",background:sel?"#e94560":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{sel&&<Icon name="check" size={12}/>}</button>
+                <button onClick={()=>toggleSelect(c.id)} style={{width:32,height:32,borderRadius:4,border:sel?"none":"2px solid #3a3a5a",cursor:"pointer",background:sel?"#e94560":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{sel&&<Icon name="check" size={12}/>}</button>
                 <span style={{flex:1,color:"#e8e8f0",fontSize:13}}>{c.name}</span>
               </div>
             )})}
@@ -4730,7 +4729,7 @@ export default function FantasyRealityTV() {
         onBack={()=>{refreshLeagues();setView("home")}}
         loggedInTeamId={(isAdmin || selected?.commissionerUid === authUser?.uid) ? (selected.adminTeamId || myTeamIn(selected.id)) : myTeamIn(selected.id)}
         isCommissioner={isAdmin || selected?.commissionerUid === authUser?.uid || (selected?.commissionerTeamId && userProfile?.activations?.[selected.id] === selected.commissionerTeamId)}
-        skipLogin={true} />}
+        />}
     </div>
   );
 }

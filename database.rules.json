@@ -1,0 +1,38 @@
+{
+  "rules": {
+    "frtv": {
+      // League index — any authenticated user can read; only admin can write
+      "league_index": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.token.email === 'scottwpii@gmail.com'"
+      },
+
+      // Site announcement — any authenticated user can read; only admin can write
+      "site_announcement": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.token.email === 'scottwpii@gmail.com'"
+      },
+
+      // Feature flags — any authenticated user can read; only admin can write
+      "feature_flags": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.token.email === 'scottwpii@gmail.com'"
+      },
+
+      // Individual leagues — any authenticated user can read;
+      // only the commissioner (commissionerUid) or admin can write
+      "$league_key": {
+        ".read": "auth != null",
+        ".write": "auth != null && (auth.token.email === 'scottwpii@gmail.com' || data.child('commissionerUid').val() === auth.uid || newData.child('commissionerUid').val() === auth.uid)"
+      }
+    },
+
+    // User profiles — users can read/write their own; admin can read/write all
+    "frtv_users": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || auth.token.email === 'scottwpii@gmail.com')",
+        ".write": "auth != null && (auth.uid === $uid || auth.token.email === 'scottwpii@gmail.com')"
+      }
+    }
+  }
+}
