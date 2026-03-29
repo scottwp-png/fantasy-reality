@@ -5678,6 +5678,15 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
           <EmptyState message={isAdmin ? "No leagues yet. Create one!" : "No leagues yet. Enter an invite code above to join, or create your own!"} />
         )}
       </div>
+      {/* Footer */}
+      <div style={{ padding:"24px 20px 32px",textAlign:"center",borderTop:"1px solid #1a1a30",marginTop:8 }}>
+        <div style={{ fontSize:11,color:"#3a3a5a",display:"flex",justifyContent:"center",gap:16,flexWrap:"wrap" }}>
+          <span>© 2026 Fantasy Reality TV</span>
+          <a href="/tos.html" style={{ color:"#4a4a6a",textDecoration:"none" }} target="_blank" rel="noopener noreferrer">Terms of Service</a>
+          <a href="/privacy.html" style={{ color:"#4a4a6a",textDecoration:"none" }} target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+          <a href="mailto:admin@fantasyrealitytv.com" style={{ color:"#4a4a6a",textDecoration:"none" }}>Contact</a>
+        </div>
+      </div>
     </div>
   );
 }

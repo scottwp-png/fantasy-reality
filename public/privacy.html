@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — Fantasy Reality TV</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0f1117;
+      --surface:   #1a1d27;
+      --border:    #2a2d3a;
+      --accent:    #ff4d6a;
+      --accent-dim:#cc2d47;
+      --text:      #e8e9f0;
+      --muted:     #8b8fa8;
+      --radius:    12px;
+    }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.75;
+      font-size: 16px;
+    }
+
+    /* ── Header ── */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 20px 0;
+      position: sticky;
+      top: 0;
+      background: rgba(15,17,23,0.92);
+      backdrop-filter: blur(12px);
+      z-index: 10;
+    }
+    .header-inner {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .logo-mark {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, #ff4d6a, #ff8a3d);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; font-weight: 700; color: #fff;
+      flex-shrink: 0;
+    }
+    .logo-text { font-size: 15px; font-weight: 600; color: var(--text); }
+    .logo-text span { color: var(--muted); font-weight: 400; margin-left: 6px; font-size: 14px; }
+
+    /* ── Layout ── */
+    main {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 56px 24px 100px;
+    }
+
+    /* ── Hero ── */
+    .doc-hero { margin-bottom: 48px; }
+    .doc-label {
+      display: inline-block;
+      background: rgba(255,77,106,0.12);
+      color: var(--accent);
+      border: 1px solid rgba(255,77,106,0.3);
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: clamp(28px, 5vw, 40px);
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 16px;
+    }
+    .doc-meta {
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .doc-meta strong { color: var(--text); }
+
+    /* ── Sections ── */
+    section { margin-bottom: 44px; }
+
+    h2 {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    h2 .num {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+      width: 26px; height: 26px;
+      border-radius: 6px;
+      display: inline-flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    p { color: #c8cad8; margin-bottom: 12px; }
+    p:last-child { margin-bottom: 0; }
+
+    ul {
+      padding-left: 20px;
+      color: #c8cad8;
+      margin-bottom: 12px;
+    }
+    ul li { margin-bottom: 6px; }
+
+    .callout {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      margin: 20px 0;
+      font-size: 15px;
+      color: #c8cad8;
+    }
+    .callout strong { color: var(--text); }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+    .data-table th {
+      background: var(--surface);
+      color: var(--muted);
+      font-weight: 600;
+      text-align: left;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .data-table td {
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      color: #c8cad8;
+      vertical-align: top;
+    }
+    .data-table tr:nth-child(even) td { background: rgba(26,29,39,0.5); }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 32px 24px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+      max-width: 760px;
+      margin: 0 auto;
+    }
+    footer a { color: var(--muted); }
+    footer a:hover { color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo-mark">F</div>
+    <div class="logo-text">Fantasy Reality TV <span>Legal</span></div>
+  </div>
+</header>
+
+<main>
+  <div class="doc-hero">
+    <div class="doc-label">Legal</div>
+    <h1>Privacy Policy</h1>
+    <p class="doc-meta">
+      <strong>Effective date:</strong> March 29, 2026 &nbsp;·&nbsp;
+      <strong>Last updated:</strong> March 29, 2026
+    </p>
+  </div>
+
+  <div class="callout">
+    This Privacy Policy explains what information Fantasy Reality TV collects, how we use it, and your rights regarding that information. We are committed to being transparent about our data practices.
+  </div>
+
+  <section>
+    <h2><span class="num">1</span> Who This Policy Applies To</h2>
+    <p>This Privacy Policy applies to all users of <a href="https://app.fantasyrealitytv.com">app.fantasyrealitytv.com</a> and <a href="https://fantasyrealitytv.com">fantasyrealitytv.com</a> (collectively, "Fantasy Reality TV," "FRTV," "we," "us," or "our").</p>
+    <p>Fantasy Reality TV is intended for users who are <strong>13 years of age or older</strong>. We do not knowingly collect personal information from children under the age of 13. If we become aware that a child under 13 has provided us with personal information, we will delete it promptly. If you believe a child under 13 has provided us with their information, please contact us at <a href="mailto:admin@fantasyrealitytv.com">admin@fantasyrealitytv.com</a>.</p>
+  </section>
+
+  <section>
+    <h2><span class="num">2</span> Information We Collect</h2>
+    <p>We collect the following categories of information:</p>
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th>What We Collect</th>
+          <th>How</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Account Information</strong></td>
+          <td>Email address, display name</td>
+          <td>Provided by you at registration or via Google Sign-In</td>
+        </tr>
+        <tr>
+          <td><strong>League &amp; Game Data</strong></td>
+          <td>Leagues you create or join, team names, roster choices, scores</td>
+          <td>Generated by your use of the platform</td>
+        </tr>
+        <tr>
+          <td><strong>User-Submitted Content</strong></td>
+          <td>League names, contestant information, photos uploaded by commissioners</td>
+          <td>Provided by you</td>
+        </tr>
+        <tr>
+          <td><strong>Usage Data</strong></td>
+          <td>App interactions, feature usage, error logs</td>
+          <td>Collected automatically via Firebase</td>
+        </tr>
+        <tr>
+          <td><strong>Device &amp; Technical Data</strong></td>
+          <td>Browser type, operating system, IP address</td>
+          <td>Collected automatically by Firebase and (in future) advertising partners</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>We do <strong>not</strong> collect payment information. Fantasy Reality TV is currently free to use and does not process financial transactions.</p>
+  </section>
+
+  <section>
+    <h2><span class="num">3</span> How We Use Your Information</h2>
+    <p>We use the information we collect to:</p>
+    <ul>
+      <li>Create and maintain your account</li>
+      <li>Operate the fantasy league platform and display your team and score data</li>
+      <li>Allow commissioners to manage leagues and invite other users</li>
+      <li>Communicate with you about your account or the service</li>
+      <li>Monitor and improve platform performance and fix bugs</li>
+      <li>Comply with legal obligations</li>
+      <li>Display advertising (if and when introduced — see Section 7)</li>
+    </ul>
+    <p>We do <strong>not</strong> sell your personal information to third parties.</p>
+  </section>
+
+  <section>
+    <h2><span class="num">4</span> Firebase &amp; Google Services</h2>
+    <p>Fantasy Reality TV is built on <strong>Firebase</strong>, a platform provided by Google LLC. Firebase handles authentication (sign-in), real-time data storage, and hosting infrastructure. By using FRTV, you acknowledge that your data is processed by Firebase in accordance with <a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener">Google's Privacy Policy</a>.</p>
+    <p>If you choose to sign in with Google, Google's authentication service will share your name, email address, and profile photo with us. We do not receive your Google password.</p>
+  </section>
+
+  <section>
+    <h2><span class="num">5</span> Data Sharing</h2>
+    <p>We share your information only in the following limited circumstances:</p>
+    <ul>
+      <li><strong>With other league members:</strong> Your display name and team data are visible to other members of any league you join. This is core to how the platform works.</li>
+      <li><strong>With service providers:</strong> Firebase/Google processes data on our behalf to operate the platform.</li>
+      <li><strong>For legal compliance:</strong> We may disclose information if required by law, court order, or to protect the rights and safety of our users or the public.</li>
+      <li><strong>In a business transfer:</strong> If Fantasy Reality TV is acquired or merged, your information may be transferred as part of that transaction. We will notify users of any such change.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="num">6</span> Data Retention</h2>
+    <p>We retain your account and league data for as long as your account is active or as needed to operate the platform. If you delete your account, we will delete your personal information from our active systems within a reasonable time, subject to legal retention requirements.</p>
+    <p>League data created by commissioners (contestant info, scores, etc.) may persist in the platform even after individual users depart, as it forms part of the shared league record.</p>
+  </section>
+
+  <section>
+    <h2><span class="num">7</span> Advertising</h2>
+    <p>We do not currently serve advertisements. In the future, we may display ads through <strong>Google AdSense</strong> or similar platforms. If we do:</p>
+    <ul>
+      <li>Google may use cookies and device identifiers to serve interest-based ads based on your browsing activity across sites.</li>
+      <li>You can opt out of interest-based advertising via <a href="https://www.google.com/settings/ads" target="_blank" rel="noopener">Google's Ad Settings</a> or the <a href="https://optout.aboutads.info" target="_blank" rel="noopener">Digital Advertising Alliance opt-out tool</a>.</li>
+      <li>This Privacy Policy will be updated before advertising goes live.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="num">8</span> Cookies &amp; Tracking</h2>
+    <p>Firebase may set cookies or use local storage to maintain your authentication session. We do not use additional tracking cookies at this time. If advertising is introduced, third-party ad cookies will be disclosed and addressed per applicable law.</p>
+  </section>
+
+  <section>
+    <h2><span class="num">9</span> Your Rights</h2>
+    <p>Depending on where you live, you may have the following rights regarding your personal information:</p>
+    <ul>
+      <li><strong>Access:</strong> Request a copy of the data we hold about you</li>
+      <li><strong>Correction:</strong> Request that inaccurate data be corrected</li>
+      <li><strong>Deletion:</strong> Request that your personal data be deleted</li>
+      <li><strong>Portability:</strong> Request your data in a portable format</li>
+      <li><strong>Objection:</strong> Object to certain uses of your data</li>
+    </ul>
+    <p>To exercise any of these rights, contact us at <a href="mailto:admin@fantasyrealitytv.com">admin@fantasyrealitytv.com</a>. We will respond within 30 days.</p>
+  </section>
+
+  <section>
+    <h2><span class="num">10</span> Security</h2>
+    <p>We use Firebase's built-in security infrastructure to protect your data, including encrypted transmission (HTTPS) and Firebase Authentication for account access. No system is completely secure, and we cannot guarantee absolute security. We encourage you to use a strong, unique password for your account.</p>
+  </section>
+
+  <section>
+    <h2><span class="num">11</span> Changes to This Policy</h2>
+    <p>We may update this Privacy Policy from time to time. If we make material changes, we will post the updated policy with a new effective date. For significant changes — particularly those relating to advertising or new data uses — we will make reasonable efforts to notify active users.</p>
+  </section>
+
+  <section>
+    <h2><span class="num">12</span> Contact Us</h2>
+    <p>If you have questions, concerns, or requests related to this Privacy Policy, please contact us:</p>
+    <p><strong>Email:</strong> <a href="mailto:admin@fantasyrealitytv.com">admin@fantasyrealitytv.com</a><br/>
+    <strong>Platform:</strong> <a href="https://app.fantasyrealitytv.com">app.fantasyrealitytv.com</a></p>
+  </section>
+</main>
+
+<footer>
+  <p>
+    <a href="https://app.fantasyrealitytv.com">Fantasy Reality TV</a> &nbsp;·&nbsp;
+    <a href="/tos.html">Terms of Service</a> &nbsp;·&nbsp;
+    <a href="mailto:admin@fantasyrealitytv.com">Contact</a>
+  </p>
+  <p style="margin-top:8px;">© 2026 Fantasy Reality TV. All rights reserved.</p>
+</footer>
+
+</body>
+</html>
