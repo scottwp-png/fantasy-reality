@@ -263,6 +263,48 @@ function formatPts(val, league) {
   return (Math.round(val * 100) / 100).toFixed(2);
 }
 
+function shouldBlur(league, week, userProfile) {
+  if (userProfile?.spoilerProtectionOff) return false;
+  const weekStatus = league.weekStatus?.[String(week)];
+  if (!weekStatus || weekStatus.status !== "finalized") return false;
+  const gracePeriod = (league.spoilerGracePeriod || 48) * 3600000;
+  if (Date.now() > weekStatus.finalizedAt + gracePeriod) return false;
+  if (userProfile?.spoilerRevealed?.[league.id]?.[String(week)]) return false;
+  return true;
+}
+
+function SpoilerBlur({ active, children, onReveal, week }) {
+  if (!active) return children;
+  return (
+    <div style={{ position: "relative" }}>
+      <div style={{ filter: "blur(8px)", userSelect: "none", pointerEvents: "none" }}>
+        {children}
+      </div>
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: "rgba(10,10,24,0.6)", borderRadius: 12, zIndex: 10
+      }}>
+        <div style={{ textAlign: "center", padding: 24 }}>
+          <div style={{ fontSize: 28, marginBottom: 8 }}>&#128065;</div>
+          <div style={{ color: "#e8e8f0", fontWeight: 700, fontSize: 16, marginBottom: 4 }}>
+            Week {week} Scores Finalized
+          </div>
+          <div style={{ color: "#8888aa", fontSize: 13, marginBottom: 16 }}>
+            Tap below when you're ready to see results
+          </div>
+          <Btn onClick={onReveal}>Reveal Week {week}</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SpoilerText({ active, children }) {
+  if (!active) return children;
+  return <span style={{ filter: "blur(8px)", userSelect: "none" }}>{children}</span>;
+}
+
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
@@ -296,7 +338,7 @@ function calcTeamWeekPoints(league, team, weekNum) {
       if (scored[0]) total += scored[0].pts * 2;      // Best → Hero (2×)
       if (scored[1]) total += scored[1].pts * 1.5;    // 2nd → Side-Kick (1.5×)
       for (let i = 2; i < scored.length; i++) total += scored[i].pts; // Rest → Vigilante (1×)
-      return Math.round(total * 10) / 10;
+      return Math.round(total * 100) / 100;
     }
 
     let total = 0;
@@ -396,7 +438,7 @@ function calcStandings(league) {
             });
           }
         });
-        catTotals[team.id][cat] = Math.round(catTotal * 10) / 10;
+        catTotals[team.id][cat] = Math.round(catTotal * 100) / 100;
       });
     });
 
@@ -1017,12 +1059,16 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // LEAGUE DASHBOARD
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissioner, allLeagues }) {
+function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissioner, allLeagues, userProfile, onRevealSpoiler }) {
   const [tab, setTab] = useState("standings");
   const [modal, setModal] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
 
   const standings = useMemo(() => calcStandings(league), [league]);
+
+  const currentWeek = league.currentWeek || 1;
+  const spoilerActive = shouldBlur(league, currentWeek, userProfile);
+  const handleReveal = () => onRevealSpoiler?.(league.id, currentWeek);
 
   const allTabs = [
     { id:"standings",label:"Standings",icon:"trophy",access:"all" },
@@ -1096,17 +1142,17 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
       </div>
 
       <div style={{ padding:20 }}>
-        {tab === "standings" && <StandingsTab league={league} standings={standings} />}
-        {tab === "contestants" && <ContestantsTab league={league} onUpdate={isCommissioner?onUpdate:null} setModal={isCommissioner?setModal:()=>{}} setEditing={isCommissioner?setEditingItem:()=>{}} readOnly={!isCommissioner} />}
-        {tab === "teams" && <TeamsTab league={league} onUpdate={isCommissioner?onUpdate:null} setModal={isCommissioner?setModal:()=>{}} setEditing={isCommissioner?setEditingItem:()=>{}} readOnly={!isCommissioner} />}
+        {tab === "standings" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={currentWeek}><StandingsTab league={league} standings={standings} /></SpoilerBlur>}
+        {tab === "contestants" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={currentWeek}><ContestantsTab league={league} onUpdate={isCommissioner?onUpdate:null} setModal={isCommissioner?setModal:()=>{}} setEditing={isCommissioner?setEditingItem:()=>{}} readOnly={!isCommissioner} /></SpoilerBlur>}
+        {tab === "teams" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={currentWeek}><TeamsTab league={league} onUpdate={isCommissioner?onUpdate:null} setModal={isCommissioner?setModal:()=>{}} setEditing={isCommissioner?setEditingItem:()=>{}} readOnly={!isCommissioner} /></SpoilerBlur>}
         {tab === "scoring" && isCommissioner && <ScoringTab league={league} onUpdate={onUpdate} />}
         {tab === "weekly-draft" && isCommissioner && <WeeklyDraftTab league={league} onUpdate={onUpdate} standings={standings} />}
-        {tab === "depth-chart" && <DepthChartTab league={league} onUpdate={onUpdate} lockedToTeamId={isCommissioner ? null : loggedInTeamId} defaultTeamId={loggedInTeamId} isCommissioner={isCommissioner} />}
-        {tab === "my-pick" && <SurvivorPoolTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} />}
-        {tab === "weekly-pick" && <EliminationPoolTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} />}
-        {tab === "my-roster-cap" && <SalaryCapRosterTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} />}
+        {tab === "depth-chart" && <DepthChartTab league={league} onUpdate={onUpdate} lockedToTeamId={isCommissioner ? null : loggedInTeamId} defaultTeamId={loggedInTeamId} isCommissioner={isCommissioner} spoilerActive={spoilerActive} />}
+        {tab === "my-pick" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={currentWeek}><SurvivorPoolTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} /></SpoilerBlur>}
+        {tab === "weekly-pick" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={currentWeek}><EliminationPoolTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} /></SpoilerBlur>}
+        {tab === "my-roster-cap" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={currentWeek}><SalaryCapRosterTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} /></SpoilerBlur>}
         {tab === "set-prices" && isCommissioner && <SalaryCapPricesTab league={league} onUpdate={onUpdate} />}
-        {tab === "predict" && <PredictionsPlayerTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} />}
+        {tab === "predict" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={currentWeek}><PredictionsPlayerTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} /></SpoilerBlur>}
         {tab === "manage-questions" && isCommissioner && <PredictionsCommishTab league={league} onUpdate={onUpdate} />}
         {tab === "settings" && isCommissioner && <SettingsTab league={league} onUpdate={onUpdate} allLeagues={allLeagues} />}
       </div>
@@ -1167,22 +1213,22 @@ function StandingsTab({ league, standings }) {
                 </div>
                 <div style={{ flex:1,minWidth:0 }}>
                   <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:14 }}>{team.name}</div>
-                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>{team.owner}{team.h2hRecord ? ` · ${team.h2hRecord}` : ""}{wkPts !== 0 ? ` · ${wkPts>0?"+":""}${wkPts} this wk` : ""}</div>
+                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>{team.owner}{team.h2hRecord ? ` · ${team.h2hRecord}` : ""}{wkPts !== 0 ? ` · ${wkPts>0?"+":""}${formatPts(wkPts, league)} this wk` : ""}</div>
                 </div>
                 <div style={{ textAlign:"right" }}>
                   {team.h2hRecord ? (
                     <>
                       <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:20,fontWeight:900,color:"#e8e8f0",letterSpacing:"-0.02em" }}>{team.h2hRecord}</div>
-                      <div style={{ fontSize:10,color:"#4a4a6a" }}>{team.total} pts</div>
+                      <div style={{ fontSize:10,color:"#4a4a6a" }}>{formatPts(team.total, league)} pts</div>
                     </>
                   ) : team.roto ? (
                     <>
-                      <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:20,fontWeight:900,color:"#9d5dff",letterSpacing:"-0.02em" }}>{team.rotoTotal}</div>
+                      <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:20,fontWeight:900,color:"#9d5dff",letterSpacing:"-0.02em" }}>{formatPts(team.rotoTotal, league)}</div>
                       <div style={{ fontSize:10,color:"#4a4a6a" }}>roto pts</div>
                     </>
                   ) : (
                     <>
-                      <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:24,fontWeight:900,color:team.total>0?"#e8e8f0":team.total<0?"#e94560":"#6a6a8a",letterSpacing:"-0.02em" }}>{team.total}</div>
+                      <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:24,fontWeight:900,color:team.total>0?"#e8e8f0":team.total<0?"#e94560":"#6a6a8a",letterSpacing:"-0.02em" }}>{formatPts(team.total, league)}</div>
                       <div style={{ fontSize:10,color:"#4a4a6a" }}>pts</div>
                     </>
                   )}
@@ -1197,7 +1243,7 @@ function StandingsTab({ league, standings }) {
                         background:rank<=2?"#9d5dff18":"#1e1e38",
                         color:rank<=2?"#9d5dff":"#c8c8da",
                         border:rank<=2?"1px solid #9d5dff33":"1px solid transparent" }}>
-                        #{rank} {cat} ({team.catTotals[cat]})
+                        #{rank} {cat} ({formatPts(team.catTotals[cat], league)})
                       </span>
                     ))}
                   </div>
@@ -1240,8 +1286,8 @@ function StandingsTab({ league, standings }) {
                 {standings.map(team=>(
                   <tr key={team.id}>
                     <td style={{ padding:"8px 10px",color:"#e8e8f0",fontWeight:600 }}>{team.name}</td>
-                    {weeks.map(w=><td key={w} style={{ textAlign:"center",padding:"8px 10px",color:(team.weeklyTotals?.[w]||0)>0?"#4ecdc4":(team.weeklyTotals?.[w]||0)<0?"#e94560":"#6a6a8a" }}>{team.weeklyTotals?.[w]||0}</td>)}
-                    <td style={{ textAlign:"right",padding:"8px 10px",color:"#e8e8f0",fontWeight:700 }}>{team.total}</td>
+                    {weeks.map(w=><td key={w} style={{ textAlign:"center",padding:"8px 10px",color:(team.weeklyTotals?.[w]||0)>0?"#4ecdc4":(team.weeklyTotals?.[w]||0)<0?"#e94560":"#6a6a8a" }}>{formatPts(team.weeklyTotals?.[w]||0, league)}</td>)}
+                    <td style={{ textAlign:"right",padding:"8px 10px",color:"#e8e8f0",fontWeight:700 }}>{formatPts(team.total, league)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1276,7 +1322,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
       let total = 0;
       weeks.forEach(w => {
         const pts = calcContestantWeekPoints(league.weeklyScores?.[w] || {}, c.id);
-        weeklyTotals[w] = Math.round(pts * 10) / 10;
+        weeklyTotals[w] = Math.round(pts * 100) / 100;
         total += pts;
       });
       const prevWeek = String((league.currentWeek||1) - 1);
@@ -1285,7 +1331,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
       weeks.forEach(w => { const p = weeklyTotals[w]||0; if(p>bestWeekPts){bestWeekPts=p;bestWeekNum=w;} if(p<worstWeekPts){worstWeekPts=p;worstWeekNum=w;} });
       if (bestWeekPts === -Infinity) bestWeekPts = 0;
       if (worstWeekPts === Infinity) worstWeekPts = 0;
-      return { ...c, total: Math.round(total * 10) / 10, weeklyTotals, lastWeekPts: Math.round(lastWeekPts*10)/10, bestWeekPts: Math.round(bestWeekPts*10)/10, worstWeekPts: Math.round(worstWeekPts*10)/10, bestWeekNum, worstWeekNum };
+      return { ...c, total: Math.round(total * 100) / 100, weeklyTotals, lastWeekPts: Math.round(lastWeekPts*100)/100, bestWeekPts: Math.round(bestWeekPts*100)/100, worstWeekPts: Math.round(worstWeekPts*100)/100, bestWeekNum, worstWeekNum };
     });
   }, [league, weeks]);
 
@@ -1307,7 +1353,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
     return (league.scoringRules||[]).filter(r => cs[r.id] && cs[r.id] !== 0).map(r => {
       const pts = cs[r.id];
       const count = r.points !== 0 ? Math.round(pts / r.points) : 0;
-      return { rule: r, count, pts: Math.round(pts * 10) / 10 };
+      return { rule: r, count, pts: Math.round(pts * 100) / 100 };
     });
   }
 
@@ -1492,10 +1538,10 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
             const isExp=expandedId===c.id;
             // Determine display values based on sort
             let bigVal, bigLabel, subtitle;
-            if(sortBy==="total"){bigVal=c.total;bigLabel=null;subtitle=c.lastWeekPts!==0?`Last wk: ${c.lastWeekPts>0?"+":""}${c.lastWeekPts}`:null;}
-            else if(sortBy==="lastWeek"){bigVal=c.lastWeekPts;bigLabel=`wk ${(league.currentWeek||1)-1}`;subtitle=`Season: ${c.total}`;}
-            else if(sortBy==="best"){bigVal=c.bestWeekPts;bigLabel=c.bestWeekNum?`wk ${c.bestWeekNum}`:null;subtitle=`Season: ${c.total}`;}
-            else if(sortBy==="worst"){bigVal=c.worstWeekPts;bigLabel=c.worstWeekNum?`wk ${c.worstWeekNum}`:null;subtitle=`Season: ${c.total}`;}
+            if(sortBy==="total"){bigVal=c.total;bigLabel=null;subtitle=c.lastWeekPts!==0?`Last wk: ${c.lastWeekPts>0?"+":""}${formatPts(c.lastWeekPts, league)}`:null;}
+            else if(sortBy==="lastWeek"){bigVal=c.lastWeekPts;bigLabel=`wk ${(league.currentWeek||1)-1}`;subtitle=`Season: ${formatPts(c.total, league)}`;}
+            else if(sortBy==="best"){bigVal=c.bestWeekPts;bigLabel=c.bestWeekNum?`wk ${c.bestWeekNum}`:null;subtitle=`Season: ${formatPts(c.total, league)}`;}
+            else if(sortBy==="worst"){bigVal=c.worstWeekPts;bigLabel=c.worstWeekNum?`wk ${c.worstWeekNum}`:null;subtitle=`Season: ${formatPts(c.total, league)}`;}
             else{bigVal=c.total;bigLabel=null;subtitle=null;}
             return(<div key={c.id} style={{borderRadius:12,background:"#12121f",border:"1px solid #1e1e38",opacity:c.status==="eliminated"?0.5:1,overflow:"hidden",transition:"all 0.2s"}}>
               <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",cursor:"pointer"}} onClick={()=>setExpandedId(isExp?null:c.id)}>
@@ -1510,7 +1556,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                   {subtitle&&<div style={{fontSize:11,color:"#6a6a8a",marginTop:1}}>{subtitle}</div>}
                 </div>
                 <div style={{textAlign:"right",minWidth:44}}>
-                  <div style={{fontFamily:"'Anybody',sans-serif",fontSize:18,fontWeight:800,color:bigVal>0?"#4ecdc4":bigVal<0?"#e94560":"#6a6a8a"}}>{bigVal>0?"+":""}{bigVal}</div>
+                  <div style={{fontFamily:"'Anybody',sans-serif",fontSize:18,fontWeight:800,color:bigVal>0?"#4ecdc4":bigVal<0?"#e94560":"#6a6a8a"}}>{bigVal>0?"+":""}{formatPts(bigVal, league)}</div>
                   {bigLabel&&<div style={{fontSize:9,color:"#4a4a6a"}}>{bigLabel}</div>}
                 </div>
                 <div style={{transform:isExp?"rotate(90deg)":"none",transition:"transform 0.15s ease",color:"#4a4a6a"}}><Icon name="chevron" size={14}/></div>
@@ -1527,13 +1573,13 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                     <div style={{display:"flex",gap:0,marginTop:8,marginBottom:10,borderRadius:8,overflow:"hidden",border:"1px solid #1e1e38"}}>
                       {[
                         {label:"Last Wk",val:lastWkPts,sub:`Wk ${weeks[weeks.length-1]}`,color:lastWkPts>0?"#4ecdc4":lastWkPts<0?"#e94560":"#6a6a8a"},
-                        {label:"Best",val:Math.round(best.pts*10)/10,sub:best.wk?`Wk ${best.wk}`:"—",color:"#f5a623"},
-                        {label:"Worst",val:Math.round(worst.pts*10)/10,sub:worst.wk?`Wk ${worst.wk}`:"—",color:"#e94560"},
+                        {label:"Best",val:best.pts,sub:best.wk?`Wk ${best.wk}`:"—",color:"#f5a623"},
+                        {label:"Worst",val:worst.pts,sub:worst.wk?`Wk ${worst.wk}`:"—",color:"#e94560"},
                         {label:"Season",val:c.total,sub:`${weeks.length} wks`,color:c.total>0?"#4ecdc4":"#6a6a8a"},
                       ].map(s=>(
                         <div key={s.label} style={{flex:1,padding:"8px 6px",textAlign:"center",background:"#0d0d18",borderRight:"1px solid #1e1e38"}}>
                           <div style={{fontSize:9,color:"#6a6a8a",textTransform:"uppercase",fontWeight:600,marginBottom:2}}>{s.label}</div>
-                          <div style={{fontSize:16,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:s.color}}>{s.val>0?"+":""}{s.val}</div>
+                          <div style={{fontSize:16,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:s.color}}>{s.val>0?"+":""}{formatPts(s.val, league)}</div>
                           <div style={{fontSize:9,color:"#4a4a6a"}}>{s.sub}</div>
                         </div>
                       ))}
@@ -1558,7 +1604,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                         <div style={{flex:1,display:"flex",flexWrap:"wrap",gap:3}}>
                           {dets.map(d=>(<span key={d.rule.id} style={{fontSize:9,padding:"2px 5px",borderRadius:3,background:d.rule.points>=0?"#4ecdc418":"#e9456018",color:d.rule.points>=0?"#4ecdc4":"#e94560",whiteSpace:"nowrap"}}>{d.rule.label}{d.count>1?` ×${d.count}`:""}</span>))}
                         </div>
-                        <div style={{width:50,textAlign:"right",fontWeight:700,fontSize:13,fontFamily:"'Anybody',sans-serif",color:wP>0?"#4ecdc4":wP<0?"#e94560":"#6a6a8a"}}>{wP>0?"+":""}{wP}</div>
+                        <div style={{width:50,textAlign:"right",fontWeight:700,fontSize:13,fontFamily:"'Anybody',sans-serif",color:wP>0?"#4ecdc4":wP<0?"#e94560":"#6a6a8a"}}>{wP>0?"+":""}{formatPts(wP, league)}</div>
                       </div>);
                     })}
                   </div>
@@ -1825,7 +1871,7 @@ function TeamsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                   </div>
                   <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:20,fontWeight:900,
                     color:teamTotal>0?"#4ecdc4":teamTotal<0?"#e94560":"#6a6a8a",minWidth:45,textAlign:"right" }}>
-                    {teamTotal}
+                    {formatPts(teamTotal, league)}
                   </div>
                   <div style={{ transform:isExp?"rotate(90deg)":"none",transition:"transform 0.15s ease",color:"#6a6a8a" }}><Icon name="chevron" size={16}/></div>
                 </div>
@@ -1838,7 +1884,7 @@ function TeamsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                       {roster.length===0 ? <div style={{ color:"#4a4a6a",fontSize:12,fontStyle:"italic" }}>Empty roster</div> :
                         roster.map((c,idx)=>{
                           const basePts = getContestantWeekPts(c.id, viewWeek);
-                          const multipliedPts = Math.round(basePts * c.multiplier * 10) / 10;
+                          const multipliedPts = Math.round(basePts * c.multiplier * 100) / 100;
                           const tribeColor = getTribeColor(league, c);
                           const isMerged = league.merged || false;
                           // Season stats
@@ -1863,19 +1909,19 @@ function TeamsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                                 </div>
                                 <div style={{ textAlign:"right" }}>
                                   {basePts !== 0 && c.multiplier > 1 && (
-                                    <div style={{ fontSize:9,color:"#6a6a8a" }}>{Math.round(basePts*10)/10} × {c.multiplier}</div>
+                                    <div style={{ fontSize:9,color:"#6a6a8a" }}>{formatPts(basePts, league)} × {c.multiplier}</div>
                                   )}
                                   <div style={{ fontSize:16,fontWeight:800,fontFamily:"'Anybody',sans-serif",
                                     color:multipliedPts>0?"#4ecdc4":multipliedPts<0?"#e94560":"#6a6a8a"
                                   }}>
-                                    {multipliedPts !== 0 ? (multipliedPts>0?"+":"") + multipliedPts : "—"}
+                                    {multipliedPts !== 0 ? (multipliedPts>0?"+":"") + formatPts(multipliedPts, league) : "—"}
                                   </div>
                                 </div>
                               </div>
                               <div style={{ display:"flex",gap:14,fontSize:10,color:"#6a6a8a",marginTop:5,paddingLeft:40 }}>
-                                <span>Last: <span style={{ color:lastWk>0?"#4ecdc4":lastWk<0?"#e94560":"#6a6a8a",fontWeight:600 }}>{lastWk>0?"+":""}{lastWk}</span></span>
-                                <span>Best: <span style={{ color:"#f5a623",fontWeight:600 }}>{bestPts>0?"+":""}{bestPts}</span>{bestWk?` (Wk ${bestWk})`:""}</span>
-                                <span>Season: <span style={{ fontWeight:600,color:"#ccc" }}>{seasonPts}</span></span>
+                                <span>Last: <span style={{ color:lastWk>0?"#4ecdc4":lastWk<0?"#e94560":"#6a6a8a",fontWeight:600 }}>{lastWk>0?"+":""}{formatPts(lastWk, league)}</span></span>
+                                <span>Best: <span style={{ color:"#f5a623",fontWeight:600 }}>{bestPts>0?"+":""}{formatPts(bestPts, league)}</span>{bestWk?` (Wk ${bestWk})`:""}</span>
+                                <span>Season: <span style={{ fontWeight:600,color:"#ccc" }}>{formatPts(seasonPts, league)}</span></span>
                               </div>
                             </div>
                           );
@@ -2145,7 +2191,7 @@ function ScoringTab({ league, onUpdate }) {
       const events = [];
       (league.scoringRules||[]).forEach(r => {
         const count = getCount(c.id, r.id, r.points);
-        if (count > 0) events.push({ rule: r, count, pts: Math.round(count * r.points * 10) / 10 });
+        if (count > 0) events.push({ rule: r, count, pts: Math.round(count * r.points * 100) / 100 });
       });
       const total = Math.round(Object.values(merged).reduce((s,v)=>s+v,0) * 10) / 10;
       return { ...c, events, total };
@@ -2200,7 +2246,7 @@ function ScoringTab({ league, onUpdate }) {
                       <div>
                         <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>{r.label}</div>
                         <div style={{ fontSize:11,color:r.points>=0?"#4ecdc4":"#e94560",marginTop:2 }}>
-                          {r.points>0?"+":""}{r.points} pts{r.points===-1||r.points===1?" each":""}
+                          {r.points>0?"+":""}{formatPts(r.points, league)} pts{r.points===-1||r.points===1?" each":""}
                         </div>
                       </div>
                       <div style={{ display:"flex",alignItems:"center",gap:8 }}>
@@ -2237,7 +2283,7 @@ function ScoringTab({ league, onUpdate }) {
           }}>
             <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:16,fontFamily:"'Anybody',sans-serif" }}>{rule.label}</div>
             <div style={{ color:rule.points>=0?"#4ecdc4":"#e94560",fontSize:13,marginTop:2 }}>
-              {rule.points>0?"+":""}{rule.points} pts per occurrence
+              {rule.points>0?"+":""}{formatPts(rule.points, league)} pts per occurrence
             </div>
           </div>
 
@@ -2312,7 +2358,7 @@ function ScoringTab({ league, onUpdate }) {
                               color:"#ccc",cursor:"pointer",fontSize:15,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",
                             }}>+</button>
                             <span style={{ color:rule.points>=0?"#4ecdc4":"#e94560",fontSize:12,fontWeight:600,minWidth:40,textAlign:"right" }}>
-                              {(count*rule.points)>0?"+"  :""}{Math.round(count*rule.points*10)/10}
+                              {(count*rule.points)>0?"+":""}{formatPts(count*rule.points, league)}
                             </span>
                           </div>
                         )}
@@ -2356,7 +2402,7 @@ function ScoringTab({ league, onUpdate }) {
                           color:"#ccc",cursor:"pointer",fontSize:15,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",
                         }}>+</button>
                         <span style={{ color:rule.points>=0?"#4ecdc4":"#e94560",fontSize:12,fontWeight:600,minWidth:40,textAlign:"right" }}>
-                          {(count*rule.points)>0?"+":""}{Math.round(count*rule.points*10)/10}
+                          {(count*rule.points)>0?"+":""}{formatPts(count*rule.points, league)}
                         </span>
                       </div>
                     )}
@@ -2388,7 +2434,7 @@ function ScoringTab({ league, onUpdate }) {
                     </div>
                     <span style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,
                       color:c.total>0?"#4ecdc4":c.total<0?"#e94560":"#6a6a8a" }}>
-                      {c.total>0?"+":""}{c.total}
+                      {c.total>0?"+":""}{formatPts(c.total, league)}
                     </span>
                   </div>
                   <div style={{ display:"flex",flexWrap:"wrap",gap:4 }}>
@@ -2398,7 +2444,7 @@ function ScoringTab({ league, onUpdate }) {
                         background:e.rule.points>=0?"#4ecdc422":"#e9456022",
                         color:e.rule.points>=0?"#4ecdc4":"#e94560",
                       }}>
-                        {e.rule.label}{e.count>1?` ×${e.count}`:""} ({e.pts>0?"+":""}{e.pts})
+                        {e.rule.label}{e.count>1?` ×${e.count}`:""} ({e.pts>0?"+":""}{formatPts(e.pts, league)})
                       </span>
                     ))}
                   </div>
@@ -2420,6 +2466,21 @@ function ScoringTab({ league, onUpdate }) {
         <div style={{ display:"flex",gap:8,marginTop:20,flexWrap:"wrap" }}>
           {(league.currentWeek||1) > 1 && <Btn variant="ghost" onClick={reverseWeek} small>← Back to Week {(league.currentWeek||1)-1}</Btn>}
           <Btn variant="secondary" onClick={advanceWeek} small>Advance to Week {(league.currentWeek||1)+1} →</Btn>
+          {Object.keys(weekScores).length > 0 && !league.weekStatus?.[selectedWeek]?.finalizedAt && (
+            <Btn variant="ghost" onClick={() => {
+              if (!confirm(`Finalize Week ${selectedWeek}? This enables spoiler protection for all members.`)) return;
+              onUpdate({
+                ...league,
+                weekStatus: {
+                  ...(league.weekStatus || {}),
+                  [String(selectedWeek)]: { status: "finalized", finalizedAt: Date.now() }
+                }
+              });
+            }} small>Finalize Week {selectedWeek}</Btn>
+          )}
+          {league.weekStatus?.[selectedWeek]?.finalizedAt && (
+            <Badge color="#4ecdc4">Week {selectedWeek} Finalized</Badge>
+          )}
         </div>
       )}
     </div>
@@ -2575,7 +2636,7 @@ function WeeklyDraftTab({ league, onUpdate, standings }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // DEPTH CHART TAB (Captains format)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isCommissioner }) {
+function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isCommissioner, spoilerActive }) {
   const [selectedTeam, setSelectedTeam] = useState(lockedToTeamId || defaultTeamId || (league.teams||[])[0]?.id || "");
   const [localChart, setLocalChart] = useState({});
   const [editingName, setEditingName] = useState(false);
@@ -2610,7 +2671,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
   const contestantRankings = useMemo(() => {
     const ranked = (league.contestants||[]).map(c => {
       const total = weeks.reduce((s,w) => s + calcContestantWeekPoints(league.weeklyScores?.[w]||{}, c.id), 0);
-      return { id: c.id, total: Math.round(total*10)/10 };
+      return { id: c.id, total: Math.round(total*100)/100 };
     }).sort((a,b) => b.total - a.total);
     const map = {};
     ranked.forEach((c,i) => { map[c.id] = { rank: i+1, total: c.total }; });
@@ -2755,7 +2816,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
     const isMerged = league.merged || false;
     let bestWeek = null, bestPts = -Infinity;
     weeks.forEach(w => { const pts = calcContestantWeekPoints(league.weeklyScores?.[w]||{}, cid); if (pts > bestPts) { bestPts = pts; bestWeek = w; } });
-    return { ...c, ranking, lastWkPts: Math.round(lastWkPts*10)/10, tribeColor, bestWeek, bestPts: Math.round(bestPts*10)/10, isMerged };
+    return { ...c, ranking, lastWkPts: Math.round(lastWkPts*100)/100, tribeColor, bestWeek, bestPts: Math.round(bestPts*100)/100, isMerged };
   }
 
   function RosterRow({ label, slot, currentId, multiplierLabel, multiplierNum, color }) {
@@ -2766,7 +2827,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
     const isSwapped = isNewPlayer(currentId);
     const tribeColor = c ? getTribeColor(league, c) : "#2a2a4a";
     const weekBasePts = c ? calcContestantWeekPoints(league.weeklyScores?.[String(effectiveWeek)]||{}, c.id) : 0;
-    const weekMultPts = Math.round(weekBasePts * multiplierNum * 10) / 10;
+    const weekMultPts = Math.round(weekBasePts * multiplierNum * 100) / 100;
 
     // Mark players already on roster in dropdown
     const onRosterSlot = (cid) => findSlotForPlayer(localChart, cid);
@@ -2855,7 +2916,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
             {c ? (
               <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:16,fontWeight:800,
                 color:weekMultPts>0?"#4ecdc4":weekMultPts<0?"#e94560":"#4a4a6a" }}>
-                {weekMultPts !== 0 ? (weekMultPts>0?"+":"") + weekMultPts : "—"}
+                <SpoilerText active={spoilerActive}>{weekMultPts !== 0 ? (weekMultPts>0?"+":"") + formatPts(weekMultPts, league) : "—"}</SpoilerText>
               </div>
             ) : null}
           </div>
@@ -2934,7 +2995,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
                 <div style={{ textAlign:"right" }}>
                   <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:22,fontWeight:900,
                     color:teamWeekTotal>0?"#4ecdc4":teamWeekTotal<0?"#e94560":"#6a6a8a" }}>
-                    {teamWeekTotal>0?"+":""}{teamWeekTotal}
+                    <SpoilerText active={spoilerActive}>{teamWeekTotal>0?"+":""}{formatPts(teamWeekTotal, league)}</SpoilerText>
                   </div>
                   <div style={{ fontSize:10,color:"#6a6a8a" }}>wk {currentWeek} total</div>
                 </div>
@@ -3086,7 +3147,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
           const total = weeks.reduce((s,w) => s + calcContestantWeekPoints(league.weeklyScores?.[w]||{}, c.id), 0);
           const prevWeek = String((league.currentWeek||1) - 1);
           const lastWk = prevWeek !== "0" ? calcContestantWeekPoints(league.weeklyScores?.[prevWeek]||{}, c.id) : 0;
-          return { ...c, total: Math.round(total*10)/10, lastWk: Math.round(lastWk*10)/10, tribeColor: getTribeColor(league, c) };
+          return { ...c, total: Math.round(total*100)/100, lastWk: Math.round(lastWk*100)/100, tribeColor: getTribeColor(league, c) };
         }).sort((a,b) => b.total - a.total).slice(0, 5);
 
         if (ranked.length === 0) return null;
@@ -3102,10 +3163,10 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
                   <ContestantAvatar contestant={c} league={league} size={28} />
                   <div style={{ flex:1,minWidth:0 }}>
                     <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{c.name}</div>
-                    <div style={{ fontSize:10,color:"#6a6a8a" }}>#{contestantRankings[c.id]?.rank || "?"} overall{c.lastWk!==0?` · Last wk: ${c.lastWk>0?"+":""}${c.lastWk}`:""}</div>
+                    <div style={{ fontSize:10,color:"#6a6a8a" }}>#{contestantRankings[c.id]?.rank || "?"} overall{c.lastWk!==0?` · Last wk: ${c.lastWk>0?"+":""}${formatPts(c.lastWk, league)}`:""}</div>
                   </div>
                   <div style={{ textAlign:"right",flexShrink:0 }}>
-                    <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:15,fontWeight:800,color:c.total>0?"#4ecdc4":c.total<0?"#e94560":"#6a6a8a" }}>{c.total>0?"+":""}{c.total}</div>
+                    <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:15,fontWeight:800,color:c.total>0?"#4ecdc4":c.total<0?"#e94560":"#6a6a8a" }}><SpoilerText active={spoilerActive}>{c.total>0?"+":""}{formatPts(c.total, league)}</SpoilerText></div>
                     <div style={{ fontSize:9,color:"#4a4a6a" }}>season</div>
                   </div>
                 </div>
@@ -3128,23 +3189,23 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
                   border:isCurrentWeek?"1px solid #e9456033":"1px solid #1e1e38",textAlign:"center",flexShrink:0 }}>
                   <div style={{ fontSize:9,color:"#6a6a8a",fontWeight:600,marginBottom:4 }}>WK {w}</div>
                   <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:16,fontWeight:800,
-                    color:pts>0?"#4ecdc4":pts<0?"#e94560":"#4a4a6a" }}>{pts>0?"+":""}{pts}</div>
+                    color:pts>0?"#4ecdc4":pts<0?"#e94560":"#4a4a6a" }}><SpoilerText active={spoilerActive}>{pts>0?"+":""}{formatPts(pts, league)}</SpoilerText></div>
                 </div>
               );
             })}
           </div>
           {(()=>{
             const seasonTotal = weeks.reduce((s,w) => s + calcTeamWeekPoints(league, team, w), 0);
-            const avg = weeks.length > 0 ? Math.round(seasonTotal / weeks.length * 10) / 10 : 0;
+            const avg = weeks.length > 0 ? Math.round(seasonTotal / weeks.length * 100) / 100 : 0;
             return (
               <div style={{ display:"flex",gap:12,marginTop:10 }}>
                 <div style={{ flex:1,padding:"10px",background:"#12121f",borderRadius:8,border:"1px solid #1e1e38",textAlign:"center" }}>
                   <div style={{ fontSize:9,color:"#6a6a8a",fontWeight:600 }}>SEASON TOTAL</div>
-                  <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:18,fontWeight:800,color:"#e8e8f0" }}>{Math.round(seasonTotal*10)/10}</div>
+                  <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:18,fontWeight:800,color:"#e8e8f0" }}><SpoilerText active={spoilerActive}>{formatPts(seasonTotal, league)}</SpoilerText></div>
                 </div>
                 <div style={{ flex:1,padding:"10px",background:"#12121f",borderRadius:8,border:"1px solid #1e1e38",textAlign:"center" }}>
                   <div style={{ fontSize:9,color:"#6a6a8a",fontWeight:600 }}>AVG / WEEK</div>
-                  <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:18,fontWeight:800,color:"#f5a623" }}>{avg>0?"+":""}{avg}</div>
+                  <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:18,fontWeight:800,color:"#f5a623" }}><SpoilerText active={spoilerActive}>{avg>0?"+":""}{formatPts(avg, league)}</SpoilerText></div>
                 </div>
               </div>
             );
@@ -3300,7 +3361,7 @@ function SalaryCapRosterTab({ league, onUpdate, loggedInTeamId, isCommissioner }
                   <ContestantAvatar contestant={c} league={league} size={28} />
                   <div style={{ flex:1,fontSize:13,fontWeight:600,color:"#e8e8f0" }}>{c.name}</div>
                   <div style={{ fontSize:12,color:"#f5a623",fontWeight:700 }}>${prices[cid]||0}</div>
-                  <div style={{ fontSize:12,color:pts>0?"#4ecdc4":"#6a6a8a",fontWeight:700 }}>{pts>0?"+":""}{Math.round(pts*10)/10}</div>
+                  <div style={{ fontSize:12,color:pts>0?"#4ecdc4":"#6a6a8a",fontWeight:700 }}>{pts>0?"+":""}{formatPts(pts, league)}</div>
                   <button onClick={()=>toggleContestant(cid)} style={{ background:"none",border:"none",color:"#e94560",cursor:"pointer",fontSize:12 }}>Drop</button>
                 </div>
               );
@@ -4231,7 +4292,7 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
                   style={{ width:60,padding:"4px 8px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:4,color:"#e8e8f0",fontSize:13,textAlign:"center",fontFamily:"'Outfit',sans-serif" }} />
                 <button onClick={()=>setRules(rules.filter((_,j)=>j!==i))} style={{ background:"none",border:"none",color:"#e94560",cursor:"pointer",padding:2 }}><Icon name="trash" size={12}/></button>
               </div>
-            ) : <Badge color={r.points>=0?"#4ecdc4":"#e94560"}>{r.points>0?"+":""}{r.points}</Badge>}
+            ) : <Badge color={r.points>=0?"#4ecdc4":"#e94560"}>{r.points>0?"+":""}{formatPts(r.points, league)}</Badge>}
           </div>
         ))}
         {editRules && (
@@ -4271,6 +4332,16 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
 
       {/* Import from XLSX */}
       <ImportXLSXSection league={league} onUpdate={onUpdate} />
+
+      {/* Spoiler Protection */}
+      <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+        <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>Spoiler Protection</div>
+        <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:10,lineHeight:1.4 }}>
+          After you finalize a week's scores, members won't see results until they choose to reveal them or the grace period expires.
+        </div>
+        <Input label="Grace Period (hours)" type="number" value={league.spoilerGracePeriod || 48}
+          onChange={e => onUpdate({...league, spoilerGracePeriod: Number(e.target.value) || 48})} />
+      </div>
 
       {/* Transfer Commissioner */}
       {(league.teams||[]).length > 0 && (
@@ -4431,6 +4502,49 @@ function AddTeamModal({ open, onClose, league, onUpdate, editing }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // MAIN APP
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function JoinConfirmModal({ pendingJoin, onConfirm, onCancel, displayName }) {
+  if (!pendingJoin) return null;
+  const { league, type, teamId } = pendingJoin;
+  const formatInfo = FORMAT_INFO[league.format] || {};
+  const showInfo = SHOW_PRESETS[league.showType] || {};
+  const teamCount = (league.teams || []).length;
+  const existingTeam = type === "team" ? (league.teams || []).find(t => t.id === teamId) : null;
+
+  return (
+    <Modal title="Join League?" onClose={onCancel}>
+      <div style={{ display:"flex",alignItems:"center",gap:14,marginBottom:16 }}>
+        <div style={{ width:48,height:48,borderRadius:12,background:(showInfo.color||"#9d5dff")+"18",
+          border:"1px solid "+(showInfo.color||"#9d5dff")+"33",
+          display:"flex",alignItems:"center",justifyContent:"center",
+          fontFamily:"'Anybody',sans-serif",fontSize:16,fontWeight:900,
+          color:showInfo.color||"#9d5dff",flexShrink:0
+        }}>{showInfo.emoji||"TV"}</div>
+        <div>
+          <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:16,fontFamily:"'Anybody',sans-serif" }}>{league.name}</div>
+          <div style={{ color:"#6a6a8a",fontSize:12,marginTop:2 }}>{league.seasonName}</div>
+        </div>
+      </div>
+      <div style={{ display:"flex",flexWrap:"wrap",gap:8,marginBottom:16 }}>
+        <Badge color={showInfo.color||"#9d5dff"}>{formatInfo.name || league.format}</Badge>
+        <Badge color="#6a6a8a">{teamCount} team{teamCount !== 1 ? "s" : ""}</Badge>
+        <Badge color="#6a6a8a">Week {league.currentWeek || 1}</Badge>
+      </div>
+      <div style={{ padding:"12px 14px",background:"#0d0d18",borderRadius:10,border:"1px solid #1e1e38",marginBottom:20 }}>
+        <div style={{ color:"#8888aa",fontSize:12 }}>
+          {type === "team"
+            ? <>You'll be linked to team: <span style={{ color:"#e8e8f0",fontWeight:600 }}>{existingTeam?.name || "Unknown"}</span></>
+            : <>A new team will be created: <span style={{ color:"#e8e8f0",fontWeight:600 }}>Team {displayName}</span></>
+          }
+        </div>
+      </div>
+      <div style={{ display:"flex",gap:10 }}>
+        <Btn variant="ghost" onClick={onCancel} style={{ flex:1 }}>Cancel</Btn>
+        <Btn onClick={onConfirm} style={{ flex:1 }}>Join League</Btn>
+      </div>
+    </Modal>
+  );
+}
+
 export default function FantasyRealityTV() {
   const [leagues, setLeagues] = useState([]);
   const [view, setView] = useState("loading"); // loading | login | home | league | create
@@ -4446,6 +4560,7 @@ export default function FantasyRealityTV() {
     return joinCode ? joinCode.toUpperCase() : "";
   });
   const [featureFlags, setFeatureFlags] = useState({ new_formats: true, h2h: true, best_ball: true, roto: true });
+  const [pendingJoin, setPendingJoin] = useState(null); // { league, code, type: "league"|"team", teamId? }
 
   const isAdmin = authUser?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
@@ -4472,11 +4587,9 @@ export default function FantasyRealityTV() {
         try { const ann = await loadData("site_announcement", ""); setAnnouncement(ann || ""); } catch {}
         try { const flags = await loadData("feature_flags", null); if (flags) setFeatureFlags(flags); } catch {}
         setView("home");
-        // Auto-join if there's a pending code from URL
+        // Auto-join preview if there's a pending code from URL
         if (pendingJoinCode) {
-          const result = await handleJoinViaCode(pendingJoinCode);
-          setPendingJoinCode("");
-          if (!result) await refreshLeagues();
+          await handleJoinViaCode(pendingJoinCode);
         }
       } else {
         setUserProfile(null);
@@ -4525,32 +4638,8 @@ export default function FantasyRealityTV() {
     for (const league of freshLeagues) {
       // Check league-level invite code (new system — auto-create team)
       if (league.leagueInviteCode && league.leagueInviteCode === code) {
-        // Check if user is already in this league
         if (userProfile.activations?.[league.id]) return "You're already in this league.";
-
-        // Auto-create a team for this user
-        const teamId = generateId();
-        const displayName = userProfile.displayName || authUser.email?.split("@")[0] || "Player";
-        const newTeam = {
-          id: teamId,
-          name: "Team " + displayName,
-          owner: displayName,
-          depthChart: { captain: null, coCaptain: null, regulars: [] },
-          weeklyRosters: {},
-          weeklyDepthCharts: {},
-        };
-
-        const updatedLeague = { ...league, teams: [...(league.teams||[]), newTeam] };
-        const updatedLeagues = freshLeagues.map(l => l.id === league.id ? updatedLeague : l);
-        await persist(updatedLeagues);
-
-        // Link user to the new team
-        const updatedProfile = {
-          ...userProfile,
-          activations: { ...(userProfile.activations || {}), [league.id]: teamId }
-        };
-        await saveUserProfile(authUser.uid, updatedProfile);
-        setUserProfile(updatedProfile);
+        setPendingJoin({ league, code, type: "league" });
         return null;
       }
 
@@ -4560,22 +4649,79 @@ export default function FantasyRealityTV() {
       const teamId = Object.entries(codes).find(([tid, c]) => c === code)?.[0];
       if (teamId) {
         if (used.includes(code)) return "This code has already been used.";
-        const updatedProfile = {
-          ...userProfile,
-          activations: { ...(userProfile.activations || {}), [league.id]: teamId }
-        };
-        await saveUserProfile(authUser.uid, updatedProfile);
-        setUserProfile(updatedProfile);
-        const updatedLeague = { ...league, usedCodes: [...used, code] };
-        const updatedLeagues = freshLeagues.map(l => l.id === league.id ? updatedLeague : l);
-        await persist(updatedLeagues);
+        setPendingJoin({ league, code, type: "team", teamId });
         return null;
       }
     }
-    return "Invalid invite code.";
+    return "Code not found.";
+  }
+
+  async function confirmJoin() {
+    if (!pendingJoin || !authUser || !userProfile) return;
+    const { league, code, type, teamId } = pendingJoin;
+    const freshLeagues = await refreshLeagues();
+
+    if (type === "league") {
+      const newTeamId = generateId();
+      const displayName = userProfile.displayName || authUser.email?.split("@")[0] || "Player";
+      const newTeam = {
+        id: newTeamId,
+        name: "Team " + displayName,
+        owner: displayName,
+        depthChart: { captain: null, coCaptain: null, regulars: [] },
+        weeklyRosters: {},
+        weeklyDepthCharts: {},
+      };
+      const updatedLeague = { ...league, teams: [...(league.teams||[]), newTeam] };
+      const updatedLeagues = freshLeagues.map(l => l.id === league.id ? updatedLeague : l);
+      setLeagues(updatedLeagues);
+      await saveLeague(updatedLeague);
+      const updatedProfile = {
+        ...userProfile,
+        activations: { ...(userProfile.activations || {}), [league.id]: newTeamId }
+      };
+      await saveUserProfile(authUser.uid, updatedProfile);
+      setUserProfile(updatedProfile);
+    } else {
+      // Legacy per-team code
+      const used = league.usedCodes || [];
+      const updatedProfile = {
+        ...userProfile,
+        activations: { ...(userProfile.activations || {}), [league.id]: teamId }
+      };
+      await saveUserProfile(authUser.uid, updatedProfile);
+      setUserProfile(updatedProfile);
+      const updatedLeague = { ...league, usedCodes: [...used, code] };
+      const updatedLeagues = freshLeagues.map(l => l.id === league.id ? updatedLeague : l);
+      setLeagues(updatedLeagues);
+      await saveLeague(updatedLeague);
+    }
+
+    // Post-join redirect to the league dashboard
+    const joinedLeagueId = league.id;
+    setPendingJoin(null);
+    setPendingJoinCode("");
+    setSelectedId(joinedLeagueId);
+    setView("league");
   }
 
 
+
+  async function handleRevealSpoiler(leagueId, week) {
+    if (!authUser || !userProfile) return;
+    const updated = {
+      ...userProfile,
+      spoilerRevealed: {
+        ...(userProfile.spoilerRevealed || {}),
+        [leagueId]: {
+          ...(userProfile.spoilerRevealed?.[leagueId] || {}),
+          [String(week)]: true
+        }
+      }
+    };
+    await saveUserProfile(authUser.uid, updated);
+    setUserProfile(updated);
+  }
 
   async function deleteLeague(leagueId) {
     if (!confirm("Delete this league permanently?")) return;
@@ -4667,7 +4813,7 @@ export default function FantasyRealityTV() {
         }
       `}</style>
       {view==="login" && <AuthScreen onJoinViaCode={handleJoinViaCode} onOpenFAQ={()=>setView("faq")} />}
-      {view==="settings" && authUser && <UserSettingsScreen user={authUser} onBack={()=>setView("home")} onLogout={handleLogout} />}
+      {view==="settings" && authUser && <UserSettingsScreen user={authUser} onBack={()=>setView("home")} onLogout={handleLogout} userProfile={userProfile} onUpdateProfile={async (updated) => { await saveUserProfile(authUser.uid, updated); setUserProfile(updated); }} />}
       {view==="faq" && <FAQPage onBack={()=>setView(authUser?"home":"login")} />}
       {view==="admin" && isAdmin && <AdminPanel leagues={leagues} onBack={()=>setView("home")} onUpdate={persist} featureFlags={featureFlags} setFeatureFlags={setFeatureFlags} />}
       {view==="home" && authUser && <AppHome
@@ -4729,7 +4875,15 @@ export default function FantasyRealityTV() {
         onBack={()=>{refreshLeagues();setView("home")}}
         loggedInTeamId={(isAdmin || selected?.commissionerUid === authUser?.uid) ? (selected.adminTeamId || myTeamIn(selected.id)) : myTeamIn(selected.id)}
         isCommissioner={isAdmin || selected?.commissionerUid === authUser?.uid || (selected?.commissionerTeamId && userProfile?.activations?.[selected.id] === selected.commissionerTeamId)}
+        userProfile={userProfile}
+        onRevealSpoiler={handleRevealSpoiler}
         />}
+      {pendingJoin && <JoinConfirmModal
+        pendingJoin={pendingJoin}
+        onConfirm={confirmJoin}
+        onCancel={() => { setPendingJoin(null); setPendingJoinCode(""); }}
+        displayName={userProfile?.displayName || authUser?.email?.split("@")[0] || "Player"}
+      />}
     </div>
   );
 }
@@ -4738,7 +4892,7 @@ export default function FantasyRealityTV() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // USER SETTINGS SCREEN
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function UserSettingsScreen({ user, onBack, onLogout }) {
+function UserSettingsScreen({ user, onBack, onLogout, userProfile, onUpdateProfile }) {
   return (
     <div style={{ padding:20 }}>
       <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:24 }}>
@@ -4754,6 +4908,24 @@ function UserSettingsScreen({ user, onBack, onLogout }) {
           <div>Display name: {user?.displayName || "Not set"}</div>
         </div>
       </div>
+
+      {/* Spoiler Protection */}
+      {userProfile && onUpdateProfile && (
+        <label style={{ display:"flex",alignItems:"center",gap:10,padding:"12px 14px",
+          background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",cursor:"pointer",marginBottom:16 }}>
+          <input type="checkbox" checked={!userProfile?.spoilerProtectionOff}
+            onChange={async (e) => {
+              await onUpdateProfile({ ...userProfile, spoilerProtectionOff: !e.target.checked });
+            }}
+            style={{ accentColor:"#e94560",width:32,height:32 }} />
+          <div>
+            <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>Spoiler Protection</div>
+            <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>
+              Blur scores and results until you choose to reveal them after each episode
+            </div>
+          </div>
+        </label>
+      )}
 
       {/* Actions */}
       <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
@@ -5401,9 +5573,10 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
 
   async function handleJoin() {
     if (inviteCode.length < 6) return;
+    setError("");
     const err = await onJoinViaCode(inviteCode);
     if (err) setError(err);
-    else { setInviteCode(""); setError(""); }
+    else setInviteCode("");
   }
 
   const displayName = profile?.displayName || user?.displayName || user?.email?.split("@")[0] || "User";
@@ -5479,7 +5652,7 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
                         const myPts = standings.find(t=>t.id===myTeam.id)?.total || 0;
                         return myRank > 0 ? (
                           <div style={{ fontSize:11,color:myRank<=3?"#f5a623":"#6a6a8a",marginTop:2 }}>
-                            {myRank===1?"🥇":myRank===2?"🥈":myRank===3?"🥉":"#"+myRank} · {myPts>0?"+":""}{myPts} pts
+                            {myRank===1?"🥇":myRank===2?"🥈":myRank===3?"🥉":"#"+myRank} · {myPts>0?"+":""}{formatPts(myPts, league)} pts
                           </div>
                         ) : null;
                       })()}
