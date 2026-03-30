@@ -4365,7 +4365,7 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
                 navigator.clipboard?.writeText(league.leagueInviteCode);
               }}>Copy</Btn>
             </div>
-            <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+            <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:8 }}>
               <div style={{ flex:1,padding:"8px 12px",background:"#0d0d18",borderRadius:8,fontSize:12,
                 color:"#6a6a8a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
                 {"https://app.fantasyrealitytv.com?join=" + league.leagueInviteCode}
@@ -4374,6 +4374,7 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
                 navigator.clipboard?.writeText("https://app.fantasyrealitytv.com?join=" + league.leagueInviteCode);
               }}>Copy Link</Btn>
             </div>
+            <Btn small variant="ghost" onClick={()=>onUpdate({...league, leagueInviteCode: generateInviteCode()})}>Regenerate Code</Btn>
           </div>
         ) : (
           <Btn small onClick={()=>onUpdate({...league, leagueInviteCode: generateInviteCode()})}>Generate Invite Code</Btn>
@@ -4888,7 +4889,7 @@ export default function FantasyRealityTV() {
       {authUser && view !== "login" && (
         <button onClick={()=>{
           const subject = encodeURIComponent("FRTV Feedback");
-          const body = encodeURIComponent("\n\n---\nApp: v2.3.0.3\nUser: " + (authUser?.email||"unknown") + "\nPage: " + view);
+          const body = encodeURIComponent("\n\n---\nApp: v2.3.0.4\nUser: " + (authUser?.email||"unknown") + "\nPage: " + view);
           window.open("mailto:admin@fantasyrealitytv.com?subject=" + subject + "&body=" + body);
         }} style={{
           position:"fixed",bottom:20,right:20,width:44,height:44,borderRadius:22,
@@ -5550,7 +5551,7 @@ function AuthScreen({ onJoinViaCode }) {
               onKeyDown={e=>{if(e.key==="Enter")handleSignup()}} style={inputStyle} />
             <div style={{ marginTop:8,padding:"10px 14px",background:"#4ecdc411",borderRadius:8,border:"1px solid #4ecdc433",marginBottom:12 }}>
               <div style={{ fontSize:11,color:"#4ecdc4",marginBottom:6 }}>Have an invite code? (optional)</div>
-              <input placeholder="Invite code" value={inviteCode} maxLength={6}
+              <input placeholder="Invite code" value={inviteCode} maxLength={8}
                 onChange={e=>setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,""))}
                 style={{ ...inputStyle, fontSize:16,textAlign:"center",letterSpacing:"0.15em",fontFamily:"monospace",marginBottom:0 }} />
             </div>
@@ -5669,7 +5670,7 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
           <div style={{ fontSize:12,fontWeight:600,color:"#8888aa",marginBottom:6 }}>Join a League</div>
           <div style={{ display:"flex",gap:6 }}>
             <input value={inviteCode} onChange={e=>setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,""))}
-              placeholder="Invite code" maxLength={6} onKeyDown={e=>{if(e.key==="Enter")handleJoin()}}
+              placeholder="Invite code" maxLength={8} onKeyDown={e=>{if(e.key==="Enter")handleJoin()}}
               style={{ flex:1,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
                 color:"#e8e8f0",fontSize:16,fontFamily:"monospace",letterSpacing:"0.15em",textAlign:"center" }} />
             <Btn small onClick={handleJoin} disabled={inviteCode.length<6}>Join</Btn>
