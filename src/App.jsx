@@ -309,6 +309,14 @@ function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
+// All invite codes (league-level and per-team) are 6 chars, no ambiguous characters
+function generateInviteCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let c = "";
+  for (let i = 0; i < 6; i++) c += chars[Math.floor(Math.random() * chars.length)];
+  return c;
+}
+
 // ─── Scoring Engine ───
 function calcContestantWeekPoints(weekScores, contestantId) {
   const cs = weekScores?.[contestantId];
@@ -779,7 +787,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
       weeklyScores: {},
       currentWeek: 1,
       commissionerUid: commissionerUid || null,
-      leagueInviteCode: generateId().slice(0,8).toUpperCase(),
+      leagueInviteCode: generateInviteCode(),
       createdAt: Date.now(),
     });
   }
@@ -2007,10 +2015,7 @@ function TeamCardActions({ team, league, onUpdate, setEditing, setModal }) {
   const hasRegistration = !!registeredUser;
 
   function generateCode() {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    let c = "";
-    for (let i = 0; i < 6; i++) c += chars[Math.floor(Math.random() * chars.length)];
-    return c;
+    return generateInviteCode();
   }
 
   function genOrRegenCode() {
@@ -4371,7 +4376,7 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
             </div>
           </div>
         ) : (
-          <Btn small onClick={()=>onUpdate({...league, leagueInviteCode: generateId().slice(0,8).toUpperCase()})}>Generate Invite Code</Btn>
+          <Btn small onClick={()=>onUpdate({...league, leagueInviteCode: generateInviteCode()})}>Generate Invite Code</Btn>
         )}
       </div>
       </>}
@@ -4883,7 +4888,7 @@ export default function FantasyRealityTV() {
       {authUser && view !== "login" && (
         <button onClick={()=>{
           const subject = encodeURIComponent("FRTV Feedback");
-          const body = encodeURIComponent("\n\n---\nApp: v2.3.0.2\nUser: " + (authUser?.email||"unknown") + "\nPage: " + view);
+          const body = encodeURIComponent("\n\n---\nApp: v2.3.0.3\nUser: " + (authUser?.email||"unknown") + "\nPage: " + view);
           window.open("mailto:admin@fantasyrealitytv.com?subject=" + subject + "&body=" + body);
         }} style={{
           position:"fixed",bottom:20,right:20,width:44,height:44,borderRadius:22,
@@ -5453,7 +5458,7 @@ function AuthScreen({ onJoinViaCode }) {
     setBusy(true); setError("");
     try {
       await signUp(email.trim(), password, displayName.trim());
-      if (inviteCode.length >= 4) {
+      if (inviteCode.length >= 6) {
         localStorage.setItem("frtv_pending_invite", inviteCode);
       }
     } catch (e) {
@@ -5545,7 +5550,7 @@ function AuthScreen({ onJoinViaCode }) {
               onKeyDown={e=>{if(e.key==="Enter")handleSignup()}} style={inputStyle} />
             <div style={{ marginTop:8,padding:"10px 14px",background:"#4ecdc411",borderRadius:8,border:"1px solid #4ecdc433",marginBottom:12 }}>
               <div style={{ fontSize:11,color:"#4ecdc4",marginBottom:6 }}>Have an invite code? (optional)</div>
-              <input placeholder="Invite code" value={inviteCode} maxLength={8}
+              <input placeholder="Invite code" value={inviteCode} maxLength={6}
                 onChange={e=>setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,""))}
                 style={{ ...inputStyle, fontSize:16,textAlign:"center",letterSpacing:"0.15em",fontFamily:"monospace",marginBottom:0 }} />
             </div>
@@ -5603,7 +5608,7 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
   // AppHome only renders after auth is complete, so onJoinViaCode has correct userProfile here.
   useEffect(() => {
     // URL-based join (?join=CODE — passed as pendingJoinCode prop)
-    if (pendingJoinCode && pendingJoinCode.length >= 4) {
+    if (pendingJoinCode && pendingJoinCode.length >= 6) {
       (async () => {
         const err = await onJoinViaCode(pendingJoinCode);
         if (err) setError(err);
@@ -5621,7 +5626,7 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
   }, []);
 
   async function handleJoin() {
-    if (inviteCode.length < 4) return;
+    if (inviteCode.length < 6) return;
     setError("");
     try {
       const err = await onJoinViaCode(inviteCode);
@@ -5664,10 +5669,10 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
           <div style={{ fontSize:12,fontWeight:600,color:"#8888aa",marginBottom:6 }}>Join a League</div>
           <div style={{ display:"flex",gap:6 }}>
             <input value={inviteCode} onChange={e=>setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,""))}
-              placeholder="Invite code" maxLength={8} onKeyDown={e=>{if(e.key==="Enter")handleJoin()}}
+              placeholder="Invite code" maxLength={6} onKeyDown={e=>{if(e.key==="Enter")handleJoin()}}
               style={{ flex:1,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
                 color:"#e8e8f0",fontSize:16,fontFamily:"monospace",letterSpacing:"0.15em",textAlign:"center" }} />
-            <Btn small onClick={handleJoin} disabled={inviteCode.length<4}>Join</Btn>
+            <Btn small onClick={handleJoin} disabled={inviteCode.length<6}>Join</Btn>
           </div>
           {error && <div style={{ color:"#e94560",fontSize:11,marginTop:6 }}>{error}</div>}
         </div>
