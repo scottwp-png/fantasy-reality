@@ -277,7 +277,7 @@ function SpoilerBlur({ active, children, onReveal, week }) {
   if (!active) return children;
   return (
     <div style={{ position: "relative" }}>
-      <div style={{ filter: "blur(8px)", userSelect: "none", pointerEvents: "none" }}>
+      <div style={{ filter: "blur(8px) grayscale(1)", userSelect: "none", pointerEvents: "none" }}>
         {children}
       </div>
       <div style={{
@@ -302,7 +302,7 @@ function SpoilerBlur({ active, children, onReveal, week }) {
 
 function SpoilerText({ active, children }) {
   if (!active) return children;
-  return <span style={{ filter: "blur(8px)", userSelect: "none" }}>{children}</span>;
+  return <span style={{ filter: "blur(8px)", userSelect: "none", color: "#6a6a8a" }}>{children}</span>;
 }
 
 function generateId() {
@@ -1090,7 +1090,7 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
     { id:"standings",label:"Standings",icon:"trophy",access:"all" },
     { id:"contestants",label:"Cast",icon:"star",access:"all" },
     { id:"teams",label:"Teams",icon:"users",access:"all" },
-    { id:"scoring",label:"Scoring",icon:"chart",access:"commissioner" },
+    { id:"scoring",label:"Scoring",icon:"chart",access:"all" },
     ...(league.format === "standard" ? [{ id:"weekly-draft",label:"Draft",icon:"grid",access:"commissioner" }] : []),
     ...(league.format === "captains" ? [{ id:"depth-chart",label:"My Roster",icon:"crown",access:"all" }] : []),
     ...(league.format === "survivor_pool" ? [{ id:"my-pick",label:"My Pick",icon:"star",access:"all" }] : []),
@@ -1161,7 +1161,7 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
         {tab === "standings" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={currentWeek}><StandingsTab league={league} standings={standings} /></SpoilerBlur>}
         {tab === "contestants" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={currentWeek}><ContestantsTab league={league} onUpdate={isCommissioner?onUpdate:null} setModal={isCommissioner?setModal:()=>{}} setEditing={isCommissioner?setEditingItem:()=>{}} readOnly={!isCommissioner} /></SpoilerBlur>}
         {tab === "teams" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={currentWeek}><TeamsTab league={league} onUpdate={isCommissioner?onUpdate:null} setModal={isCommissioner?setModal:()=>{}} setEditing={isCommissioner?setEditingItem:()=>{}} readOnly={!isCommissioner} /></SpoilerBlur>}
-        {tab === "scoring" && isCommissioner && <ScoringTab league={league} onUpdate={onUpdate} />}
+        {tab === "scoring" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={currentWeek}><ScoringTab league={league} onUpdate={isCommissioner ? onUpdate : null} isCommissioner={isCommissioner} /></SpoilerBlur>}
         {tab === "weekly-draft" && isCommissioner && <WeeklyDraftTab league={league} onUpdate={onUpdate} standings={standings} />}
         {tab === "depth-chart" && <DepthChartTab league={league} onUpdate={onUpdate} lockedToTeamId={isCommissioner ? null : loggedInTeamId} defaultTeamId={loggedInTeamId} isCommissioner={isCommissioner} spoilerActive={spoilerActive} />}
         {tab === "my-pick" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={currentWeek}><SurvivorPoolTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} /></SpoilerBlur>}
@@ -2106,11 +2106,11 @@ function TeamCardActions({ team, league, onUpdate, setEditing, setModal }) {
   );
 }
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function ScoringTab({ league, onUpdate }) {
+function ScoringTab({ league, onUpdate, isCommissioner = true }) {
   const [selectedWeek, setSelectedWeek] = useState(String(league.currentWeek||1));
   const [edits, setEdits] = useState({});
   const [selectedRule, setSelectedRule] = useState(null);
-  const [view, setView] = useState("events"); // "events" | "assign" | "summary"
+  const [view, setView] = useState(onUpdate ? "events" : "summary"); // "events" | "assign" | "summary" | "rules"
 
   const weekScores = league.weeklyScores?.[selectedWeek] || {};
   const activeContestants = (league.contestants||[]).filter(c=>c.status!=="eliminated");
@@ -2247,25 +2247,29 @@ function ScoringTab({ league, onUpdate }) {
       {/* Header */}
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8 }}>
         <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>
-          {view === "events" ? "Score Episode" : view === "assign" ? "" : "Week Summary"}
+          {view === "events" ? "Score Episode" : view === "assign" ? "" : view === "rules" ? "Scoring Rules" : "Week Summary"}
         </h3>
-        <Select value={selectedWeek} onChange={e=>{setSelectedWeek(e.target.value);setEdits({});setView("events");setSelectedRule(null)}}
-          options={Array.from({length:Math.max(league.currentWeek||1,1)+2},(_,i)=>({value:String(i+1),label:`Week ${i+1}`}))} />
+        <Select value={selectedWeek} onChange={e=>{setSelectedWeek(e.target.value);setEdits({});setView(onUpdate?"events":"summary");setSelectedRule(null)}}
+          options={Array.from({length: onUpdate ? Math.max(league.currentWeek||1,1)+2 : Math.max(league.currentWeek||1,1)},(_,i)=>({value:String(i+1),label:`Week ${i+1}`}))} />
       </div>
 
       {/* View tabs */}
       <div style={{ display:"flex",gap:6,marginBottom:16 }}>
-        {[{id:"events",label:"Score Events"},{id:"summary",label:"Summary"}].map(t=>(
+        {[
+          ...(onUpdate ? [{id:"events",label:"Score Events"}] : []),
+          {id:"summary",label:"Summary"},
+          ...(!onUpdate ? [{id:"rules",label:"Scoring Rules"}] : []),
+        ].map(t=>(
           <button key={t.id} onClick={()=>{setView(t.id);setSelectedRule(null)}} style={{
             padding:"6px 14px",borderRadius:99,border:"none",cursor:"pointer",fontSize:12,fontWeight:600,
-            background:view===t.id||( view==="assign"&&t.id==="events")?"#e9456033":"#1e1e38",
+            background:view===t.id||(view==="assign"&&t.id==="events")?"#e9456033":"#1e1e38",
             color:view===t.id||(view==="assign"&&t.id==="events")?"#e94560":"#8888aa",fontFamily:"'Outfit',sans-serif",
           }}>{t.label}</button>
         ))}
       </div>
 
       {/* ─── EVENT LIST VIEW ─── */}
-      {view === "events" && (
+      {view === "events" && onUpdate && (
         <div>
           {league.format==="captains" && (
             <div style={{ padding:"8px 12px",background:"#f5a62311",borderRadius:8,border:"1px solid #f5a62333",marginBottom:14,fontSize:11,color:"#f5a623" }}>
@@ -2309,7 +2313,7 @@ function ScoringTab({ league, onUpdate }) {
       )}
 
       {/* ─── ASSIGN CONTESTANTS VIEW ─── */}
-      {view === "assign" && rule && (
+      {view === "assign" && rule && onUpdate && (
         <div>
           <button onClick={()=>{setView("events");setSelectedRule(null)}} style={{
             background:"none",border:"none",color:"#8888aa",cursor:"pointer",padding:"4px 0",
@@ -2497,8 +2501,30 @@ function ScoringTab({ league, onUpdate }) {
         </div>
       )}
 
+      {/* ─── SCORING RULES VIEW (read-only for non-commissioners) ─── */}
+      {view === "rules" && (
+        <div>
+          {Object.entries(rulesByCategory).map(([cat, rules]) => (
+            <div key={cat} style={{ marginBottom:16 }}>
+              <div style={{ fontSize:11,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8 }}>{cat}</div>
+              <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
+                {rules.map(r => (
+                  <div key={r.id} style={{
+                    display:"flex",alignItems:"center",justifyContent:"space-between",
+                    padding:"12px 16px",background:"#12121f",border:"1px solid #1e1e38",borderRadius:10,
+                  }}>
+                    <span style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>{r.label}</span>
+                    <Badge color={r.points>=0?"#4ecdc4":"#e94560"}>{r.points>0?"+":""}{formatPts(r.points, league)}</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Save / Advance buttons */}
-      {hasChanges ? (
+      {onUpdate && (hasChanges ? (
         <div style={{ position:"sticky",bottom:16,marginTop:20,padding:"14px 16px",background:"linear-gradient(135deg,#1a0a10,#12121f)",borderRadius:14,border:"1px solid #e94560",
           display:"flex",gap:10,justifyContent:"center",alignItems:"center",boxShadow:"0 -4px 24px rgba(233,69,96,0.2)" }}>
           <Btn small variant="ghost" onClick={discardChanges}>Discard</Btn>
@@ -2524,7 +2550,7 @@ function ScoringTab({ league, onUpdate }) {
             <Badge color="#4ecdc4">Week {selectedWeek} Finalized</Badge>
           )}
         </div>
-      )}
+      ))}
     </div>
   );
 }
@@ -3219,40 +3245,64 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
         );
       })()}
 
-      {/* ─── MY TEAM HISTORY ─── */}
-      {team && weeks.length > 0 && (
-        <div style={{ marginTop:20 }}>
-          <div style={{ fontSize:14,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:"#f0f0f5",marginBottom:10 }}>Team History</div>
-          <div style={{ display:"flex",gap:6,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch" }}>
-            {weeks.map(w => {
-              const pts = Math.round(calcTeamWeekPoints(league, team, w) * 10) / 10;
-              const isCurrentWeek = w === String(currentWeek);
-              return (
-                <div key={w} style={{ minWidth:60,padding:"10px 8px",background:isCurrentWeek?"#e9456015":"#12121f",borderRadius:10,
-                  border:isCurrentWeek?"1px solid #e9456033":"1px solid #1e1e38",textAlign:"center",flexShrink:0 }}>
-                  <div style={{ fontSize:9,color:"#6a6a8a",fontWeight:600,marginBottom:4 }}>WK {w}</div>
-                  <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:16,fontWeight:800,
-                    color:pts>0?"#4ecdc4":pts<0?"#e94560":"#4a4a6a" }}><SpoilerText active={spoilerActive}>{pts>0?"+":""}{formatPts(pts, league)}</SpoilerText></div>
-                </div>
-              );
-            })}
-          </div>
-          {(()=>{
-            const seasonTotal = weeks.reduce((s,w) => s + calcTeamWeekPoints(league, team, w), 0);
-            const avg = weeks.length > 0 ? Math.round(seasonTotal / weeks.length * 100) / 100 : 0;
+      {/* ─── TEAM HISTORY — Per-Week Breakdown ─── */}
+      {weeks.length > 0 && team && (
+        <div style={{ marginTop:24 }}>
+          <h4 style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:15,color:"#e8e8f0",marginBottom:12,margin:"0 0 12px" }}>Team History</h4>
+          {[...weeks].reverse().map(w => {
+            const weekChart = team.weeklyDepthCharts?.[w] || (w === String(currentWeek) ? team.depthChart : null);
+            if (!weekChart) return null;
+            const captain = weekChart.captain ? (league.contestants||[]).find(c=>c.id===weekChart.captain) : null;
+            const coCaptain = weekChart.coCaptain ? (league.contestants||[]).find(c=>c.id===weekChart.coCaptain) : null;
+            const regulars = (weekChart.regulars||[]).map(id=>(league.contestants||[]).find(c=>c.id===id)).filter(Boolean);
+            const allRoster = [
+              ...(captain ? [{ c: captain, mult: 2, role: "H" }] : []),
+              ...(coCaptain ? [{ c: coCaptain, mult: 1.5, role: "SK" }] : []),
+              ...regulars.map(c => ({ c, mult: 1, role: "V" })),
+            ];
+            const teamTotal = allRoster.reduce((s, { c, mult }) => {
+              return s + calcContestantWeekPoints(league.weeklyScores?.[w]||{}, c.id) * mult;
+            }, 0);
+            const isCurrentWeek = w === String(currentWeek);
             return (
-              <div style={{ display:"flex",gap:12,marginTop:10 }}>
-                <div style={{ flex:1,padding:"10px",background:"#12121f",borderRadius:8,border:"1px solid #1e1e38",textAlign:"center" }}>
-                  <div style={{ fontSize:9,color:"#6a6a8a",fontWeight:600 }}>SEASON TOTAL</div>
-                  <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:18,fontWeight:800,color:"#e8e8f0" }}><SpoilerText active={spoilerActive}>{formatPts(seasonTotal, league)}</SpoilerText></div>
+              <div key={w} style={{ marginBottom:10,padding:"12px 14px",background:isCurrentWeek?"#12121f":"#0d0d18",
+                borderRadius:10,border:isCurrentWeek?"1px solid #2a2a4a":"1px solid #1a1a30" }}>
+                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
+                  <div style={{ fontSize:13,fontWeight:700,color:"#e8e8f0" }}>
+                    Week {w}{isCurrentWeek ? " (current)" : ""}
+                  </div>
+                  <SpoilerText active={spoilerActive}>
+                    <span style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:15,
+                      color:teamTotal>0?"#4ecdc4":teamTotal<0?"#e94560":"#6a6a8a" }}>
+                      {teamTotal>0?"+":""}{formatPts(Math.round(teamTotal*100)/100, league)}
+                    </span>
+                  </SpoilerText>
                 </div>
-                <div style={{ flex:1,padding:"10px",background:"#12121f",borderRadius:8,border:"1px solid #1e1e38",textAlign:"center" }}>
-                  <div style={{ fontSize:9,color:"#6a6a8a",fontWeight:600 }}>AVG / WEEK</div>
-                  <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:18,fontWeight:800,color:"#f5a623" }}><SpoilerText active={spoilerActive}>{avg>0?"+":""}{formatPts(avg, league)}</SpoilerText></div>
+                <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
+                  {allRoster.map(({ c, mult, role }) => {
+                    const basePts = calcContestantWeekPoints(league.weeklyScores?.[w]||{}, c.id);
+                    const multPts = Math.round(basePts * mult * 100) / 100;
+                    const roleColor = role==="H"?"#f5a623":role==="SK"?"#4ecdc4":"#8888aa";
+                    return (
+                      <div key={c.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"4px 0" }}>
+                        <span style={{ fontSize:10,fontWeight:700,color:roleColor,width:20,textAlign:"center" }}>{role}</span>
+                        {c.photoUrl && <img src={c.photoUrl} alt="" style={{ width:20,height:20,borderRadius:5,objectFit:"cover",objectPosition:`center ${c.photoCropY||20}%` }} onError={e=>{e.target.style.display="none"}} />}
+                        <span style={{ flex:1,fontSize:12,color:c.status==="eliminated"?"#6a6a8a":"#e8e8f0",
+                          textDecoration:c.status==="eliminated"?"line-through":"none" }}>{c.name}</span>
+                        <SpoilerText active={spoilerActive}>
+                          <span style={{ fontSize:12,fontWeight:600,fontFamily:"'Anybody',sans-serif",
+                            color:multPts>0?"#4ecdc4":multPts<0?"#e94560":"#6a6a8a" }}>
+                            {multPts!==0 ? (multPts>0?"+":"") + formatPts(multPts, league) : "—"}
+                          </span>
+                        </SpoilerText>
+                        {mult !== 1 && <span style={{ fontSize:9,color:"#6a6a8a" }}>×{mult}</span>}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );
-          })()}
+          })}
         </div>
       )}
 
@@ -4210,6 +4260,7 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
     seasonName: league.seasonName || "",
   });
   const [section, setSection] = useState("general");
+  const [pendingCommissioner, setPendingCommissioner] = useState(null);
   const sections = [
     { id: "general", label: "General" },
     { id: "roster", label: "Roster" },
@@ -4396,14 +4447,7 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
           <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:10,lineHeight:1.4 }}>
             Hand off commissioner powers to a team owner. When they next log in, they'll have full control of this league.
           </div>
-          <select onChange={e=>{
-            if(!e.target.value) return;
-            const team = (league.teams||[]).find(t=>t.id===e.target.value);
-            if(team && confirm(`Transfer commissioner to ${team.owner}? They will gain full control of this league.`)) {
-              onUpdate({...league, commissionerTeamId: team.id, commissionerName: team.owner});
-            }
-            e.target.value = "";
-          }} style={{
+          <select value={pendingCommissioner || ""} onChange={e => setPendingCommissioner(e.target.value || null)} style={{
             width:"100%",padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",
             borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",
           }}>
@@ -4412,6 +4456,18 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
               <option key={t.id} value={t.id}>{t.owner} ({t.name})</option>
             ))}
           </select>
+          {pendingCommissioner && (
+            <div style={{ display:"flex",gap:8,marginTop:10 }}>
+              <Btn small variant="danger" onClick={()=>{
+                const team = (league.teams||[]).find(t=>t.id===pendingCommissioner);
+                if(!team) return;
+                if (!confirm(`Transfer commissioner to ${team.owner}? You'll lose commissioner access.`)) { setPendingCommissioner(null); return; }
+                onUpdate({...league, commissionerTeamId: pendingCommissioner, commissionerName: team.owner});
+                setPendingCommissioner(null);
+              }}>Transfer</Btn>
+              <Btn small variant="ghost" onClick={()=>setPendingCommissioner(null)}>Cancel</Btn>
+            </div>
+          )}
           {league.commissionerName && <div style={{ marginTop:8,fontSize:11,color:"#4ecdc4" }}>Current commissioner: {league.commissionerName}</div>}
         </div>
       )}
@@ -4898,7 +4954,7 @@ export default function FantasyRealityTV() {
       {authUser && view !== "login" && (
         <button onClick={()=>{
           const subject = encodeURIComponent("FRTV Feedback");
-          const body = encodeURIComponent("\n\n---\nApp: v2.3.0.5\nUser: " + (authUser?.email||"unknown") + "\nPage: " + view);
+          const body = encodeURIComponent("\n\n---\nApp: v2.4.0.0\nUser: " + (authUser?.email||"unknown") + "\nPage: " + view);
           window.open("mailto:admin@fantasyrealitytv.com?subject=" + subject + "&body=" + body);
         }} style={{
           position:"fixed",bottom:20,right:20,width:44,height:44,borderRadius:22,
@@ -5412,7 +5468,7 @@ function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }
           <div>
             <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>Platform Info</div>
             <div style={{ display:"flex",flexDirection:"column",gap:4,fontSize:12,color:"#6a6a8a" }}>
-              <div>Version: v1.8.0.0</div>
+              <div>Version: v2.4.0.0</div>
               <div>Stack: Vite + React + Firebase</div>
               <div>Hosting: Netlify (auto-deploy from GitHub)</div>
               <div>Database: Firebase Realtime Database</div>
