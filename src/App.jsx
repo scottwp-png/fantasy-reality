@@ -4889,7 +4889,7 @@ export default function FantasyRealityTV() {
       {authUser && view !== "login" && (
         <button onClick={()=>{
           const subject = encodeURIComponent("FRTV Feedback");
-          const body = encodeURIComponent("\n\n---\nApp: v2.3.0.4\nUser: " + (authUser?.email||"unknown") + "\nPage: " + view);
+          const body = encodeURIComponent("\n\n---\nApp: v2.3.0.5\nUser: " + (authUser?.email||"unknown") + "\nPage: " + view);
           window.open("mailto:admin@fantasyrealitytv.com?subject=" + subject + "&body=" + body);
         }} style={{
           position:"fixed",bottom:20,right:20,width:44,height:44,borderRadius:22,
@@ -5602,6 +5602,7 @@ function AuthScreen({ onJoinViaCode }) {
 function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeague, onDeleteLeague, onDuplicateLeague, onLogout, onJoinViaCode, onOpenAdmin, onOpenSettings, allLeaguesCount, announcement, pendingJoinCode }) {
   const [inviteCode, setInviteCode] = useState(pendingJoinCode || "");
   const [error, setError] = useState("");
+  const [joining, setJoining] = useState(false);
 
 
 
@@ -5629,14 +5630,16 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
   async function handleJoin() {
     if (inviteCode.length < 6) return;
     setError("");
+    setJoining(true);
     try {
       const err = await onJoinViaCode(inviteCode);
       if (err) setError(err);
       else setInviteCode("");
     } catch (e) {
       console.error("Join error:", e);
-      setError("Something went wrong. Please try again.");
+      setError("Error: " + (e.message || "Something went wrong. Please try again."));
     }
+    setJoining(false);
   }
 
   const displayName = profile?.displayName || user?.displayName || user?.email?.split("@")[0] || "User";
@@ -5673,9 +5676,11 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
               placeholder="Invite code" maxLength={8} onKeyDown={e=>{if(e.key==="Enter")handleJoin()}}
               style={{ flex:1,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
                 color:"#e8e8f0",fontSize:16,fontFamily:"monospace",letterSpacing:"0.15em",textAlign:"center" }} />
-            <Btn small onClick={handleJoin} disabled={inviteCode.length<6}>Join</Btn>
+            <Btn small onClick={handleJoin} disabled={inviteCode.length<6 || joining}>
+              {joining ? "Checking..." : "Join"}
+            </Btn>
           </div>
-          {error && <div style={{ color:"#e94560",fontSize:11,marginTop:6 }}>{error}</div>}
+          {error && <div style={{ color:"#e94560",fontSize:12,marginTop:8,padding:"8px 10px",background:"#e9456011",borderRadius:6,border:"1px solid #e9456033" }}>{error}</div>}
         </div>
 
         {/* League list */}
