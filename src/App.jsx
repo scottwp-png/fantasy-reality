@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import ReactDOM from "react-dom"
-import { loadData, saveData, deleteData, loadAllLeagues, saveAllLeagues, saveLeague, loadUserProfile, saveUserProfile, loadAllUserProfiles, onAuthChange, signUp, signIn, signInWithGoogle, signOut, resetPassword, ADMIN_EMAIL } from "./firebase.js"
+import { loadData, saveData, deleteData, loadAllLeagues, saveAllLeagues, saveLeague, loadUserProfile, saveUserProfile, loadAllUserProfiles, deleteUserProfile, deleteAuthAccount, onAuthChange, signUp, signIn, signInWithGoogle, signOut, resetPassword, ADMIN_EMAIL } from "./firebase.js"
 import * as XLSX from "xlsx"
 
 
@@ -832,22 +832,30 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
 
           <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:8,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>League Format</label>
           <div style={{ display:"flex",gap:8,marginBottom:8,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch" }}>
-            {["standard","captains",...(featureFlags?.new_formats!==false?["survivor_pool","elimination_pool","predictions","salary_cap"]:[])].filter(Boolean).map(f => (
-              <button key={f} onClick={() => setFormat(f)} style={{
-                padding:"8px 16px",borderRadius:99,cursor:"pointer",whiteSpace:"nowrap",
-                background: format===f ? "#e9456022" : "transparent",
-                border: format===f ? "1px solid #e9456066" : "1px solid #2a2a4a",
-                color: format===f ? "#e94560" : "#7a7a9a",
-                fontSize:13,fontWeight:format===f?700:500,fontFamily:"'Outfit',sans-serif",
-                transition:"all 0.15s ease",flexShrink:0,
-              }}>
-                {FORMAT_INFO[f]?.name||f}
-              </button>
-            ))}
+            {["captains","standard",...(featureFlags?.new_formats!==false?["survivor_pool","elimination_pool","predictions","salary_cap"]:[])].filter(Boolean).map(f => {
+              const isPreview = !["captains"].includes(f);
+              return (
+                <button key={f} onClick={() => setFormat(f)} style={{
+                  padding:"8px 16px",borderRadius:99,cursor:"pointer",whiteSpace:"nowrap",
+                  background: format===f ? "#e9456022" : "transparent",
+                  border: format===f ? "1px solid #e9456066" : "1px solid #2a2a4a",
+                  color: format===f ? "#e94560" : "#7a7a9a",
+                  fontSize:13,fontWeight:format===f?700:500,fontFamily:"'Outfit',sans-serif",
+                  transition:"all 0.15s ease",flexShrink:0,opacity:isPreview?0.7:1,
+                }}>
+                  {FORMAT_INFO[f]?.name||f}{isPreview ? " \ud83e\uddea" : ""}
+                </button>
+              );
+            })}
           </div>
           <div style={{ padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",marginBottom:16 }}>
             <div style={{ color:"#e8e8f0",fontSize:13,lineHeight:1.6 }}>{FORMAT_INFO[format]?.desc}</div>
           </div>
+          {!["captains"].includes(format) && (
+            <div style={{ padding:"10px 14px",background:"#f5a62311",borderRadius:8,border:"1px solid #f5a62333",marginBottom:16 }}>
+              <div style={{ fontSize:12,color:"#f5a623",lineHeight:1.5 }}>{"\ud83e\uddea"} This format is in preview. Some features may be incomplete or subject to change.</div>
+            </div>
+          )}
 
           {/* Format-specific config */}
           {format === "captains" && (
@@ -874,7 +882,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
               <label style={{ display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",cursor:"pointer" }}>
                 <input type="checkbox" checked={headToHead} onChange={e=>setHeadToHead(e.target.checked)} style={{ accentColor:"#e94560",width:18,height:18 }} />
                 <div>
-                  <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>Head-to-Head Matchups</div>
+                  <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>Head-to-Head Matchups <span style={{ fontSize:10,color:"#f5a623",marginLeft:6,fontWeight:700 }}>PREVIEW</span></div>
                   <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>Weekly paired matchups. W/L record determines standings instead of total points.</div>
                 </div>
               </label>
@@ -883,7 +891,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
               <label style={{ display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",cursor:"pointer" }}>
                 <input type="checkbox" checked={bestBall} onChange={e=>setBestBall(e.target.checked)} style={{ accentColor:"#e94560",width:18,height:18 }} />
                 <div>
-                  <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>Best Ball</div>
+                  <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>Best Ball <span style={{ fontSize:10,color:"#f5a623",marginLeft:6,fontWeight:700 }}>PREVIEW</span></div>
                   <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>Auto-optimizes your lineup each week. No roster management needed — just draft well.</div>
                 </div>
               </label>
@@ -892,7 +900,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
               <label style={{ display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",cursor:"pointer" }}>
                 <input type="checkbox" checked={rotoScoring} onChange={e=>setRotoScoring(e.target.checked)} style={{ accentColor:"#e94560",width:18,height:18 }} />
                 <div>
-                  <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>Categories / Roto</div>
+                  <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>Categories / Roto <span style={{ fontSize:10,color:"#f5a623",marginLeft:6,fontWeight:700 }}>PREVIEW</span></div>
                   <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>Rank teams by scoring category (most challenge wins, fewest penalties, etc). Best cumulative rank wins.</div>
                 </div>
               </label>
@@ -1173,8 +1181,90 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // STANDINGS TAB
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function WeeklyBreakdownSection({ league, standings }) {
+  const weeks = Object.keys(league.weeklyScores || {}).sort((a,b)=>+a - +b);
+  const [selectedView, setSelectedView] = useState("overall");
+
+  if (weeks.length === 0) return null;
+
+  const viewOptions = [
+    { value: "overall", label: "Overall" },
+    ...weeks.map(w => ({ value: w, label: `Week ${w}` }))
+  ];
+
+  const contestantStats = (league.contestants || []).map(c => {
+    let pts;
+    if (selectedView === "overall") {
+      pts = weeks.reduce((s, w) => s + calcContestantWeekPoints(league.weeklyScores?.[w] || {}, c.id), 0);
+    } else {
+      pts = calcContestantWeekPoints(league.weeklyScores?.[selectedView] || {}, c.id);
+    }
+    return { ...c, pts: Math.round(pts * 100) / 100 };
+  }).filter(c => c.pts !== 0 || c.status !== "eliminated")
+    .sort((a, b) => b.pts - a.pts);
+
+  return (
+    <div style={{ marginTop:24 }}>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
+        <h4 style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:15,color:"#e8e8f0",margin:0 }}>
+          {selectedView === "overall" ? "Season Breakdown" : `Week ${selectedView} Breakdown`}
+        </h4>
+        <select value={selectedView} onChange={e => setSelectedView(e.target.value)} style={{
+          padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+          color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",cursor:"pointer"
+        }}>
+          {viewOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </div>
+
+      <div style={{ marginBottom:16 }}>
+        <div style={{ fontSize:11,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",marginBottom:8 }}>Teams</div>
+        {standings.map((team, i) => {
+          const pts = selectedView === "overall" ? team.total : (team.weeklyTotals?.[selectedView] || 0);
+          return (
+            <div key={team.id} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid #1a1a30" }}>
+              <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+                <span style={{ fontSize:12,fontWeight:700,color:i<3?"#f5a623":"#4a4a6a",width:20 }}>{i+1}</span>
+                <span style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>{team.name}</span>
+              </div>
+              <span style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:14,
+                color:pts>0?"#4ecdc4":pts<0?"#e94560":"#6a6a8a" }}>
+                {pts>0?"+":""}{formatPts(pts, league)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {contestantStats.length > 0 && (
+        <div>
+          <div style={{ fontSize:11,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",marginBottom:8 }}>Cast</div>
+          {contestantStats.slice(0, 15).map((c, i) => (
+            <div key={c.id} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid #1a1a30" }}>
+              <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+                <span style={{ fontSize:11,fontWeight:600,color:"#4a4a6a",width:20 }}>{i+1}</span>
+                {c.photoUrl && <img src={c.photoUrl} alt="" style={{ width:24,height:24,borderRadius:6,objectFit:"cover",objectPosition:`center ${c.photoCropY||20}%` }} onError={e=>{e.target.style.display="none"}} />}
+                <span style={{ color:c.status==="eliminated"?"#6a6a8a":"#e8e8f0",fontSize:13,
+                  textDecoration:c.status==="eliminated"?"line-through":"none" }}>{c.name}</span>
+              </div>
+              <span style={{ fontFamily:"'Anybody',sans-serif",fontWeight:700,fontSize:13,
+                color:c.pts>0?"#4ecdc4":c.pts<0?"#e94560":"#6a6a8a" }}>
+                {c.pts>0?"+":""}{formatPts(c.pts, league)}
+              </span>
+            </div>
+          ))}
+          {contestantStats.length > 15 && (
+            <div style={{ textAlign:"center",padding:"8px 0",color:"#4a4a6a",fontSize:11 }}>
+              +{contestantStats.length - 15} more
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function StandingsTab({ league, standings }) {
-  const [expandedTeam, setExpandedTeam] = useState(null);
   const weeks = Object.keys(league.weeklyScores || {}).sort((a,b)=>+a - +b);
   return (
     <div>
@@ -1189,8 +1279,8 @@ function StandingsTab({ league, standings }) {
             const lastWk = weeks[weeks.length-1];
             const wkPts = lastWk ? (team.weeklyTotals?.[lastWk]||0) : 0;
             return (
-              <div key={team.id} onClick={()=>setExpandedTeam(expandedTeam===team.id?null:team.id)} style={{
-                cursor:"pointer",overflow:"hidden",borderRadius:12,
+              <div key={team.id} style={{
+                overflow:"hidden",borderRadius:12,
                 background:i===0?"linear-gradient(135deg,rgba(255,77,106,0.1),rgba(255,210,61,0.05))":i===1?"linear-gradient(135deg,rgba(200,200,220,0.06),transparent)":i===2?"linear-gradient(135deg,rgba(205,127,50,0.06),transparent)":"#12121f",
                 border:i===0?"1px solid rgba(255,77,106,0.25)":i<3?"1px solid rgba(200,200,220,0.1)":"1px solid #1e1e38",
                 transition:"all 0.2s",
@@ -1234,66 +1324,13 @@ function StandingsTab({ league, standings }) {
                   )}
                 </div>
                 </div>
-              {expandedTeam===team.id && team.roto && team.catRanks && (
-                <div style={{ padding:"10px 16px 14px",borderTop:"1px solid #1e1e38" }}>
-                  <div style={{ fontSize:10,color:"#6a6a8a",fontWeight:600,textTransform:"uppercase",marginBottom:6 }}>Category Rankings</div>
-                  <div style={{ display:"flex",flexWrap:"wrap",gap:6 }}>
-                    {Object.entries(team.catRanks).map(([cat, rank]) => (
-                      <span key={cat} style={{ padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,
-                        background:rank<=2?"#9d5dff18":"#1e1e38",
-                        color:rank<=2?"#9d5dff":"#c8c8da",
-                        border:rank<=2?"1px solid #9d5dff33":"1px solid transparent" }}>
-                        #{rank} {cat} ({formatPts(team.catTotals[cat], league)})
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {expandedTeam===team.id && (()=>{
-                const chart = team.weeklyDepthCharts?.[String(league.currentWeek)] || team.depthChart || {};
-                const getC = (id) => (league.contestants||[]).find(c=>c.id===id);
-                const captain = getC(chart.captain);
-                const coCaptain = getC(chart.coCaptain);
-                const regulars = (chart.regulars||[]).map(id=>getC(id)).filter(Boolean);
-                return (
-                  <div style={{ padding:"0 16px 14px",borderTop:"1px solid #1e1e38" }}>
-                    <div style={{ fontSize:10,color:"#6a6a8a",fontWeight:600,textTransform:"uppercase",marginTop:10,marginBottom:6 }}>Current Roster</div>
-                    <div style={{ display:"flex",flexWrap:"wrap",gap:6 }}>
-                      {captain && <span style={{ padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,background:"#f5a62318",color:"#f5a623",border:"1px solid #f5a62333" }}>H · {captain.name}</span>}
-                      {coCaptain && <span style={{ padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,background:"#4ecdc418",color:"#4ecdc4",border:"1px solid #4ecdc433" }}>SK · {coCaptain.name}</span>}
-                      {regulars.map(c => <span key={c.id} style={{ padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:500,background:"#1e1e38",color:"#c8c8da" }}>{c.name}</span>)}
-                      {!captain && !coCaptain && regulars.length===0 && <span style={{ fontSize:11,color:"#6a6a8a" }}>No roster set</span>}
-                    </div>
-                  </div>
-                );
-              })()}
               </div>
             );
           })}
         </div>
       )}
-      {weeks.length > 0 && standings.length > 0 && (
-        <div style={{ marginTop:24 }}>
-          <h4 style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:15,color:"#e8e8f0",marginBottom:12 }}>Weekly Breakdown</h4>
-          <div style={{ overflowX:"auto" }}>
-            <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
-              <thead><tr>
-                <th style={{ textAlign:"left",padding:"8px 10px",color:"#6a6a8a",fontWeight:600,borderBottom:"1px solid #1e1e38" }}>Team</th>
-                {weeks.map(w=><th key={w} style={{ textAlign:"center",padding:"8px 10px",color:"#6a6a8a",fontWeight:600,borderBottom:"1px solid #1e1e38" }}>Wk {w}</th>)}
-                <th style={{ textAlign:"right",padding:"8px 10px",color:"#6a6a8a",fontWeight:600,borderBottom:"1px solid #1e1e38" }}>Total</th>
-              </tr></thead>
-              <tbody>
-                {standings.map(team=>(
-                  <tr key={team.id}>
-                    <td style={{ padding:"8px 10px",color:"#e8e8f0",fontWeight:600 }}>{team.name}</td>
-                    {weeks.map(w=><td key={w} style={{ textAlign:"center",padding:"8px 10px",color:(team.weeklyTotals?.[w]||0)>0?"#4ecdc4":(team.weeklyTotals?.[w]||0)<0?"#e94560":"#6a6a8a" }}>{formatPts(team.weeklyTotals?.[w]||0, league)}</td>)}
-                    <td style={{ textAlign:"right",padding:"8px 10px",color:"#e8e8f0",fontWeight:700 }}>{formatPts(team.total, league)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      {standings.length > 0 && (
+        <WeeklyBreakdownSection league={league} standings={standings} />
       )}
     </div>
   );
@@ -2726,11 +2763,12 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
     return cid && !lastWeekRosterIds.has(cid);
   }
 
-  function canSelectPlayer(cid, currentSlotValue) {
+  function canSelectPlayer(cid, currentSlotValue, isReplacingNewPlayer) {
     if (!cid) return true;
     if (lastWeekRosterIds.has(cid)) return true;
     if (cid === currentSlotValue) return true;
     if (!lastWeekChart || lastWeekRosterIds.size === 0) return true;
+    if (isReplacingNewPlayer) return true;
     if (!swapLimitReached) return true;
     if (currentRosterIds.has(cid)) return true;
     return false;
@@ -2821,10 +2859,10 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
 
   function RosterRow({ label, slot, currentId, multiplierLabel, multiplierNum, color }) {
     // Available: all active contestants that pass swap rules (no duplicate filtering — swaps handle it)
-    const available = activeContestants.filter(c => canSelectPlayer(c.id, currentId));
+    const isSwapped = isNewPlayer(currentId);
+    const available = activeContestants.filter(c => canSelectPlayer(c.id, currentId, isSwapped));
     const isInDropdown = currentId && available.some(c => c.id === currentId);
     const c = isInDropdown ? (league.contestants||[]).find(x=>x.id===currentId) : null;
-    const isSwapped = isNewPlayer(currentId);
     const tribeColor = c ? getTribeColor(league, c) : "#2a2a4a";
     const weekBasePts = c ? calcContestantWeekPoints(league.weeklyScores?.[String(effectiveWeek)]||{}, c.id) : 0;
     const weekMultPts = Math.round(weekBasePts * multiplierNum * 100) / 100;
@@ -2852,7 +2890,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
               fontFamily:"'Outfit',sans-serif",cursor:"pointer",
               appearance:c?"none":"auto",WebkitAppearance:c?"none":"auto",
             }}>
-              <option value="">{c ? "— Remove player —" : "— Select contestant —"}</option>
+              <option value="">{c ? (isSwapped ? "— Remove swap —" : "— Remove player —") : "— Select contestant —"}</option>
               {(()=>{
                 // Group available contestants by tribe, then alphabetical
                 const tribes = league.tribes || {};
@@ -4138,23 +4176,43 @@ function LinkedScoringSection({ league, allLeagues, onUpdate }) {
   );
 }
 
+function SpoilerProtectionEditor({ league, onUpdate }) {
+  const [hours, setHours] = useState(league.spoilerGracePeriod || 48);
+  const hasChanges = hours !== (league.spoilerGracePeriod || 48);
+  return (
+    <div style={{ padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+      <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>Spoiler Protection</div>
+      <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:10,lineHeight:1.4 }}>
+        After you finalize a week's scores, members won't see results until they choose to reveal them or the grace period expires.
+      </div>
+      <Input label="Grace Period (hours)" type="number" value={hours}
+        onChange={e => setHours(Number(e.target.value) || 48)} />
+      {hasChanges && (
+        <div style={{ display:"flex",gap:8,marginTop:10 }}>
+          <Btn small onClick={()=>onUpdate({...league, spoilerGracePeriod: hours})}>Save</Btn>
+          <Btn small variant="ghost" onClick={()=>setHours(league.spoilerGracePeriod || 48)}>Cancel</Btn>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SettingsTab({ league, onUpdate, allLeagues }) {
-  const [editRules, setEditRules] = useState(false);
-  const [rules, setRules] = useState(league.scoringRules||[]);
-  const [newRule, setNewRule] = useState({ label:"", points:0 });
   const [editingInfo, setEditingInfo] = useState(false);
   const [leagueInfo, setLeagueInfo] = useState({
     name: league.name || "",
     showName: league.showName || "",
     seasonName: league.seasonName || "",
   });
+  const [section, setSection] = useState("general");
+  const sections = [
+    { id: "general", label: "General" },
+    { id: "roster", label: "Roster" },
+    { id: "invite", label: "Invite" },
+    { id: "spoiler", label: "Spoiler" },
+    { id: "danger", label: "Danger Zone" },
+  ];
 
-  function saveRules() { onUpdate({...league,scoringRules:rules}); setEditRules(false); }
-  function addCustomRule() {
-    if (!newRule.label.trim()) return;
-    setRules(prev=>[...prev,{id:"custom_"+generateId(),label:newRule.label,points:Number(newRule.points),category:"custom"}]);
-    setNewRule({label:"",points:0});
-  }
   function saveLeagueInfo() {
     onUpdate({ ...league, name: leagueInfo.name.trim(), showName: leagueInfo.showName.trim(), seasonName: leagueInfo.seasonName.trim() });
     setEditingInfo(false);
@@ -4164,6 +4222,19 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
     <div>
       <h3 style={{ margin:"0 0 16px",fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>League Settings</h3>
 
+      <div style={{ display:"flex",gap:6,marginBottom:20,overflowX:"auto" }}>
+        {sections.map(s => (
+          <button key={s.id} onClick={()=>setSection(s.id)} style={{
+            padding:"8px 14px",borderRadius:99,border:section===s.id?"1px solid #e9456044":"1px solid transparent",
+            background:section===s.id?"#e9456022":"transparent",color:section===s.id?"#e94560":"#7a7a9a",
+            fontSize:12,fontWeight:section===s.id?700:500,cursor:"pointer",whiteSpace:"nowrap",
+            fontFamily:"'Outfit',sans-serif",transition:"all .15s",
+          }}>{s.label}</button>
+        ))}
+      </div>
+
+      {/* ─── GENERAL SECTION ─── */}
+      {section === "general" && <>
       {/* League Info */}
       <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
@@ -4213,7 +4284,21 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
         </select>
       </div>
 
-      {/* Roster Lock */}
+      {/* Linked Scoring */}
+      <LinkedScoringSection league={league} allLeagues={allLeagues} onUpdate={onUpdate} />
+
+      <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+        <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>
+          {FORMAT_INFO[league.format]?.icon} {FORMAT_INFO[league.format]?.name} Format
+        </div>
+        <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.5 }}>{FORMAT_INFO[league.format]?.desc}</div>
+        {league.format==="captains" && <div style={{ fontSize:12,color:"#6a6a8a",marginTop:6 }}>Regular slots: {league.captainsConfig?.regularSlots||3}</div>}
+        {league.format==="standard" && <div style={{ fontSize:12,color:"#6a6a8a",marginTop:6 }}>Picks/manager: {league.standardConfig?.picksPerManager||2} · Gendered: {league.standardConfig?.genderedDraft?"Yes":"No"}</div>}
+      </div>
+      </>}
+
+      {/* ─── ROSTER SECTION ─── */}
+      {section === "roster" && <>
       <div style={{ marginBottom:20,padding:"16px",background:league.rostersLocked?"#e9456011":"#12121f",borderRadius:10,
         border:league.rostersLocked?"1px solid #e9456033":"1px solid #1e1e38",transition:"all 0.2s ease" }}>
         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
@@ -4234,7 +4319,33 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
         </div>
       </div>
 
-      {/* League Invite */}
+      <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+        <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:12 }}>Contestant Status</div>
+        {(league.contestants||[]).filter(c=>c.status!=="eliminated").map(c=>(
+          <EliminateRow key={c.id} contestant={c} league={league} onUpdate={onUpdate} />
+        ))}
+        {(league.contestants||[]).filter(c=>c.status!=="eliminated").length===0 && <div style={{ color:"#4a4a6a",fontSize:12 }}>No active contestants</div>}
+
+        {/* Eliminated contestants */}
+        {(league.contestants||[]).filter(c=>c.status==="eliminated").length > 0 && (
+          <div style={{ marginTop:14 }}>
+            <div style={{ fontSize:12,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",marginBottom:8 }}>Eliminated</div>
+            {(league.contestants||[]).filter(c=>c.status==="eliminated").sort((a,b)=>(a.eliminatedWeek||0)-(b.eliminatedWeek||0)).map(c=>(
+              <div key={c.id} style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #1a1a30" }}>
+                <div style={{ flex:1 }}>
+                  <span style={{ color:"#6a6a8a",fontSize:13 }}>{c.name}</span>
+                  {c.eliminatedWeek && <span style={{ color:"#e94560",fontSize:10,marginLeft:6 }}>Week {c.eliminatedWeek}</span>}
+                </div>
+                <Btn small variant="ghost" onClick={()=>onUpdate({...league,contestants:league.contestants.map(x=>x.id===c.id?{...x,status:"active",eliminatedWeek:null}:x)})}>Reinstate</Btn>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      </>}
+
+      {/* ─── INVITE SECTION ─── */}
+      {section === "invite" && <>
       <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
         <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:4 }}>League Invite</div>
         <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:10,lineHeight:1.4 }}>
@@ -4263,86 +4374,15 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
           <Btn small onClick={()=>onUpdate({...league, leagueInviteCode: generateId().slice(0,8).toUpperCase()})}>Generate Invite Code</Btn>
         )}
       </div>
+      </>}
 
-      {/* Linked Scoring */}
-      <LinkedScoringSection league={league} allLeagues={allLeagues} onUpdate={onUpdate} />
+      {/* ─── SPOILER SECTION ─── */}
+      {section === "spoiler" && <>
+      <SpoilerProtectionEditor league={league} onUpdate={onUpdate} />
+      </>}
 
-      <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-        <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>
-          {FORMAT_INFO[league.format]?.icon} {FORMAT_INFO[league.format]?.name} Format
-        </div>
-        <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.5 }}>{FORMAT_INFO[league.format]?.desc}</div>
-        {league.format==="captains" && <div style={{ fontSize:12,color:"#6a6a8a",marginTop:6 }}>Regular slots: {league.captainsConfig?.regularSlots||3}</div>}
-        {league.format==="standard" && <div style={{ fontSize:12,color:"#6a6a8a",marginTop:6 }}>Picks/manager: {league.standardConfig?.picksPerManager||2} · Gendered: {league.standardConfig?.genderedDraft?"Yes":"No"}</div>}
-      </div>
-
-      <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
-          <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>Scoring Rules</div>
-          <Btn small variant={editRules?"primary":"ghost"} onClick={()=>editRules?saveRules():setEditRules(true)}>
-            {editRules?<><Icon name="save" size={12}/> Save</>:<><Icon name="edit" size={12}/> Edit</>}
-          </Btn>
-        </div>
-        {rules.map((r,i)=>(
-          <div key={r.id} style={{ display:"flex",alignItems:"center",gap:10,padding:"6px 0",borderBottom:"1px solid #1a1a30" }}>
-            <span style={{ flex:1,color:"#ccc",fontSize:13 }}>{r.label}</span>
-            {editRules ? (
-              <div style={{ display:"flex",alignItems:"center",gap:6 }}>
-                <input type="number" value={r.points} onChange={e=>{ const u=[...rules]; u[i]={...u[i],points:Number(e.target.value)}; setRules(u); }}
-                  style={{ width:60,padding:"4px 8px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:4,color:"#e8e8f0",fontSize:13,textAlign:"center",fontFamily:"'Outfit',sans-serif" }} />
-                <button onClick={()=>setRules(rules.filter((_,j)=>j!==i))} style={{ background:"none",border:"none",color:"#e94560",cursor:"pointer",padding:2 }}><Icon name="trash" size={12}/></button>
-              </div>
-            ) : <Badge color={r.points>=0?"#4ecdc4":"#e94560"}>{r.points>0?"+":""}{formatPts(r.points, league)}</Badge>}
-          </div>
-        ))}
-        {editRules && (
-          <div style={{ display:"flex",gap:6,marginTop:10 }}>
-            <input placeholder="Rule name" value={newRule.label} onChange={e=>setNewRule({...newRule,label:e.target.value})}
-              style={{ flex:1,padding:"7px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif" }} />
-            <input type="number" placeholder="Pts" value={newRule.points} onChange={e=>setNewRule({...newRule,points:e.target.value})}
-              style={{ width:60,padding:"7px 8px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:12,textAlign:"center",fontFamily:"'Outfit',sans-serif" }} />
-            <Btn small variant="secondary" onClick={addCustomRule}><Icon name="plus" size={12}/></Btn>
-          </div>
-        )}
-      </div>
-
-      <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-        <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:12 }}>Contestant Status</div>
-        {(league.contestants||[]).filter(c=>c.status!=="eliminated").map(c=>(
-          <EliminateRow key={c.id} contestant={c} league={league} onUpdate={onUpdate} />
-        ))}
-        {(league.contestants||[]).filter(c=>c.status!=="eliminated").length===0 && <div style={{ color:"#4a4a6a",fontSize:12 }}>No active contestants</div>}
-
-        {/* Eliminated contestants */}
-        {(league.contestants||[]).filter(c=>c.status==="eliminated").length > 0 && (
-          <div style={{ marginTop:14 }}>
-            <div style={{ fontSize:12,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",marginBottom:8 }}>Eliminated</div>
-            {(league.contestants||[]).filter(c=>c.status==="eliminated").sort((a,b)=>(a.eliminatedWeek||0)-(b.eliminatedWeek||0)).map(c=>(
-              <div key={c.id} style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #1a1a30" }}>
-                <div style={{ flex:1 }}>
-                  <span style={{ color:"#6a6a8a",fontSize:13 }}>{c.name}</span>
-                  {c.eliminatedWeek && <span style={{ color:"#e94560",fontSize:10,marginLeft:6 }}>Week {c.eliminatedWeek}</span>}
-                </div>
-                <Btn small variant="ghost" onClick={()=>onUpdate({...league,contestants:league.contestants.map(x=>x.id===c.id?{...x,status:"active",eliminatedWeek:null}:x)})}>Reinstate</Btn>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Import from XLSX */}
-      <ImportXLSXSection league={league} onUpdate={onUpdate} />
-
-      {/* Spoiler Protection */}
-      <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-        <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>Spoiler Protection</div>
-        <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:10,lineHeight:1.4 }}>
-          After you finalize a week's scores, members won't see results until they choose to reveal them or the grace period expires.
-        </div>
-        <Input label="Grace Period (hours)" type="number" value={league.spoilerGracePeriod || 48}
-          onChange={e => onUpdate({...league, spoilerGracePeriod: Number(e.target.value) || 48})} />
-      </div>
-
+      {/* ─── DANGER ZONE SECTION ─── */}
+      {section === "danger" && <>
       {/* Transfer Commissioner */}
       {(league.teams||[]).length > 0 && (
         <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
@@ -4370,6 +4410,9 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
         </div>
       )}
 
+      {/* Import from XLSX */}
+      <ImportXLSXSection league={league} onUpdate={onUpdate} />
+
       <div style={{ padding:"16px",background:"#1a0a10",borderRadius:10,border:"1px solid #3a1525" }}>
         <div style={{ fontSize:14,fontWeight:700,color:"#e94560",marginBottom:4 }}>Danger Zone</div>
         <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:12,lineHeight:1.4 }}>These actions cannot be undone.</div>
@@ -4387,6 +4430,7 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
           }}>Export League Backup (JSON)</Btn>
         </div>
       </div>
+      </>}
     </div>
   );
 }
@@ -4634,9 +4678,13 @@ export default function FantasyRealityTV() {
     if (!authUser || !userProfile) return "Not logged in.";
     const freshLeagues = await refreshLeagues();
     const code = inviteCode.trim().toUpperCase();
+    console.log("[JoinViaCode] Searching for code:", code, "across", freshLeagues.length, "leagues");
 
     for (const league of freshLeagues) {
       // Check league-level invite code (new system — auto-create team)
+      if (league.leagueInviteCode) {
+        console.log("[JoinViaCode] League", league.name, "has invite code:", league.leagueInviteCode, "match:", league.leagueInviteCode === code);
+      }
       if (league.leagueInviteCode && league.leagueInviteCode === code) {
         if (userProfile.activations?.[league.id]) return "You're already in this league.";
         setPendingJoin({ league, code, type: "league" });
@@ -4648,11 +4696,13 @@ export default function FantasyRealityTV() {
       const used = league.usedCodes || [];
       const teamId = Object.entries(codes).find(([tid, c]) => c === code)?.[0];
       if (teamId) {
+        console.log("[JoinViaCode] Found legacy team code match, teamId:", teamId);
         if (used.includes(code)) return "This code has already been used.";
         setPendingJoin({ league, code, type: "team", teamId });
         return null;
       }
     }
+    console.log("[JoinViaCode] Code not found in any league");
     return "Code not found.";
   }
 
@@ -4812,7 +4862,7 @@ export default function FantasyRealityTV() {
           .app-root { max-width: 900px; }
         }
       `}</style>
-      {view==="login" && <AuthScreen onJoinViaCode={handleJoinViaCode} onOpenFAQ={()=>setView("faq")} />}
+      {view==="login" && <AuthScreen onJoinViaCode={handleJoinViaCode} />}
       {view==="settings" && authUser && <UserSettingsScreen user={authUser} onBack={()=>setView("home")} onLogout={handleLogout} userProfile={userProfile} onUpdateProfile={async (updated) => { await saveUserProfile(authUser.uid, updated); setUserProfile(updated); }} />}
       {view==="faq" && <FAQPage onBack={()=>setView(authUser?"home":"login")} />}
       {view==="admin" && isAdmin && <AdminPanel leagues={leagues} onBack={()=>setView("home")} onUpdate={persist} featureFlags={featureFlags} setFeatureFlags={setFeatureFlags} />}
@@ -4824,7 +4874,6 @@ export default function FantasyRealityTV() {
         onOpenSettings={()=>setView("settings")}
         onJoinViaCode={handleJoinViaCode}
         onOpenAdmin={()=>setView("admin")}
-        onOpenFAQ={()=>setView("faq")}
         announcement={announcement}
         pendingJoinCode={pendingJoinCode}
         allLeaguesCount={leagues.filter(l => l.commissionerUid === authUser?.uid).length} />}
@@ -4833,7 +4882,7 @@ export default function FantasyRealityTV() {
       {authUser && view !== "login" && (
         <button onClick={()=>{
           const subject = encodeURIComponent("FRTV Feedback");
-          const body = encodeURIComponent("\n\n---\nApp: v1.9.0.0\nUser: " + (authUser?.email||"unknown") + "\nPage: " + view);
+          const body = encodeURIComponent("\n\n---\nApp: v2.3.0.0\nUser: " + (authUser?.email||"unknown") + "\nPage: " + view);
           window.open("mailto:admin@fantasyrealitytv.com?subject=" + subject + "&body=" + body);
         }} style={{
           position:"fixed",bottom:20,right:20,width:44,height:44,borderRadius:22,
@@ -4890,6 +4939,49 @@ export default function FantasyRealityTV() {
 
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ACCOUNT INFO (editable display name)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function AccountInfoSection({ user, userProfile, onUpdateProfile }) {
+  const [editingName, setEditingName] = useState(false);
+  const [newDisplayName, setNewDisplayName] = useState(user?.displayName || "");
+  return (
+    <div style={{ padding:"16px",background:"#12121f",borderRadius:12,border:"1px solid #1e1e38",marginBottom:16 }}>
+      <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>Account</div>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid #1a1a30" }}>
+        <span style={{ color:"#6a6a8a",fontSize:12 }}>Email</span>
+        <span style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>{user?.email}</span>
+      </div>
+      <div style={{ fontSize:10,color:"#4a4a6a",padding:"4px 0 8px",borderBottom:"1px solid #1a1a30" }}>
+        Contact admin@fantasyrealitytv.com to change your email.
+      </div>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8 }}>
+        <span style={{ color:"#6a6a8a",fontSize:12 }}>Display name</span>
+        {editingName ? (
+          <div style={{ display:"flex",gap:6,alignItems:"center" }}>
+            <input value={newDisplayName} onChange={e=>setNewDisplayName(e.target.value)}
+              style={{ padding:"4px 8px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",width:160 }} />
+            <Btn small onClick={async ()=>{
+              if (!newDisplayName.trim()) return;
+              const { updateProfile } = await import('firebase/auth');
+              const { getAuth } = await import('firebase/auth');
+              await updateProfile(getAuth().currentUser, { displayName: newDisplayName.trim() });
+              await onUpdateProfile({ ...userProfile, displayName: newDisplayName.trim() });
+              setEditingName(false);
+            }}>Save</Btn>
+            <Btn small variant="ghost" onClick={()=>{setNewDisplayName(user?.displayName||"");setEditingName(false)}}>Cancel</Btn>
+          </div>
+        ) : (
+          <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+            <span style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>{user?.displayName || "Not set"}</span>
+            <button onClick={()=>setEditingName(true)} style={{ background:"none",border:"none",color:"#4ecdc4",cursor:"pointer",fontSize:11 }}>Edit</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // USER SETTINGS SCREEN
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function UserSettingsScreen({ user, onBack, onLogout, userProfile, onUpdateProfile }) {
@@ -4897,17 +4989,11 @@ function UserSettingsScreen({ user, onBack, onLogout, userProfile, onUpdateProfi
     <div style={{ padding:20 }}>
       <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:24 }}>
         <button onClick={onBack} style={{ background:"#12121f",border:"1px solid #1e1e38",borderRadius:8,color:"#8888aa",cursor:"pointer",padding:6,display:"flex",alignItems:"center",justifyContent:"center" }}><Icon name="back" size={18}/></button>
-        <h2 style={{ margin:0,fontSize:20,fontFamily:"'Anybody',sans-serif",fontWeight:800,color:"#e8e8f0" }}>Settings</h2>
+        <h2 style={{ margin:0,fontSize:20,fontFamily:"'Anybody',sans-serif",fontWeight:800,color:"#e8e8f0" }}>My Account</h2>
       </div>
 
       {/* Account info */}
-      <div style={{ padding:"16px",background:"#12121f",borderRadius:12,border:"1px solid #1e1e38",marginBottom:16 }}>
-        <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>Account</div>
-        <div style={{ fontSize:13,color:"#8888aa",lineHeight:1.6 }}>
-          <div>Email: {user?.email}</div>
-          <div>Display name: {user?.displayName || "Not set"}</div>
-        </div>
-      </div>
+      <AccountInfoSection user={user} userProfile={userProfile} onUpdateProfile={onUpdateProfile} />
 
       {/* Spoiler Protection */}
       {userProfile && onUpdateProfile && (
@@ -4935,10 +5021,8 @@ function UserSettingsScreen({ user, onBack, onLogout, userProfile, onUpdateProfi
           const final = prompt("Type DELETE to permanently delete your account:");
           if (final !== "DELETE") return;
           try {
-            const { deleteData } = await import("./firebase.js");
-            await deleteData("frtv_users/" + user.uid);
-            const { getAuth, deleteUser } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js");
-            await deleteUser(getAuth().currentUser);
+            await deleteUserProfile(user.uid);
+            await deleteAuthAccount();
           } catch(e) { alert("Error: " + e.message + ". You may need to log out and log back in first, then try again."); }
         }} style={{ justifyContent:"center" }}>Delete My Account</Btn>
       </div>
@@ -5327,8 +5411,8 @@ function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // AUTH SCREEN (Login / Sign Up / Join via Code)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function AuthScreen({ onJoinViaCode, onOpenFAQ }) {
-  const [mode, setMode] = useState("login"); // login | signup | invite | forgot
+function AuthScreen({ onJoinViaCode }) {
+  const [mode, setMode] = useState("login"); // login | signup | forgot
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -5368,39 +5452,14 @@ function AuthScreen({ onJoinViaCode, onOpenFAQ }) {
     setBusy(true); setError("");
     try {
       await signUp(email.trim(), password, displayName.trim());
+      if (inviteCode.length >= 4) {
+        localStorage.setItem("frtv_pending_invite", inviteCode);
+      }
     } catch (e) {
       setError(e.code === "auth/email-already-in-use" ? "An account with this email already exists. Try logging in." :
                e.code === "auth/weak-password" ? "Password must be at least 6 characters." :
                e.code === "auth/invalid-email" ? "Invalid email address." :
                e.message);
-    }
-    setBusy(false);
-  }
-
-  async function handleSignupAndJoin() {
-    if (!email.trim() || !password || !displayName.trim()) { setError("Fill in all fields."); return; }
-    if (inviteCode.length < 6) { setError("Enter a 6-character invite code."); return; }
-    if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
-    setBusy(true); setError("");
-    try {
-      await signUp(email.trim(), password, displayName.trim());
-      // After signup, Firebase auth state changes which triggers onAuthChange,
-      // but we need to wait for the profile to be created before joining
-      // The join will happen after they land on home screen
-      // Store the code to use after login
-      localStorage.setItem("frtv_pending_invite", inviteCode);
-    } catch (e) {
-      if (e.code === "auth/email-already-in-use") {
-        // Try logging in instead
-        try {
-          await signIn(email.trim(), password);
-          localStorage.setItem("frtv_pending_invite", inviteCode);
-        } catch (e2) {
-          setError("Account exists but password is wrong. Try logging in first.");
-        }
-      } else {
-        setError(e.message);
-      }
     }
     setBusy(false);
   }
@@ -5440,7 +5499,7 @@ function AuthScreen({ onJoinViaCode, onOpenFAQ }) {
       <div style={{ padding:"0 20px 20px" }}>
         {/* Mode tabs */}
         <div style={{ display:"flex",gap:6,marginBottom:20 }}>
-          {[{id:"login",label:"Log In"},{id:"signup",label:"Sign Up"},{id:"invite",label:"Join League"}].map(t=>(
+          {[{id:"login",label:"Log In"},{id:"signup",label:"Sign Up"}].map(t=>(
             <button key={t.id} onClick={()=>{setMode(t.id);setError("");setMessage("")}} style={{
               flex:1,padding:"10px",borderRadius:8,border:"none",cursor:"pointer",fontSize:12,fontWeight:600,
               background:mode===t.id?"#e9456033":"#1e1e38",color:mode===t.id?"#e94560":"#8888aa",
@@ -5483,6 +5542,12 @@ function AuthScreen({ onJoinViaCode, onOpenFAQ }) {
             <input type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} style={inputStyle} />
             <input type="password" placeholder="Password (6+ characters)" value={password} onChange={e=>setPassword(e.target.value)}
               onKeyDown={e=>{if(e.key==="Enter")handleSignup()}} style={inputStyle} />
+            <div style={{ marginTop:8,padding:"10px 14px",background:"#4ecdc411",borderRadius:8,border:"1px solid #4ecdc433",marginBottom:12 }}>
+              <div style={{ fontSize:11,color:"#4ecdc4",marginBottom:6 }}>Have an invite code? (optional)</div>
+              <input placeholder="Invite code" value={inviteCode} maxLength={8}
+                onChange={e=>setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,""))}
+                style={{ ...inputStyle, fontSize:16,textAlign:"center",letterSpacing:"0.15em",fontFamily:"monospace",marginBottom:0 }} />
+            </div>
             {error && <div style={{ color:"#e94560",fontSize:12,marginBottom:10 }}>{error}</div>}
             <button onClick={handleSignup} disabled={busy} style={{
               width:"100%",padding:"12px",borderRadius:8,border:"none",cursor:"pointer",fontSize:14,fontWeight:700,
@@ -5497,28 +5562,6 @@ function AuthScreen({ onJoinViaCode, onOpenFAQ }) {
               <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#4285F4" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#34A853" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#EA4335" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
               Sign up with Google
             </button>
-          </div>
-        )}
-
-        {/* Join League (signup + invite code) */}
-        {mode === "invite" && (
-          <div>
-            <div style={{ padding:"10px 14px",background:"#4ecdc411",borderRadius:8,border:"1px solid #4ecdc433",marginBottom:16 }}>
-              <div style={{ fontSize:12,color:"#4ecdc4",lineHeight:1.5 }}>Enter your invite code and create an account (or log in if you already have one).</div>
-            </div>
-            <input placeholder="Invite code" value={inviteCode} maxLength={6}
-              onChange={e=>setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,""))}
-              style={{ ...inputStyle, fontSize:20,textAlign:"center",letterSpacing:"0.2em",fontFamily:"monospace" }} />
-            <input type="text" placeholder="Display name" value={displayName} onChange={e=>setDisplayName(e.target.value)} style={inputStyle} />
-            <input type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} style={inputStyle} />
-            <input type="password" placeholder="Password (6+ characters)" value={password} onChange={e=>setPassword(e.target.value)}
-              onKeyDown={e=>{if(e.key==="Enter")handleSignupAndJoin()}} style={inputStyle} />
-            {error && <div style={{ color:"#e94560",fontSize:12,marginBottom:10 }}>{error}</div>}
-            <button onClick={handleSignupAndJoin} disabled={busy||inviteCode.length<6} style={{
-              width:"100%",padding:"12px",borderRadius:8,border:"none",cursor:"pointer",fontSize:14,fontWeight:700,
-              background:"linear-gradient(135deg,#4ecdc4,#2a9d8f)",color:"#fff",fontFamily:"'Outfit',sans-serif",
-              opacity:(busy||inviteCode.length<6)?0.5:1,
-            }}>{busy ? "..." : "Join League"}</button>
           </div>
         )}
 
@@ -5541,10 +5584,6 @@ function AuthScreen({ onJoinViaCode, onOpenFAQ }) {
           </div>
         )}
 
-        <div style={{ textAlign:"center",marginTop:20,paddingTop:16,borderTop:"1px solid #1e1e38" }}>
-          <button onClick={onOpenFAQ} style={{ background:"none",border:"none",color:"#6a6a8a",cursor:"pointer",
-            fontSize:12,fontFamily:"'Outfit',sans-serif" }}>How does this work? <span style={{color:"#e94560"}}>Read the FAQ</span></button>
-        </div>
       </div>
     </div>
   );
@@ -5553,7 +5592,7 @@ function AuthScreen({ onJoinViaCode, onOpenFAQ }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // APP HOME
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeague, onDeleteLeague, onDuplicateLeague, onLogout, onJoinViaCode, onOpenAdmin, onOpenFAQ, onOpenSettings, allLeaguesCount, announcement, pendingJoinCode }) {
+function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeague, onDeleteLeague, onDuplicateLeague, onLogout, onJoinViaCode, onOpenAdmin, onOpenSettings, allLeaguesCount, announcement, pendingJoinCode }) {
   const [inviteCode, setInviteCode] = useState(pendingJoinCode || "");
   const [error, setError] = useState("");
 
@@ -5572,7 +5611,7 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
   }, []);
 
   async function handleJoin() {
-    if (inviteCode.length < 6) return;
+    if (inviteCode.length < 4) return;
     setError("");
     const err = await onJoinViaCode(inviteCode);
     if (err) setError(err);
@@ -5593,10 +5632,8 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
         <div style={{ display:"flex",gap:8,alignItems:"center" }}>
           {isAdmin && <button onClick={onOpenAdmin} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",
             color:"#f5a623",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif",fontWeight:600 }}>Admin</button>}
-          <button onClick={onOpenFAQ} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",
-            color:"#6a6a8a",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>FAQ</button>
           <button onClick={onOpenSettings} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",
-            color:"#6a6a8a",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>Settings</button>
+            color:"#6a6a8a",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>My Account</button>
 
         </div>
       </div>
@@ -5615,7 +5652,7 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
               placeholder="Invite code" maxLength={8} onKeyDown={e=>{if(e.key==="Enter")handleJoin()}}
               style={{ flex:1,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
                 color:"#e8e8f0",fontSize:16,fontFamily:"monospace",letterSpacing:"0.15em",textAlign:"center" }} />
-            <Btn small onClick={handleJoin} disabled={inviteCode.length<6}>Join</Btn>
+            <Btn small onClick={handleJoin} disabled={inviteCode.length<4}>Join</Btn>
           </div>
           {error && <div style={{ color:"#e94560",fontSize:11,marginTop:6 }}>{error}</div>}
         </div>
@@ -5677,15 +5714,6 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
         ) : (
           <EmptyState message={isAdmin ? "No leagues yet. Create one!" : "No leagues yet. Enter an invite code above to join, or create your own!"} />
         )}
-      </div>
-      {/* Footer */}
-      <div style={{ padding:"24px 20px 32px",textAlign:"center",borderTop:"1px solid #1a1a30",marginTop:8 }}>
-        <div style={{ fontSize:11,color:"#3a3a5a",display:"flex",justifyContent:"center",gap:16,flexWrap:"wrap" }}>
-          <span>© 2026 Fantasy Reality TV</span>
-          <a href="/tos.html" style={{ color:"#4a4a6a",textDecoration:"none" }} target="_blank" rel="noopener noreferrer">Terms of Service</a>
-          <a href="/privacy.html" style={{ color:"#4a4a6a",textDecoration:"none" }} target="_blank" rel="noopener noreferrer">Privacy Policy</a>
-          <a href="mailto:admin@fantasyrealitytv.com" style={{ color:"#4a4a6a",textDecoration:"none" }}>Contact</a>
-        </div>
       </div>
     </div>
   );

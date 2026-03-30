@@ -99,3 +99,15 @@ export async function saveUserProfile(uid, profile) {
 export async function loadAllUserProfiles() {
   try { const snap = await get(ref(db, "frtv_users")); return snap.val() || {} } catch { return {} }
 }
+
+// ─── Delete Account Helpers ───
+export async function deleteUserProfile(uid) {
+  try { await remove(ref(db, "frtv_users/" + uid)) } catch (e) { console.error("Delete profile error:", e) }
+}
+
+export async function deleteAuthAccount() {
+  const user = auth.currentUser;
+  if (!user) throw new Error("No user signed in");
+  const { deleteUser } = await import('firebase/auth');
+  await deleteUser(user);
+}
