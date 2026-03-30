@@ -2113,7 +2113,12 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
   const [view, setView] = useState(onUpdate ? "events" : "summary"); // "events" | "assign" | "summary" | "rules"
 
   const weekScores = league.weeklyScores?.[selectedWeek] || {};
-  const activeContestants = (league.contestants||[]).filter(c=>c.status!=="eliminated");
+  const isWeekFinalized = league.weekStatus?.[selectedWeek]?.status === "finalized";
+  const weekContestants = (league.contestants||[]).filter(c => {
+    if (c.status !== "eliminated") return true;
+    if (c.eliminatedWeek && Number(selectedWeek) <= c.eliminatedWeek) return true;
+    return false;
+  });
   const tribes = league.tribes || {};
   const tribeNames = Object.keys(tribes);
   const isMerged = league.merged || false;
@@ -2152,14 +2157,14 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
   }
 
   function toggleTribe(tribeName, rule) {
-    const memberIds = (tribes[tribeName]||[]).filter(id => activeContestants.some(c=>c.id===id));
+    const memberIds = (tribes[tribeName]||[]).filter(id => weekContestants.some(c=>c.id===id));
     const allActive = memberIds.every(id => getCount(id, rule.id, rule.points) > 0);
     memberIds.forEach(id => setScore(id, rule.id, rule.points, allActive ? 0 : 1));
   }
 
   function selectAllActive(rule) {
-    const allActive = activeContestants.every(c => getCount(c.id, rule.id, rule.points) > 0);
-    activeContestants.forEach(c => setScore(c.id, rule.id, rule.points, allActive ? 0 : 1));
+    const allActive = weekContestants.every(c => getCount(c.id, rule.id, rule.points) > 0);
+    weekContestants.forEach(c => setScore(c.id, rule.id, rule.points, allActive ? 0 : 1));
   }
 
   function saveScores() {
@@ -2223,12 +2228,12 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
 
   // Count how many contestants have scores for a given rule this week
   function countAssigned(rule) {
-    return activeContestants.filter(c => getCount(c.id, rule.id, rule.points) > 0).length;
+    return weekContestants.filter(c => getCount(c.id, rule.id, rule.points) > 0).length;
   }
 
   // Summary: all contestants with any score this week
   function getSummary() {
-    return activeContestants.map(c => {
+    return weekContestants.map(c => {
       const merged = getMerged(c.id);
       const events = [];
       (league.scoringRules||[]).forEach(r => {
@@ -2267,6 +2272,22 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
           }}>{t.label}</button>
         ))}
       </div>
+
+      {/* ─── FINALIZED WEEK LOCKED BANNER ─── */}
+      {isWeekFinalized && onUpdate && (
+        <div style={{ padding:"10px 14px",background:"#4ecdc411",borderRadius:8,border:"1px solid #4ecdc433",marginBottom:16,
+          display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+          <div style={{ fontSize:12,color:"#4ecdc4",fontWeight:600 }}>
+            🔒 Week {selectedWeek} is finalized. Scoring is locked.
+          </div>
+          <Btn small variant="ghost" onClick={() => {
+            if (!confirm(`Unfinalize Week ${selectedWeek}? This will re-open scoring and disable spoiler protection for this week.`)) return;
+            const updatedStatus = { ...(league.weekStatus || {}) };
+            delete updatedStatus[String(selectedWeek)];
+            onUpdate({ ...league, weekStatus: updatedStatus });
+          }}>Unfinalize</Btn>
+        </div>
+      )}
 
       {/* ─── EVENT LIST VIEW ─── */}
       {view === "events" && onUpdate && (
@@ -2339,12 +2360,13 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
               <div style={{ fontSize:11,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",marginBottom:6 }}>Quick Select</div>
               <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
                 {tribeNames.map(tribe => {
-                  const memberIds = (tribes[tribe]||[]).filter(id => activeContestants.some(c=>c.id===id));
+                  const memberIds = (tribes[tribe]||[]).filter(id => weekContestants.some(c=>c.id===id));
                   const allOn = memberIds.length > 0 && memberIds.every(id => getCount(id, rule.id, rule.points) > 0);
                   const tribeColor = (league.tribeColors||{})[tribe] || "#ccc";
                   return (
-                    <button key={tribe} onClick={()=>toggleTribe(tribe, rule)} style={{
-                      padding:"7px 14px",borderRadius:8,border:allOn?`2px solid ${tribeColor}`:"2px solid transparent",cursor:"pointer",fontSize:12,fontWeight:700,
+                    <button key={tribe} onClick={()=>{ if (!isWeekFinalized) toggleTribe(tribe, rule); }} style={{
+                      padding:"7px 14px",borderRadius:8,border:allOn?`2px solid ${tribeColor}`:"2px solid transparent",
+                      cursor:isWeekFinalized?"not-allowed":"pointer",opacity:isWeekFinalized?0.4:1,fontSize:12,fontWeight:700,
                       background:allOn?tribeColor+"33":"#1e1e38",color:allOn?tribeColor:"#ccc",
                       fontFamily:"'Outfit',sans-serif",transition:"all 0.1s ease",
                       display:"flex",alignItems:"center",gap:6,
@@ -2354,11 +2376,12 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
                     </button>
                   );
                 })}
-                <button onClick={()=>selectAllActive(rule)} style={{
-                  padding:"7px 14px",borderRadius:8,border:"1px solid #2a2a4a",cursor:"pointer",fontSize:12,fontWeight:600,
+                <button onClick={()=>{ if (!isWeekFinalized) selectAllActive(rule); }} style={{
+                  padding:"7px 14px",borderRadius:8,border:"1px solid #2a2a4a",
+                  cursor:isWeekFinalized?"not-allowed":"pointer",opacity:isWeekFinalized?0.4:1,fontSize:12,fontWeight:600,
                   background:"transparent",color:"#8888aa",fontFamily:"'Outfit',sans-serif",
                 }}>
-                  {activeContestants.every(c => getCount(c.id, rule.id, rule.points) > 0) ? "Deselect All" : "Select All"}
+                  {weekContestants.every(c => getCount(c.id, rule.id, rule.points) > 0) ? "Deselect All" : "Select All"}
                 </button>
               </div>
             </div>
@@ -2366,7 +2389,7 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
 
           {/* Contestant list grouped by tribe */}
           {tribeNames.length > 0 && !isMerged ? tribeNames.map(tribe => {
-            const members = activeContestants.filter(c => c.tribe === tribe).sort((a,b) => a.name.localeCompare(b.name));
+            const members = weekContestants.filter(c => c.tribe === tribe).sort((a,b) => a.name.localeCompare(b.name));
             if (members.length === 0) return null;
             return (
               <div key={tribe} style={{ marginBottom:12 }}>
@@ -2382,26 +2405,27 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
                         border:isOn?(rule.points>=0?"1px solid #4ecdc433":"1px solid #e9456033"):"1px solid #1e1e38",
                         transition:"all 0.1s ease",
                       }}>
-                        <button onClick={()=>toggleContestant(c.id, rule)} style={{
-                          width:32,height:32,borderRadius:8,border:isOn?"none":"2px solid #3a3a5a",cursor:"pointer",
+                        <button onClick={()=>{ if (!isWeekFinalized) toggleContestant(c.id, rule); }} style={{
+                          width:32,height:32,borderRadius:8,border:isOn?"none":"2px solid #3a3a5a",
+                          cursor:isWeekFinalized?"not-allowed":"pointer",opacity:isWeekFinalized?0.4:1,
                           background:isOn?(rule.points>=0?"#4ecdc4":"#e94560"):"transparent",
                           display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,
                         }}>
                           {isOn && <Icon name="check" size={14}/>}
                         </button>
-                        <div style={{ flex:1,cursor:"pointer" }} onClick={()=>toggleContestant(c.id, rule)}>
+                        <div style={{ flex:1,cursor:isWeekFinalized?"default":"pointer" }} onClick={()=>{ if (!isWeekFinalized) toggleContestant(c.id, rule); }}>
                           <span style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>{c.name}</span>
                         </div>
                         {isOn && (
                           <div style={{ display:"flex",alignItems:"center",gap:4 }}>
-                            <button onClick={()=>setScore(c.id,rule.id,rule.points,Math.max(0,count-1))} style={{
+                            <button onClick={()=>{ if (!isWeekFinalized) setScore(c.id,rule.id,rule.points,Math.max(0,count-1)); }} style={{
                               width:32,height:32,borderRadius:8,border:"1px solid #2a2a4a",background:"#1e1e38",
-                              color:"#ccc",cursor:"pointer",fontSize:15,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",
+                              color:"#ccc",cursor:isWeekFinalized?"not-allowed":"pointer",opacity:isWeekFinalized?0.4:1,fontSize:15,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",
                             }}>−</button>
                             <span style={{ color:"#e8e8f0",fontWeight:700,fontSize:14,minWidth:20,textAlign:"center" }}>{count}</span>
-                            <button onClick={()=>setScore(c.id,rule.id,rule.points,count+1)} style={{
+                            <button onClick={()=>{ if (!isWeekFinalized) setScore(c.id,rule.id,rule.points,count+1); }} style={{
                               width:32,height:32,borderRadius:8,border:"1px solid #2a2a4a",background:"#1e1e38",
-                              color:"#ccc",cursor:"pointer",fontSize:15,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",
+                              color:"#ccc",cursor:isWeekFinalized?"not-allowed":"pointer",opacity:isWeekFinalized?0.4:1,fontSize:15,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",
                             }}>+</button>
                             <span style={{ color:rule.points>=0?"#4ecdc4":"#e94560",fontSize:12,fontWeight:600,minWidth:40,textAlign:"right" }}>
                               {(count*rule.points)>0?"+":""}{formatPts(count*rule.points, league)}
@@ -2417,7 +2441,7 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
           }) : (
             /* No tribes — flat list */
             <div style={{ display:"flex",flexDirection:"column",gap:3 }}>
-              {[...activeContestants].sort((a,b) => a.name.localeCompare(b.name)).map(c => {
+              {[...weekContestants].sort((a,b) => a.name.localeCompare(b.name)).map(c => {
                 const count = getCount(c.id, rule.id, rule.points);
                 const isOn = count > 0;
                 return (
@@ -2426,26 +2450,27 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
                     background:isOn?(rule.points>=0?"#4ecdc418":"#e9456018"):"#12121f",
                     border:isOn?(rule.points>=0?"1px solid #4ecdc433":"1px solid #e9456033"):"1px solid #1e1e38",
                   }}>
-                    <button onClick={()=>toggleContestant(c.id, rule)} style={{
-                      width:32,height:32,borderRadius:8,border:isOn?"none":"2px solid #3a3a5a",cursor:"pointer",
+                    <button onClick={()=>{ if (!isWeekFinalized) toggleContestant(c.id, rule); }} style={{
+                      width:32,height:32,borderRadius:8,border:isOn?"none":"2px solid #3a3a5a",
+                      cursor:isWeekFinalized?"not-allowed":"pointer",opacity:isWeekFinalized?0.4:1,
                       background:isOn?(rule.points>=0?"#4ecdc4":"#e94560"):"transparent",
                       display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,
                     }}>
                       {isOn && <Icon name="check" size={14}/>}
                     </button>
-                    <div style={{ flex:1,cursor:"pointer" }} onClick={()=>toggleContestant(c.id, rule)}>
+                    <div style={{ flex:1,cursor:isWeekFinalized?"default":"pointer" }} onClick={()=>{ if (!isWeekFinalized) toggleContestant(c.id, rule); }}>
                       <span style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>{c.name}</span>
                     </div>
                     {isOn && (
                       <div style={{ display:"flex",alignItems:"center",gap:4 }}>
-                        <button onClick={()=>setScore(c.id,rule.id,rule.points,Math.max(0,count-1))} style={{
+                        <button onClick={()=>{ if (!isWeekFinalized) setScore(c.id,rule.id,rule.points,Math.max(0,count-1)); }} style={{
                           width:32,height:32,borderRadius:8,border:"1px solid #2a2a4a",background:"#1e1e38",
-                          color:"#ccc",cursor:"pointer",fontSize:15,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",
+                          color:"#ccc",cursor:isWeekFinalized?"not-allowed":"pointer",opacity:isWeekFinalized?0.4:1,fontSize:15,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",
                         }}>−</button>
                         <span style={{ color:"#e8e8f0",fontWeight:700,fontSize:14,minWidth:20,textAlign:"center" }}>{count}</span>
-                        <button onClick={()=>setScore(c.id,rule.id,rule.points,count+1)} style={{
+                        <button onClick={()=>{ if (!isWeekFinalized) setScore(c.id,rule.id,rule.points,count+1); }} style={{
                           width:32,height:32,borderRadius:8,border:"1px solid #2a2a4a",background:"#1e1e38",
-                          color:"#ccc",cursor:"pointer",fontSize:15,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",
+                          color:"#ccc",cursor:isWeekFinalized?"not-allowed":"pointer",opacity:isWeekFinalized?0.4:1,fontSize:15,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",
                         }}>+</button>
                         <span style={{ color:rule.points>=0?"#4ecdc4":"#e94560",fontSize:12,fontWeight:600,minWidth:40,textAlign:"right" }}>
                           {(count*rule.points)>0?"+":""}{formatPts(count*rule.points, league)}
@@ -2524,7 +2549,7 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
       )}
 
       {/* Save / Advance buttons */}
-      {onUpdate && (hasChanges ? (
+      {onUpdate && (hasChanges && !isWeekFinalized ? (
         <div style={{ position:"sticky",bottom:16,marginTop:20,padding:"14px 16px",background:"linear-gradient(135deg,#1a0a10,#12121f)",borderRadius:14,border:"1px solid #e94560",
           display:"flex",gap:10,justifyContent:"center",alignItems:"center",boxShadow:"0 -4px 24px rgba(233,69,96,0.2)" }}>
           <Btn small variant="ghost" onClick={discardChanges}>Discard</Btn>
@@ -2578,7 +2603,11 @@ function WeeklyDraftTab({ league, onUpdate, standings }) {
     return ids;
   }, [league, draftWeek]);
 
-  const activeContestants = (league.contestants||[]).filter(c => c.status !== "eliminated");
+  const activeContestants = (league.contestants||[]).filter(c => {
+    if (c.status !== "eliminated") return true;
+    if (c.eliminatedWeek && Number(draftWeek) <= c.eliminatedWeek) return true;
+    return false;
+  });
   const available = activeContestants.filter(c => !draftedThisWeek.has(c.id));
 
   function getCurrentTeamId() {
@@ -2717,9 +2746,13 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
 
   const team = (league.teams||[]).find(t=>t.id===selectedTeam);
   const regularSlots = league.captainsConfig?.regularSlots || 3;
-  const activeContestants = (league.contestants||[]).filter(c=>c.status!=="eliminated");
   const currentWeek = league.currentWeek || 1;
   const effectiveWeek = editingWeek || currentWeek;
+  const activeContestants = (league.contestants||[]).filter(c => {
+    if (c.status !== "eliminated") return true;
+    if (c.eliminatedWeek && effectiveWeek <= c.eliminatedWeek) return true;
+    return false;
+  });
   const weeks = Object.keys(league.weeklyScores || {}).sort((a,b)=>+a - +b);
 
   const savedChart = editingWeek
@@ -2893,7 +2926,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
     const isSwapped = isNewPlayer(currentId);
     const available = activeContestants.filter(c => canSelectPlayer(c.id, currentId, isSwapped));
     const isInDropdown = currentId && available.some(c => c.id === currentId);
-    const c = isInDropdown ? (league.contestants||[]).find(x=>x.id===currentId) : null;
+    const c = currentId ? (league.contestants||[]).find(x=>x.id===currentId) : null;
     const tribeColor = c ? getTribeColor(league, c) : "#2a2a4a";
     const weekBasePts = c ? calcContestantWeekPoints(league.weeklyScores?.[String(effectiveWeek)]||{}, c.id) : 0;
     const weekMultPts = Math.round(weekBasePts * multiplierNum * 100) / 100;
@@ -2914,7 +2947,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
           {c && <ContestantAvatar contestant={c} league={league} size={28} />}
           {/* Player selector — always the dropdown */}
           <div style={{ flex:1,minWidth:0,position:"relative" }}>
-            <select value={isInDropdown ? (currentId||"") : ""} onChange={e=>setSlotWithSwap(slot,e.target.value)} style={{
+            <select value={currentId||""} onChange={e=>setSlotWithSwap(slot,e.target.value)} style={{
               width:"100%",padding:"8px 10px",background:c?"transparent":"#0d0d18",
               border:c?"1px solid transparent":"1px solid #2a2a4a",
               borderRadius:6,color:c?"#e8e8f0":"#6a6a8a",fontSize:13,fontWeight:c?600:400,
@@ -2922,6 +2955,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
               appearance:c?"none":"auto",WebkitAppearance:c?"none":"auto",
             }}>
               <option value="">{c ? (isSwapped ? "— Remove swap —" : "— Remove player —") : "— Select contestant —"}</option>
+              {c && !isInDropdown && <option value={currentId}>{c.name} (eliminated)</option>}
               {(()=>{
                 // Group available contestants by tribe, then alphabetical
                 const tribes = league.tribes || {};
@@ -4954,7 +4988,7 @@ export default function FantasyRealityTV() {
       {authUser && view !== "login" && (
         <button onClick={()=>{
           const subject = encodeURIComponent("FRTV Feedback");
-          const body = encodeURIComponent("\n\n---\nApp: v2.4.0.0\nUser: " + (authUser?.email||"unknown") + "\nPage: " + view);
+          const body = encodeURIComponent("\n\n---\nApp: v2.4.1.0\nUser: " + (authUser?.email||"unknown") + "\nPage: " + view);
           window.open("mailto:admin@fantasyrealitytv.com?subject=" + subject + "&body=" + body);
         }} style={{
           position:"fixed",bottom:20,right:20,width:44,height:44,borderRadius:22,
@@ -5468,7 +5502,7 @@ function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }
           <div>
             <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>Platform Info</div>
             <div style={{ display:"flex",flexDirection:"column",gap:4,fontSize:12,color:"#6a6a8a" }}>
-              <div>Version: v2.4.0.0</div>
+              <div>Version: v2.4.1.0</div>
               <div>Stack: Vite + React + Firebase</div>
               <div>Hosting: Netlify (auto-deploy from GitHub)</div>
               <div>Database: Firebase Realtime Database</div>
