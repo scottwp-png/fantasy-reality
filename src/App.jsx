@@ -4882,7 +4882,7 @@ export default function FantasyRealityTV() {
       {authUser && view !== "login" && (
         <button onClick={()=>{
           const subject = encodeURIComponent("FRTV Feedback");
-          const body = encodeURIComponent("\n\n---\nApp: v2.3.0.0\nUser: " + (authUser?.email||"unknown") + "\nPage: " + view);
+          const body = encodeURIComponent("\n\n---\nApp: v2.3.0.1\nUser: " + (authUser?.email||"unknown") + "\nPage: " + view);
           window.open("mailto:admin@fantasyrealitytv.com?subject=" + subject + "&body=" + body);
         }} style={{
           position:"fixed",bottom:20,right:20,width:44,height:44,borderRadius:22,
@@ -5613,9 +5613,14 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
   async function handleJoin() {
     if (inviteCode.length < 4) return;
     setError("");
-    const err = await onJoinViaCode(inviteCode);
-    if (err) setError(err);
-    else setInviteCode("");
+    try {
+      const err = await onJoinViaCode(inviteCode);
+      if (err) setError(err);
+      else setInviteCode("");
+    } catch (e) {
+      console.error("Join error:", e);
+      setError("Something went wrong. Please try again.");
+    }
   }
 
   const displayName = profile?.displayName || user?.displayName || user?.email?.split("@")[0] || "User";
