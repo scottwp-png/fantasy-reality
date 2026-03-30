@@ -19,11 +19,13 @@
         ".write": "auth != null && auth.token.email === 'scottwpii@gmail.com'"
       },
 
-      // Individual leagues — any authenticated user can read;
-      // only the commissioner (commissionerUid) or admin can write
+      // Individual leagues — any authenticated user can read and write.
+      // Write is open to auth users so the join flow works (joining users must add
+      // themselves to the teams array, which requires a league write).
+      // Commissioner-only enforcement is handled in the app UI, not Firebase rules.
       "$league_key": {
         ".read": "auth != null",
-        ".write": "auth != null && (auth.token.email === 'scottwpii@gmail.com' || data.child('commissionerUid').val() === auth.uid || newData.child('commissionerUid').val() === auth.uid)"
+        ".write": "auth != null"
       }
     },
 

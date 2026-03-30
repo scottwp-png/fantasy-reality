@@ -4631,10 +4631,8 @@ export default function FantasyRealityTV() {
         try { const ann = await loadData("site_announcement", ""); setAnnouncement(ann || ""); } catch {}
         try { const flags = await loadData("feature_flags", null); if (flags) setFeatureFlags(flags); } catch {}
         setView("home");
-        // Auto-join preview if there's a pending code from URL
-        if (pendingJoinCode) {
-          await handleJoinViaCode(pendingJoinCode);
-        }
+        // Note: URL-based pendingJoinCode is handled by AppHome's useEffect
+        // (calling handleJoinViaCode here uses a stale closure where userProfile=null)
       } else {
         setUserProfile(null);
         setView("login");
@@ -4711,6 +4709,9 @@ export default function FantasyRealityTV() {
     const { league, code, type, teamId } = pendingJoin;
     const freshLeagues = await refreshLeagues();
 
+    // Always use the freshly-fetched league as the base — pendingJoin.league may be stale
+    const freshLeague = freshLeagues.find(l => l.id === league.id) || league;
+
     if (type === "league") {
       const newTeamId = generateId();
       const displayName = userProfile.displayName || authUser.email?.split("@")[0] || "Player";
@@ -4722,7 +4723,7 @@ export default function FantasyRealityTV() {
         weeklyRosters: {},
         weeklyDepthCharts: {},
       };
-      const updatedLeague = { ...league, teams: [...(league.teams||[]), newTeam] };
+      const updatedLeague = { ...freshLeague, teams: [...(freshLeague.teams||[]), newTeam] };
       const updatedLeagues = freshLeagues.map(l => l.id === league.id ? updatedLeague : l);
       setLeagues(updatedLeagues);
       await saveLeague(updatedLeague);
@@ -4733,15 +4734,15 @@ export default function FantasyRealityTV() {
       await saveUserProfile(authUser.uid, updatedProfile);
       setUserProfile(updatedProfile);
     } else {
-      // Legacy per-team code
-      const used = league.usedCodes || [];
+      // Legacy per-team code — use fresh league to avoid overwriting changes
+      const freshUsed = freshLeague.usedCodes || [];
       const updatedProfile = {
         ...userProfile,
         activations: { ...(userProfile.activations || {}), [league.id]: teamId }
       };
       await saveUserProfile(authUser.uid, updatedProfile);
       setUserProfile(updatedProfile);
-      const updatedLeague = { ...league, usedCodes: [...used, code] };
+      const updatedLeague = { ...freshLeague, usedCodes: [...freshUsed, code] };
       const updatedLeagues = freshLeagues.map(l => l.id === league.id ? updatedLeague : l);
       setLeagues(updatedLeagues);
       await saveLeague(updatedLeague);
@@ -4882,7 +4883,7 @@ export default function FantasyRealityTV() {
       {authUser && view !== "login" && (
         <button onClick={()=>{
           const subject = encodeURIComponent("FRTV Feedback");
-          const body = encodeURIComponent("\n\n---\nApp: v2.3.0.1\nUser: " + (authUser?.email||"unknown") + "\nPage: " + view);
+          const body = encodeURIComponent("\n\n---\nApp: v2.3.0.2\nUser: " + (authUser?.email||"unknown") + "\nPage: " + view);
           window.open("mailto:admin@fantasyrealitytv.com?subject=" + subject + "&body=" + body);
         }} style={{
           position:"fixed",bottom:20,right:20,width:44,height:44,borderRadius:22,
@@ -5598,8 +5599,17 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
 
 
 
-  // Check for pending invite code (from join-league signup flow)
+  // Handle pending invite codes on mount.
+  // AppHome only renders after auth is complete, so onJoinViaCode has correct userProfile here.
   useEffect(() => {
+    // URL-based join (?join=CODE — passed as pendingJoinCode prop)
+    if (pendingJoinCode && pendingJoinCode.length >= 4) {
+      (async () => {
+        const err = await onJoinViaCode(pendingJoinCode);
+        if (err) setError(err);
+      })();
+    }
+    // Post-signup join (code stored in localStorage by AuthScreen signup flow)
     const pending = localStorage.getItem("frtv_pending_invite");
     if (pending) {
       localStorage.removeItem("frtv_pending_invite");
