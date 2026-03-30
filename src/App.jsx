@@ -4552,7 +4552,7 @@ function AddTeamModal({ open, onClose, league, onUpdate, editing }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // MAIN APP
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function JoinConfirmModal({ pendingJoin, onConfirm, onCancel, displayName }) {
+function JoinConfirmModal({ pendingJoin, onConfirm, onCancel, displayName, error }) {
   if (!pendingJoin) return null;
   const { league, type, teamId } = pendingJoin;
   const formatInfo = FORMAT_INFO[league.format] || {};
@@ -4561,7 +4561,7 @@ function JoinConfirmModal({ pendingJoin, onConfirm, onCancel, displayName }) {
   const existingTeam = type === "team" ? (league.teams || []).find(t => t.id === teamId) : null;
 
   return (
-    <Modal title="Join League?" onClose={onCancel}>
+    <Modal open title="Join League?" onClose={onCancel}>
       <div style={{ display:"flex",alignItems:"center",gap:14,marginBottom:16 }}>
         <div style={{ width:48,height:48,borderRadius:12,background:(showInfo.color||"#9d5dff")+"18",
           border:"1px solid "+(showInfo.color||"#9d5dff")+"33",
@@ -4587,6 +4587,7 @@ function JoinConfirmModal({ pendingJoin, onConfirm, onCancel, displayName }) {
           }
         </div>
       </div>
+      {error && <div style={{ color:"#e94560",fontSize:12,marginBottom:12,padding:"8px 10px",background:"#e9456011",borderRadius:6,border:"1px solid #e9456033" }}>{error}</div>}
       <div style={{ display:"flex",gap:10 }}>
         <Btn variant="ghost" onClick={onCancel} style={{ flex:1 }}>Cancel</Btn>
         <Btn onClick={onConfirm} style={{ flex:1 }}>Join League</Btn>
@@ -4611,6 +4612,7 @@ export default function FantasyRealityTV() {
   });
   const [featureFlags, setFeatureFlags] = useState({ new_formats: true, h2h: true, best_ball: true, roto: true });
   const [pendingJoin, setPendingJoin] = useState(null); // { league, code, type: "league"|"team", teamId? }
+  const [confirmJoinError, setConfirmJoinError] = useState("");
 
   const isAdmin = authUser?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
@@ -4712,54 +4714,61 @@ export default function FantasyRealityTV() {
 
   async function confirmJoin() {
     if (!pendingJoin || !authUser || !userProfile) return;
+    setConfirmJoinError("");
     const { league, code, type, teamId } = pendingJoin;
-    const freshLeagues = await refreshLeagues();
+    try {
+      const freshLeagues = await refreshLeagues();
 
-    // Always use the freshly-fetched league as the base — pendingJoin.league may be stale
-    const freshLeague = freshLeagues.find(l => l.id === league.id) || league;
+      // Always use the freshly-fetched league as the base — pendingJoin.league may be stale
+      const freshLeague = freshLeagues.find(l => l.id === league.id) || league;
 
-    if (type === "league") {
-      const newTeamId = generateId();
-      const displayName = userProfile.displayName || authUser.email?.split("@")[0] || "Player";
-      const newTeam = {
-        id: newTeamId,
-        name: "Team " + displayName,
-        owner: displayName,
-        depthChart: { captain: null, coCaptain: null, regulars: [] },
-        weeklyRosters: {},
-        weeklyDepthCharts: {},
-      };
-      const updatedLeague = { ...freshLeague, teams: [...(freshLeague.teams||[]), newTeam] };
-      const updatedLeagues = freshLeagues.map(l => l.id === league.id ? updatedLeague : l);
-      setLeagues(updatedLeagues);
-      await saveLeague(updatedLeague);
-      const updatedProfile = {
-        ...userProfile,
-        activations: { ...(userProfile.activations || {}), [league.id]: newTeamId }
-      };
-      await saveUserProfile(authUser.uid, updatedProfile);
-      setUserProfile(updatedProfile);
-    } else {
-      // Legacy per-team code — use fresh league to avoid overwriting changes
-      const freshUsed = freshLeague.usedCodes || [];
-      const updatedProfile = {
-        ...userProfile,
-        activations: { ...(userProfile.activations || {}), [league.id]: teamId }
-      };
-      await saveUserProfile(authUser.uid, updatedProfile);
-      setUserProfile(updatedProfile);
-      const updatedLeague = { ...freshLeague, usedCodes: [...freshUsed, code] };
-      const updatedLeagues = freshLeagues.map(l => l.id === league.id ? updatedLeague : l);
-      setLeagues(updatedLeagues);
-      await saveLeague(updatedLeague);
+      if (type === "league") {
+        const newTeamId = generateId();
+        const displayName = userProfile.displayName || authUser.email?.split("@")[0] || "Player";
+        const newTeam = {
+          id: newTeamId,
+          name: "Team " + displayName,
+          owner: displayName,
+          depthChart: { captain: null, coCaptain: null, regulars: [] },
+          weeklyRosters: {},
+          weeklyDepthCharts: {},
+        };
+        const updatedLeague = { ...freshLeague, teams: [...(freshLeague.teams||[]), newTeam] };
+        const updatedLeagues = freshLeagues.map(l => l.id === league.id ? updatedLeague : l);
+        setLeagues(updatedLeagues);
+        await saveLeague(updatedLeague);
+        const updatedProfile = {
+          ...userProfile,
+          activations: { ...(userProfile.activations || {}), [league.id]: newTeamId }
+        };
+        await saveUserProfile(authUser.uid, updatedProfile);
+        setUserProfile(updatedProfile);
+      } else {
+        // Legacy per-team code — use fresh league to avoid overwriting changes
+        const freshUsed = freshLeague.usedCodes || [];
+        const updatedProfile = {
+          ...userProfile,
+          activations: { ...(userProfile.activations || {}), [league.id]: teamId }
+        };
+        await saveUserProfile(authUser.uid, updatedProfile);
+        setUserProfile(updatedProfile);
+        const updatedLeague = { ...freshLeague, usedCodes: [...freshUsed, code] };
+        const updatedLeagues = freshLeagues.map(l => l.id === league.id ? updatedLeague : l);
+        setLeagues(updatedLeagues);
+        await saveLeague(updatedLeague);
+      }
+
+      // Post-join redirect to the league dashboard
+      const joinedLeagueId = league.id;
+      setPendingJoin(null);
+      setPendingJoinCode("");
+      setConfirmJoinError("");
+      setSelectedId(joinedLeagueId);
+      setView("league");
+    } catch (e) {
+      console.error("[confirmJoin] Error:", e);
+      setConfirmJoinError(e.message || "Something went wrong. Please try again.");
     }
-
-    // Post-join redirect to the league dashboard
-    const joinedLeagueId = league.id;
-    setPendingJoin(null);
-    setPendingJoinCode("");
-    setSelectedId(joinedLeagueId);
-    setView("league");
   }
 
 
@@ -4937,8 +4946,9 @@ export default function FantasyRealityTV() {
       {pendingJoin && <JoinConfirmModal
         pendingJoin={pendingJoin}
         onConfirm={confirmJoin}
-        onCancel={() => { setPendingJoin(null); setPendingJoinCode(""); }}
+        onCancel={() => { setPendingJoin(null); setPendingJoinCode(""); setConfirmJoinError(""); }}
         displayName={userProfile?.displayName || authUser?.email?.split("@")[0] || "Player"}
+        error={confirmJoinError}
       />}
     </div>
   );

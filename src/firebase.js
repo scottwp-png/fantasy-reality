@@ -83,6 +83,7 @@ export async function saveLeague(league) {
     await update(ref(db, "frtv"), { ["league_" + league.id]: league });
   } catch (e) {
     console.error("Firebase saveLeague error:", e);
+    throw e;
   }
 }
 export async function clearAllStorage() {
@@ -94,7 +95,7 @@ export async function loadUserProfile(uid) {
   try { const snap = await get(ref(db, "frtv_users/" + uid)); return snap.val() } catch { return null }
 }
 export async function saveUserProfile(uid, profile) {
-  try { await set(ref(db, "frtv_users/" + uid), profile) } catch (e) { console.error("Save profile error:", e) }
+  try { await set(ref(db, "frtv_users/" + uid), profile) } catch (e) { console.error("Save profile error:", e); throw e; }
 }
 export async function loadAllUserProfiles() {
   try { const snap = await get(ref(db, "frtv_users")); return snap.val() || {} } catch { return {} }
