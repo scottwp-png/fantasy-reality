@@ -273,6 +273,38 @@ function shouldBlur(league, week, userProfile) {
   return true;
 }
 
+// Scan ALL weekStatus entries for any finalized week still in spoiler grace
+// that the current user has not yet revealed. Returns the lowest such week
+// number (so reveals proceed in chronological order), or null.
+function getActiveSpoilerWeek(league, userProfile) {
+  if (userProfile?.spoilerProtectionOff) return null;
+  const grace = (league.spoilerGracePeriod || 48) * 3600000;
+  const now = Date.now();
+  const weeks = Object.entries(league.weekStatus || {})
+    .filter(([, status]) => status?.status === "finalized" && status?.finalizedAt)
+    .filter(([, status]) => now - status.finalizedAt <= grace)
+    .filter(([w]) => !userProfile?.spoilerRevealed?.[league.id]?.[String(w)])
+    .map(([w]) => Number(w))
+    .sort((a, b) => a - b);
+  return weeks.length > 0 ? weeks[0] : null;
+}
+
+// ─── Final Lock-In helpers (Heroes only) ───
+const isLockInEligible = (league) => league?.format === "captains";
+const getLockInStatus = (league) => league?.lockInStatus || "closed";
+const isTeamLockedIn = (league, team) => {
+  const status = getLockInStatus(league);
+  if (status === "locked") return true;
+  if (status === "open" && team?.lockedRoster && team.lockedRoster.length > 0) return true;
+  return false;
+};
+// Returns the active contestant pool for a team — locked roster if lock-in is
+// active for them, otherwise null (caller falls back to normal logic).
+const getEffectiveRoster = (league, team) => {
+  if (isTeamLockedIn(league, team) && team?.lockedRoster) return team.lockedRoster;
+  return null;
+};
+
 function SpoilerBlur({ active, children, onReveal, week }) {
   if (!active) return children;
   return (
@@ -1083,8 +1115,15 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
   const standings = useMemo(() => calcStandings(league), [league]);
 
   const currentWeek = league.currentWeek || 1;
-  const spoilerActive = shouldBlur(league, currentWeek, userProfile);
-  const handleReveal = () => onRevealSpoiler?.(league.id, currentWeek);
+  // Scan all weekStatus entries — fixes bug where blur dropped after the
+  // commissioner advanced the week pointer past a still-in-grace week.
+  const activeSpoilerWeek = useMemo(
+    () => getActiveSpoilerWeek(league, userProfile),
+    [league, userProfile]
+  );
+  const spoilerActive = activeSpoilerWeek != null;
+  const spoilerWeek = activeSpoilerWeek ?? currentWeek;
+  const handleReveal = () => onRevealSpoiler?.(league.id, spoilerWeek);
 
   const allTabs = [
     { id:"standings",label:"Standings",icon:"trophy",access:"all" },
@@ -1158,17 +1197,17 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
       </div>
 
       <div style={{ padding:20 }}>
-        {tab === "standings" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={currentWeek}><StandingsTab league={league} standings={standings} /></SpoilerBlur>}
-        {tab === "contestants" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={currentWeek}><ContestantsTab league={league} onUpdate={isCommissioner?onUpdate:null} setModal={isCommissioner?setModal:()=>{}} setEditing={isCommissioner?setEditingItem:()=>{}} readOnly={!isCommissioner} /></SpoilerBlur>}
-        {tab === "teams" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={currentWeek}><TeamsTab league={league} onUpdate={isCommissioner?onUpdate:null} setModal={isCommissioner?setModal:()=>{}} setEditing={isCommissioner?setEditingItem:()=>{}} readOnly={!isCommissioner} /></SpoilerBlur>}
-        {tab === "scoring" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={currentWeek}><ScoringTab league={league} onUpdate={isCommissioner ? onUpdate : null} isCommissioner={isCommissioner} /></SpoilerBlur>}
+        {tab === "standings" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek}><StandingsTab league={league} standings={standings} /></SpoilerBlur>}
+        {tab === "contestants" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek}><ContestantsTab league={league} onUpdate={isCommissioner?onUpdate:null} setModal={isCommissioner?setModal:()=>{}} setEditing={isCommissioner?setEditingItem:()=>{}} readOnly={!isCommissioner} /></SpoilerBlur>}
+        {tab === "teams" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek}><TeamsTab league={league} onUpdate={isCommissioner?onUpdate:null} setModal={isCommissioner?setModal:()=>{}} setEditing={isCommissioner?setEditingItem:()=>{}} readOnly={!isCommissioner} /></SpoilerBlur>}
+        {tab === "scoring" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek}><ScoringTab league={league} onUpdate={isCommissioner ? onUpdate : null} isCommissioner={isCommissioner} /></SpoilerBlur>}
         {tab === "weekly-draft" && isCommissioner && <WeeklyDraftTab league={league} onUpdate={onUpdate} standings={standings} />}
-        {tab === "depth-chart" && <DepthChartTab league={league} onUpdate={onUpdate} lockedToTeamId={isCommissioner ? null : loggedInTeamId} defaultTeamId={loggedInTeamId} isCommissioner={isCommissioner} spoilerActive={spoilerActive} />}
-        {tab === "my-pick" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={currentWeek}><SurvivorPoolTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} /></SpoilerBlur>}
-        {tab === "weekly-pick" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={currentWeek}><EliminationPoolTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} /></SpoilerBlur>}
-        {tab === "my-roster-cap" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={currentWeek}><SalaryCapRosterTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} /></SpoilerBlur>}
+        {tab === "depth-chart" && <DepthChartTab league={league} onUpdate={onUpdate} lockedToTeamId={isCommissioner ? null : loggedInTeamId} defaultTeamId={loggedInTeamId} isCommissioner={isCommissioner} spoilerActive={spoilerActive} myTeamId={loggedInTeamId} />}
+        {tab === "my-pick" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek}><SurvivorPoolTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} /></SpoilerBlur>}
+        {tab === "weekly-pick" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek}><EliminationPoolTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} /></SpoilerBlur>}
+        {tab === "my-roster-cap" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek}><SalaryCapRosterTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} /></SpoilerBlur>}
         {tab === "set-prices" && isCommissioner && <SalaryCapPricesTab league={league} onUpdate={onUpdate} />}
-        {tab === "predict" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={currentWeek}><PredictionsPlayerTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} /></SpoilerBlur>}
+        {tab === "predict" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek}><PredictionsPlayerTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} /></SpoilerBlur>}
         {tab === "manage-questions" && isCommissioner && <PredictionsCommishTab league={league} onUpdate={onUpdate} />}
         {tab === "settings" && isCommissioner && <SettingsTab league={league} onUpdate={onUpdate} allLeagues={allLeagues} />}
       </div>
@@ -2733,7 +2772,7 @@ function WeeklyDraftTab({ league, onUpdate, standings }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // DEPTH CHART TAB (Captains format)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isCommissioner, spoilerActive }) {
+function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isCommissioner, spoilerActive, myTeamId }) {
   const [selectedTeam, setSelectedTeam] = useState(lockedToTeamId || defaultTeamId || (league.teams||[])[0]?.id || "");
   const [localChart, setLocalChart] = useState({});
   const [editingName, setEditingName] = useState(false);
@@ -2748,7 +2787,15 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
   const regularSlots = league.captainsConfig?.regularSlots || 3;
   const currentWeek = league.currentWeek || 1;
   const effectiveWeek = editingWeek || currentWeek;
+  const teamLocked = team ? isTeamLockedIn(league, team) : false;
+  const lockedPoolSet = useMemo(
+    () => (teamLocked && team?.lockedRoster ? new Set(team.lockedRoster) : null),
+    [teamLocked, team]
+  );
   const activeContestants = (league.contestants||[]).filter(c => {
+    // When this team is locked in, the selectable pool is restricted to the
+    // locked roster — eliminated members stay (ghost slot behavior).
+    if (lockedPoolSet) return lockedPoolSet.has(c.id);
     if (c.status !== "eliminated") return true;
     if (c.eliminatedWeek && effectiveWeek <= c.eliminatedWeek) return true;
     return false;
@@ -3220,6 +3267,39 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
         <div style={{ padding:"10px 14px",background:"#f5a62311",borderRadius:8,border:"1px solid #f5a62333",marginBottom:14,display:"flex",alignItems:"center",gap:8 }}>
           <span style={{ fontSize:16 }}>🔒</span>
           <div style={{ flex:1,fontSize:12,color:"#f5a623",lineHeight:1.4 }}>Rosters are locked for managers. You can still edit as commissioner.</div>
+        </div>
+      )}
+
+      {/* ─── Final Lock-In UI (Heroes only) ─── */}
+      {isLockInEligible(league) && team && team.id === myTeamId && (
+        <FinalLockInTeamSection
+          league={league}
+          team={team}
+          onUpdate={onUpdate}
+        />
+      )}
+
+      {/* Locked roster read-only card (visible to anyone whose viewed team is locked) */}
+      {teamLocked && team && (
+        <div style={{ marginBottom:14,padding:"12px 14px",background:"#4ecdc411",borderRadius:10,border:"1px solid #4ecdc433" }}>
+          <div style={{ fontSize:12,fontWeight:700,color:"#4ecdc4",marginBottom:6,display:"flex",alignItems:"center",gap:6 }}>
+            🔒 Locked Roster
+          </div>
+          <div style={{ display:"flex",flexWrap:"wrap",gap:6 }}>
+            {(team.lockedRoster||[]).map(cid => {
+              const c = (league.contestants||[]).find(x=>x.id===cid);
+              if (!c) return null;
+              const elim = c.status === "eliminated";
+              return (
+                <span key={cid} style={{ padding:"4px 8px",borderRadius:6,background:"#0d0d18",border:"1px solid #1e1e38",fontSize:11,color:elim?"#6a6a8a":"#e8e8f0" }}>
+                  {c.name}{elim?" (eliminated)":""}
+                </span>
+              );
+            })}
+          </div>
+          <div style={{ fontSize:10,color:"#6a6a8a",marginTop:6 }}>
+            Contestants are locked. Depth chart positions are still editable.
+          </div>
         </div>
       )}
 
@@ -4265,6 +4345,157 @@ function LinkedScoringSection({ league, allLeagues, onUpdate }) {
   );
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// FINAL LOCK-IN — Commissioner panel (Heroes only)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function FinalLockInCommishPanel({ league, onUpdate }) {
+  const status = getLockInStatus(league);
+  const teams = league.teams || [];
+
+  function openLockIn() {
+    if (!confirm("Open Final Lock-In?\n\nEach team will pick their final roster for the rest of the season. Once a team confirms, they can only edit their depth chart — no more contestant swaps. This cannot be undone.")) return;
+    onUpdate({
+      ...league,
+      lockInStatus: "open",
+      lockInOpenedWeek: league.currentWeek || 1,
+      lockInOpenedAt: Date.now(),
+    });
+  }
+
+  function forceClose() {
+    if (!confirm("Force-close lock-in?\n\nAny team that hasn't confirmed will have their CURRENT depth-chart roster locked in automatically.")) return;
+    const updatedTeams = teams.map(team => {
+      if (!team.lockedRoster || team.lockedRoster.length === 0) {
+        const chart = team.depthChart || { captain: null, coCaptain: null, regulars: [] };
+        const current = [chart.captain, chart.coCaptain, ...(chart.regulars || [])].filter(Boolean);
+        return { ...team, lockedRoster: current, lockInConfirmedAt: Date.now() };
+      }
+      return team;
+    });
+    onUpdate({ ...league, teams: updatedTeams, lockInStatus: "locked" });
+  }
+
+  if (status === "closed") {
+    return (
+      <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+        <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",display:"flex",alignItems:"center",gap:6 }}>🔒 Final Lock-In</div>
+        <div style={{ fontSize:12,color:"#6a6a8a",marginTop:4,marginBottom:10,lineHeight:1.4 }}>
+          End-of-season mechanic. Each team picks their final roster and can no longer swap contestants — only adjust their depth chart. Use this when the contestant pool shrinks to create variance.
+        </div>
+        <Btn small variant="secondary" onClick={openLockIn}>Open Final Lock-In</Btn>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginBottom:20,padding:"16px",background:"#f5a62311",borderRadius:10,border:"1px solid #f5a62333" }}>
+      <div style={{ fontSize:14,fontWeight:700,color:"#f5a623",display:"flex",alignItems:"center",gap:6 }}>
+        🔒 Final Lock-In: {status === "locked" ? "LOCKED" : "OPEN"}{league.lockInOpenedWeek ? ` (since Week ${league.lockInOpenedWeek})` : ""}
+      </div>
+      <div style={{ marginTop:10,display:"flex",flexDirection:"column",gap:4 }}>
+        {teams.map(t => {
+          const confirmed = t.lockedRoster && t.lockedRoster.length > 0;
+          return (
+            <div key={t.id} style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #1a1a30",fontSize:12 }}>
+              <span style={{ color:"#e8e8f0" }}>
+                {confirmed ? "✅" : "⏳"} {t.name}
+              </span>
+              <span style={{ color:confirmed?"#4ecdc4":"#6a6a8a",fontSize:11 }}>
+                {confirmed ? "confirmed" : "pending"}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      {status === "open" && (
+        <div style={{ marginTop:10 }}>
+          <Btn small variant="danger" onClick={forceClose}>Force Close Lock-In</Btn>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// FINAL LOCK-IN — Player picker (Heroes only, on My Roster)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function FinalLockInTeamSection({ league, team, onUpdate }) {
+  const status = getLockInStatus(league);
+  const alreadyConfirmed = !!(team.lockedRoster && team.lockedRoster.length > 0);
+
+  // Default selection: team's current depth-chart roster.
+  const currentRoster = useMemo(() => {
+    const chart = team.depthChart || { captain: null, coCaptain: null, regulars: [] };
+    return [chart.captain, chart.coCaptain, ...(chart.regulars || [])].filter(Boolean);
+  }, [team]);
+
+  const targetSize = currentRoster.length || (1 + 1 + (league.captainsConfig?.regularSlots || 3));
+  const [selected, setSelected] = useState(currentRoster);
+
+  useEffect(() => { setSelected(currentRoster); }, [currentRoster]);
+
+  // Only render the picker when lock-in is open AND this team has not yet confirmed.
+  if (status !== "open" || alreadyConfirmed) return null;
+
+  const activePool = (league.contestants || []).filter(c => c.status !== "eliminated");
+  const selectedSet = new Set(selected);
+
+  function toggle(cid) {
+    if (selectedSet.has(cid)) {
+      setSelected(selected.filter(x => x !== cid));
+    } else {
+      if (selected.length >= targetSize) return; // cap at roster size
+      setSelected([...selected, cid]);
+    }
+  }
+
+  function confirmRoster() {
+    if (selected.length !== targetSize) {
+      alert(`Pick exactly ${targetSize} contestants for your final roster.`);
+      return;
+    }
+    if (!confirm("Confirm your final roster? You won't be able to change your contestants after this — only your depth chart positions.")) return;
+    const updatedTeams = league.teams.map(t =>
+      t.id === team.id
+        ? { ...t, lockedRoster: [...selected], lockInConfirmedAt: Date.now() }
+        : t
+    );
+    onUpdate({ ...league, teams: updatedTeams });
+  }
+
+  return (
+    <div style={{ marginBottom:14,padding:"14px 16px",background:"#f5a62311",borderRadius:10,border:"1px solid #f5a62333" }}>
+      <div style={{ fontSize:14,fontWeight:800,color:"#f5a623",display:"flex",alignItems:"center",gap:6 }}>
+        🔒 Final Lock-In is Open
+      </div>
+      <div style={{ fontSize:12,color:"#e8e8f0",marginTop:6,lineHeight:1.5 }}>
+        Pick your final roster for the rest of the season. After confirming, you can only adjust your depth chart — no more swaps. Eliminated contestants are not selectable.
+      </div>
+      <div style={{ fontSize:11,color:"#6a6a8a",marginTop:6 }}>
+        {selected.length} / {targetSize} selected
+      </div>
+      <div style={{ marginTop:10,display:"flex",flexWrap:"wrap",gap:6 }}>
+        {activePool.map(c => {
+          const isSel = selectedSet.has(c.id);
+          return (
+            <button key={c.id} onClick={()=>toggle(c.id)} style={{
+              padding:"6px 10px",borderRadius:6,fontSize:12,fontWeight:600,cursor:"pointer",
+              background:isSel?"#f5a62333":"#0d0d18",
+              border:isSel?"1px solid #f5a623":"1px solid #1e1e38",
+              color:isSel?"#f5a623":"#e8e8f0",fontFamily:"'Outfit',sans-serif",
+            }}>
+              {isSel?"✓ ":""}{c.name}
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ marginTop:12 }}>
+        <Btn small onClick={confirmRoster}>Confirm Final Roster</Btn>
+      </div>
+    </div>
+  );
+}
+
 function SpoilerProtectionEditor({ league, onUpdate }) {
   const [hours, setHours] = useState(league.spoilerGracePeriod || 48);
   const hasChanges = hours !== (league.spoilerGracePeriod || 48);
@@ -4408,6 +4639,11 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
           </Btn>
         </div>
       </div>
+
+      {/* ─── Final Lock-In (Heroes only) ─── */}
+      {isLockInEligible(league) && (
+        <FinalLockInCommishPanel league={league} onUpdate={onUpdate} />
+      )}
 
       <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
         <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:12 }}>Contestant Status</div>
