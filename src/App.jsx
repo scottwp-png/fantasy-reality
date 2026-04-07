@@ -2856,7 +2856,13 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
     return count;
   }, [currentRosterIds, lastWeekRosterIds, lastWeekChart]);
 
-  const swapLimitReached = currentWeek > 1 && swapsMade >= 1;
+  // While Final Lock-In is open (and this team hasn't confirmed yet), waive
+  // the weekly 1-swap limit so the player can freely pick their final roster.
+  const lockInOpenForTeam =
+    isLockInEligible(league) &&
+    getLockInStatus(league) === "open" &&
+    team && !(team.lockedRoster && team.lockedRoster.length > 0);
+  const swapLimitReached = currentWeek > 1 && swapsMade >= 1 && !lockInOpenForTeam;
 
   useEffect(() => {
     if (team) {
@@ -3230,7 +3236,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
       )}
 
       {/* Swap tracker */}
-      {currentWeek > 1 && lastWeekRosterIds.size > 0 && (
+      {currentWeek > 1 && lastWeekRosterIds.size > 0 && !lockInOpenForTeam && (
         <div style={{
           padding:"10px 14px",borderRadius:8,marginBottom:14,
           background: swapLimitReached ? "#e9456011" : "#4ecdc411",
@@ -3268,15 +3274,6 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
           <span style={{ fontSize:16 }}>🔒</span>
           <div style={{ flex:1,fontSize:12,color:"#f5a623",lineHeight:1.4 }}>Rosters are locked for managers. You can still edit as commissioner.</div>
         </div>
-      )}
-
-      {/* ─── Final Lock-In UI (Heroes only) ─── */}
-      {isLockInEligible(league) && team && team.id === myTeamId && (
-        <FinalLockInTeamSection
-          league={league}
-          team={team}
-          onUpdate={onUpdate}
-        />
       )}
 
       {/* Locked roster read-only card (visible to anyone whose viewed team is locked) */}
@@ -3317,6 +3314,27 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
           <RosterRow key={i} label={`V${i+1}`} slot={`regular_${i}`} currentId={(localChart.regulars||[])[i]} multiplierLabel="1×" multiplierNum={1} color="#8888aa" />
         ))}
       </div>
+
+      {/* ─── Final Lock-In confirm (Heroes only, when lock-in is open on your team) ─── */}
+      {isLockInEligible(league) && team && team.id === myTeamId &&
+       getLockInStatus(league) === "open" &&
+       !(team.lockedRoster && team.lockedRoster.length > 0) && (
+        <div style={{ marginTop:14,padding:"12px 14px",background:"#f5a62311",borderRadius:10,border:"1px solid #f5a62333",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap" }}>
+          <div style={{ fontSize:12,color:"#f5a623",fontWeight:600,flex:1,minWidth:180 }}>
+            🔒 Final Lock-In is open. Set your roster above, then confirm to lock it for the rest of the season.
+          </div>
+          <Btn small onClick={()=>{
+            const chart = team.depthChart || { captain: null, coCaptain: null, regulars: [] };
+            const current = [chart.captain, chart.coCaptain, ...(chart.regulars || [])].filter(Boolean);
+            if (current.length === 0) { alert("Set your roster above before confirming."); return; }
+            if (!confirm("Lock in your current roster as your final roster? You won't be able to swap contestants after this — only adjust depth chart positions.")) return;
+            const updatedTeams = league.teams.map(t =>
+              t.id === team.id ? { ...t, lockedRoster: [...current], lockInConfirmedAt: Date.now() } : t
+            );
+            onUpdate({ ...league, teams: updatedTeams });
+          }}>Confirm Final Roster</Btn>
+        </div>
+      )}
 
       {/* ─── HOT PICKS: Who should I roster? ─── */}
       {!league.rostersLocked && (()=>{
@@ -4412,86 +4430,6 @@ function FinalLockInCommishPanel({ league, onUpdate }) {
           <Btn small variant="danger" onClick={forceClose}>Force Close Lock-In</Btn>
         </div>
       )}
-    </div>
-  );
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// FINAL LOCK-IN — Player picker (Heroes only, on My Roster)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function FinalLockInTeamSection({ league, team, onUpdate }) {
-  const status = getLockInStatus(league);
-  const alreadyConfirmed = !!(team.lockedRoster && team.lockedRoster.length > 0);
-
-  // Default selection: team's current depth-chart roster.
-  const currentRoster = useMemo(() => {
-    const chart = team.depthChart || { captain: null, coCaptain: null, regulars: [] };
-    return [chart.captain, chart.coCaptain, ...(chart.regulars || [])].filter(Boolean);
-  }, [team]);
-
-  const targetSize = currentRoster.length || (1 + 1 + (league.captainsConfig?.regularSlots || 3));
-  const [selected, setSelected] = useState(currentRoster);
-
-  useEffect(() => { setSelected(currentRoster); }, [currentRoster]);
-
-  // Only render the picker when lock-in is open AND this team has not yet confirmed.
-  if (status !== "open" || alreadyConfirmed) return null;
-
-  const activePool = (league.contestants || []).filter(c => c.status !== "eliminated");
-  const selectedSet = new Set(selected);
-
-  function toggle(cid) {
-    if (selectedSet.has(cid)) {
-      setSelected(selected.filter(x => x !== cid));
-    } else {
-      if (selected.length >= targetSize) return; // cap at roster size
-      setSelected([...selected, cid]);
-    }
-  }
-
-  function confirmRoster() {
-    if (selected.length !== targetSize) {
-      alert(`Pick exactly ${targetSize} contestants for your final roster.`);
-      return;
-    }
-    if (!confirm("Confirm your final roster? You won't be able to change your contestants after this — only your depth chart positions.")) return;
-    const updatedTeams = league.teams.map(t =>
-      t.id === team.id
-        ? { ...t, lockedRoster: [...selected], lockInConfirmedAt: Date.now() }
-        : t
-    );
-    onUpdate({ ...league, teams: updatedTeams });
-  }
-
-  return (
-    <div style={{ marginBottom:14,padding:"14px 16px",background:"#f5a62311",borderRadius:10,border:"1px solid #f5a62333" }}>
-      <div style={{ fontSize:14,fontWeight:800,color:"#f5a623",display:"flex",alignItems:"center",gap:6 }}>
-        🔒 Final Lock-In is Open
-      </div>
-      <div style={{ fontSize:12,color:"#e8e8f0",marginTop:6,lineHeight:1.5 }}>
-        Pick your final roster for the rest of the season. After confirming, you can only adjust your depth chart — no more swaps. Eliminated contestants are not selectable.
-      </div>
-      <div style={{ fontSize:11,color:"#6a6a8a",marginTop:6 }}>
-        {selected.length} / {targetSize} selected
-      </div>
-      <div style={{ marginTop:10,display:"flex",flexWrap:"wrap",gap:6 }}>
-        {activePool.map(c => {
-          const isSel = selectedSet.has(c.id);
-          return (
-            <button key={c.id} onClick={()=>toggle(c.id)} style={{
-              padding:"6px 10px",borderRadius:6,fontSize:12,fontWeight:600,cursor:"pointer",
-              background:isSel?"#f5a62333":"#0d0d18",
-              border:isSel?"1px solid #f5a623":"1px solid #1e1e38",
-              color:isSel?"#f5a623":"#e8e8f0",fontFamily:"'Outfit',sans-serif",
-            }}>
-              {isSel?"✓ ":""}{c.name}
-            </button>
-          );
-        })}
-      </div>
-      <div style={{ marginTop:12 }}>
-        <Btn small onClick={confirmRoster}>Confirm Final Roster</Btn>
-      </div>
     </div>
   );
 }
