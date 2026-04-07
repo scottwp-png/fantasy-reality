@@ -3236,7 +3236,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
       )}
 
       {/* Swap tracker */}
-      {currentWeek > 1 && lastWeekRosterIds.size > 0 && !lockInOpenForTeam && (
+      {currentWeek > 1 && lastWeekRosterIds.size > 0 && !lockInOpenForTeam && !teamLocked && (
         <div style={{
           padding:"10px 14px",borderRadius:8,marginBottom:14,
           background: swapLimitReached ? "#e9456011" : "#4ecdc411",
@@ -3324,12 +3324,27 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
             🔒 Final Lock-In is open. Set your roster above, then confirm to lock it for the rest of the season.
           </div>
           <Btn small onClick={()=>{
-            const chart = team.depthChart || { captain: null, coCaptain: null, regulars: [] };
+            // Use localChart (what the user sees in the dropdowns right now),
+            // not team.depthChart (last saved state) — unsaved edits must count.
+            const chart = localChart || { captain: null, coCaptain: null, regulars: [] };
             const current = [chart.captain, chart.coCaptain, ...(chart.regulars || [])].filter(Boolean);
-            if (current.length === 0) { alert("Set your roster above before confirming."); return; }
-            if (!confirm("Lock in your current roster as your final roster? You won't be able to swap contestants after this — only adjust depth chart positions.")) return;
+            const expectedSize = 2 + regularSlots;
+            if (current.length < expectedSize) {
+              alert(`Fill all ${expectedSize} roster slots above before confirming.`);
+              return;
+            }
+            if (!confirm("Lock in this roster as your final roster? You won't be able to swap contestants after this — only adjust depth chart positions.")) return;
+            // Save the depth chart AND the locked roster in one update.
             const updatedTeams = league.teams.map(t =>
-              t.id === team.id ? { ...t, lockedRoster: [...current], lockInConfirmedAt: Date.now() } : t
+              t.id === team.id
+                ? {
+                    ...t,
+                    depthChart: { ...chart },
+                    weeklyDepthCharts: { ...(t.weeklyDepthCharts||{}), [String(currentWeek)]: { ...chart } },
+                    lockedRoster: [...current],
+                    lockInConfirmedAt: Date.now(),
+                  }
+                : t
             );
             onUpdate({ ...league, teams: updatedTeams });
           }}>Confirm Final Roster</Btn>
@@ -4393,6 +4408,28 @@ function FinalLockInCommishPanel({ league, onUpdate }) {
     onUpdate({ ...league, teams: updatedTeams, lockInStatus: "locked" });
   }
 
+  function reopenLockIn() {
+    if (!confirm("Reopen Final Lock-In?\n\nThis reverts lock-in to OPEN so teams can re-pick their final rosters. All existing confirmed lockedRosters will be cleared.")) return;
+    const updatedTeams = teams.map(t => ({ ...t, lockedRoster: null, lockInConfirmedAt: null }));
+    onUpdate({ ...league, teams: updatedTeams, lockInStatus: "open", lockInOpenedAt: Date.now() });
+  }
+
+  function cancelLockIn() {
+    if (!confirm("Cancel Final Lock-In entirely?\n\nThis closes lock-in and clears ALL locked rosters on every team. Normal weekly swapping resumes.")) return;
+    const updatedTeams = teams.map(t => ({ ...t, lockedRoster: null, lockInConfirmedAt: null }));
+    onUpdate({ ...league, teams: updatedTeams, lockInStatus: "closed", lockInOpenedWeek: null, lockInOpenedAt: null });
+  }
+
+  function resetTeam(teamId) {
+    const t = teams.find(x => x.id === teamId);
+    if (!t) return;
+    if (!confirm(`Reset ${t.name}'s lock-in? They'll be able to re-pick their final roster.`)) return;
+    const updatedTeams = teams.map(x => x.id === teamId ? { ...x, lockedRoster: null, lockInConfirmedAt: null } : x);
+    // If league was fully locked, drop it back to open so this team can re-pick.
+    const newStatus = status === "locked" ? "open" : status;
+    onUpdate({ ...league, teams: updatedTeams, lockInStatus: newStatus });
+  }
+
   if (status === "closed") {
     return (
       <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
@@ -4414,22 +4451,29 @@ function FinalLockInCommishPanel({ league, onUpdate }) {
         {teams.map(t => {
           const confirmed = t.lockedRoster && t.lockedRoster.length > 0;
           return (
-            <div key={t.id} style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #1a1a30",fontSize:12 }}>
-              <span style={{ color:"#e8e8f0" }}>
+            <div key={t.id} style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #1a1a30",fontSize:12,gap:8 }}>
+              <span style={{ color:"#e8e8f0",flex:1 }}>
                 {confirmed ? "✅" : "⏳"} {t.name}
               </span>
               <span style={{ color:confirmed?"#4ecdc4":"#6a6a8a",fontSize:11 }}>
                 {confirmed ? "confirmed" : "pending"}
               </span>
+              {confirmed && (
+                <Btn small variant="ghost" onClick={()=>resetTeam(t.id)}>Reset</Btn>
+              )}
             </div>
           );
         })}
       </div>
-      {status === "open" && (
-        <div style={{ marginTop:10 }}>
+      <div style={{ marginTop:10,display:"flex",gap:8,flexWrap:"wrap" }}>
+        {status === "open" && (
           <Btn small variant="danger" onClick={forceClose}>Force Close Lock-In</Btn>
-        </div>
-      )}
+        )}
+        {status === "locked" && (
+          <Btn small variant="secondary" onClick={reopenLockIn}>Reopen Lock-In</Btn>
+        )}
+        <Btn small variant="ghost" onClick={cancelLockIn}>Cancel Lock-In</Btn>
+      </div>
     </div>
   );
 }
