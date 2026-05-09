@@ -94,3 +94,7 @@ firebase deploy --only database
 ```
 
 Manual, rarely needed. Netlify deploys handle the app; Firebase CLI handles RTDB rules.
+
+## Future considerations
+
+- **Tribe merge × per-episode scoring cadence (planned, see [BACKLOG.md](../../BACKLOG.md)):** untested interaction. Tribed shows are typically 1×/wk and stay weekly, so realistic user count is small. Before declaring episode mode GA, verify pre-merge tribal attribution still resolves correctly for any league that has crossed a merge and then flipped cadence.
