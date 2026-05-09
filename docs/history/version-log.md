@@ -34,6 +34,7 @@ Label-only refactor behind `scoringCadence` flag. No behavior change in default-
 - **Out of scope (deferred to Phase 2 carryover in BACKLOG.md):** FORMAT_INFO descriptions ("Weekly snake redraft…"), the FAQ format-explanation paragraph, and the site-announcement placeholder example are global / pre-league marketing copy with no `league` or selected `showType` context. Will revisit when cadence toggle ships in league-create / league-settings UI.
 - No UI exposure for the toggle yet — Phase 1 wires the helper and presets only; league-create form and settings UI are Phase 2 work.
 - Verified `node _snapshots/diff-against-baseline.mjs` → all 10 baselines (9 synthetic + sanitized real-league) byte-identical pre/post. `npm run build` clean (2.82s).
+- **Commit:** `e247ad1`
 
 ### v2.4.3.0 — 2026-05-09
 Extract scoring engine to `src/scoring.js` (no behavior change). Pure infrastructure commit — enables the regression harness for upcoming per-episode scoring cadence work.
