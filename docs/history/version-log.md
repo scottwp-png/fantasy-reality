@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.7.0
+**Current Production Version:** v2.4.8.0
 **Last Deploy Date:** 2026-05-09
-**App.jsx Line Count:** ~5,973
+**App.jsx Line Count:** ~5,991
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,31 @@
 ---
 
 ## Version Log
+
+### v2.4.8.0 — 2026-05-09
+Format descriptions in the league-create form and settings tab now reflect each league's cadence. Episode-mode leagues see cadence-aware copy on the four formats whose mechanics involve scoring frequency (Standard, Heroes, Predictions, Elimination Pool). Phase 2 Commit D — final commit of the per-episode scoring cadence work.
+
+Phase 1 wired the helpers + presets behind a flag; Commit A (v2.4.5.0) added the `episodes[]` data model; Commit B (v2.4.6.0) exposed the cadence toggle UI; Commit C (v2.4.7.0) added the post-finalize advance nudge banner; Commit D closes the Phase 2 scope by making the format-description copy cadence-aware. All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **`FORMAT_INFO` const → `formatInfo(arg)` function** at `App.jsx:244`. Returns the same shape as the old static const (object keyed by format with `name`/`desc`/`icon`). `arg` is either a `league` object or a `{ scoringCadence }` shape; cadence defaults to `"weekly"` when undefined. Pure factory — same input always produces same output. `src/scoring.js` untouched.
+- **Compound-semantic phrasing for `standard.desc` and `captains.desc`** — append-clause pattern, NOT a "Per-episode" adjective swap. The locked Phase 4 design keeps roster moves weekly across all leagues (snake redraft each week, captains swap once per week); only scoring goes per-episode. So:
+  - `standard.desc` weekly: `"Weekly snake redraft. Each manager picks contestants each week. Draft order is inverse of YTD standings. Season-long points race."` (byte-identical to current)
+  - `standard.desc` episode: `"Weekly snake redraft. Each manager picks contestants each week, scoring per episode. Draft order is inverse of YTD standings. Season-long points race."`
+  - `captains.desc` weekly: unchanged
+  - `captains.desc` episode: `", scoring per episode"` appended after `"reorganize depth chart"`
+  - Inline ternary inside the function: `` `...each week${cadence === "episode" ? ", scoring per episode" : ""}.` ``
+- **Symmetric phrasing for `predictions.desc` and `elimination_pool.desc`** — these mechanics are genuinely cadence-symmetric (the format mechanic IS the cadence — you predict each week or each episode), so mechanical word swap is correct:
+  - `predictions.desc`: `` `Commissioner creates questions each ${cadence === "episode" ? "episode" : "week"}. ...` ``
+  - `elimination_pool.desc`: `` `Each ${cadence === "episode" ? "episode" : "week"}, pick one contestant ...` ``
+- **`survivor_pool.desc` and `salary_cap.desc` unchanged** — no week/episode reference in these descriptions, function returns identical strings regardless of cadence.
+- **Backward compatibility** — weekly cadence path is byte-identical to the old static const for every format. Existing weekly leagues see exactly the same description copy as before. Episode cadence path is the only behavioral change, and only visible to leagues opted in via the Commit B toggle (or created with episode-preset shows like Big Brother / Love Island / Love Is Blind).
+- **Call-site refactor — 7 sites + 1 local-var rename:**
+  - 3 CreateLeagueScreen sites at `App.jsx:767`, `773`, `983` pass `formatInfo({ scoringCadence })` from local state. Critical discipline: NOT `SHOW_PRESETS[showType]?.scoringCadence` (that was the Heroes-config inline-ternary trap fixed in Commit B; same trap avoided here).
+  - 4 saved-league sites at `App.jsx:1060` (LeagueDashboard header), `4521` (SettingsTab Format card title — two refs on one line), `4523` (SettingsTab Format card desc), and `4792` (JoinConfirmModal local-var capture) pass `formatInfo(league)` directly.
+  - JoinConfirmModal local var renamed `formatInfo` → `fmtInfo` to avoid TDZ shadowing of the new outer function. Single internal reference at `App.jsx:4812` updated.
+- **Audit verification** — pre-edit grep returned 8 `FORMAT_INFO` references (1 declaration + 7 reading sites). Post-edit grep returns 1 `FORMAT_INFO` hit (a documentation reference inside the new function's comment block describing the prior shape) and 0 functional references. All 7 reading sites converted; no third-location consumers missed.
+- **Browser smoke verified** — descriptions live-update across all four cadence-relevant formats when the cadence toggle flips in CreateLeagueScreen. The showType cascade still resets cadence to the new preset (Commit B's behavior preserved). Visual transitions clean.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.92s).
+- **Commit:** `_pending_`
 
 ### v2.4.7.0 — 2026-05-09
 After finalizing a week or episode, commissioners now see an inline "Score [next] next →" banner in the Scoring tab. The banner is a proactive next-step affordance, particularly valuable for batch-scoring high-frequency shows like Big Brother and Love Island. Phase 2 Commit C of per-episode scoring cadence work. Phase 1 wired the helpers + presets behind a flag; Commit A (v2.4.5.0) added the `episodes[]` data model; Commit B (v2.4.6.0) exposed the cadence toggle UI; Commit C is the post-finalize ergonomic win. All 10 regression baselines pass byte-identical, `npm run build` clean.

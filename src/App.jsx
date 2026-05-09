@@ -226,38 +226,56 @@ const SHOW_PRESETS = {
     scoringDefaults: ["lb_pod_date","lb_engaged","lb_met_irl","lb_argument","lb_broke_up","lb_said_yes","lb_said_no","lb_still_together","lb_crying"] },
 };
 
-const FORMAT_INFO = {
-  standard: {
-    name: "Standard",
-    desc: "Weekly snake redraft. Each manager picks contestants each week. Draft order is inverse of YTD standings. Season-long points race.",
-    icon: "🔄",
-  },
-  captains: {
-    name: "Heroes",
-    desc: "One-time draft to build a roster. Hero (2× pts), Side-Kick (1.5× pts), and Vigilante slots. Weekly swap of 1 contestant + reorganize depth chart. Multiple managers can roster the same contestant.",
-    icon: "🦸",
-  },
-  survivor_pool: {
-    name: "Survivor Pool",
-    desc: "Everyone picks one contestant before the season. If your pick is eliminated, you're out. Last person standing wins.",
-    icon: "🎯",
-  },
-  predictions: {
-    name: "Predictions",
-    desc: "Commissioner creates questions each week. Players predict outcomes (pick one, yes/no, rank these). Points for correct answers.",
-    icon: "🔮",
-  },
-  salary_cap: {
-    name: "Salary Cap",
-    desc: "Fixed budget to build your roster. Commissioner sets prices for each contestant. Spend wisely — premium picks cost more. Season-long roster.",
-    icon: "💰",
-  },
-  elimination_pool: {
-    name: "Elimination Pool",
-    desc: "Each week, pick one contestant you think will survive. Can't reuse picks. Points for correct calls, penalties for wrong ones.",
-    icon: "💀",
-  },
-};
+// Cadence-aware factory. Returns the same shape as the old static
+// FORMAT_INFO const (object keyed by format with name/desc/icon). Pass
+// arg = league or { scoringCadence }; cadence defaults to "weekly" when
+// arg is missing or scoringCadence is undefined.
+//
+// CreateLeagueScreen MUST pass { scoringCadence } from local state, NOT
+// SHOW_PRESETS[showType]?.scoringCadence — Commit B's manual toggle
+// override makes presets non-authoritative inside the create form (same
+// trap the Heroes-config inline ternaries fell into pre-Commit-B fix).
+//
+// Compound semantic for standard/captains: scoring goes per-episode but
+// roster moves (snake redraft, captains swap) stay weekly per locked
+// Phase 4 design. Append-clause pattern (", scoring per episode")
+// reflects that — using a "Per-episode" adjective would advertise
+// behavior the league won't actually do.
+function formatInfo(arg) {
+  const cadence = arg?.scoringCadence === "episode" ? "episode" : "weekly";
+  return {
+    standard: {
+      name: "Standard",
+      desc: `Weekly snake redraft. Each manager picks contestants each week${cadence === "episode" ? ", scoring per episode" : ""}. Draft order is inverse of YTD standings. Season-long points race.`,
+      icon: "🔄",
+    },
+    captains: {
+      name: "Heroes",
+      desc: `One-time draft to build a roster. Hero (2× pts), Side-Kick (1.5× pts), and Vigilante slots. Weekly swap of 1 contestant + reorganize depth chart${cadence === "episode" ? ", scoring per episode" : ""}. Multiple managers can roster the same contestant.`,
+      icon: "🦸",
+    },
+    survivor_pool: {
+      name: "Survivor Pool",
+      desc: "Everyone picks one contestant before the season. If your pick is eliminated, you're out. Last person standing wins.",
+      icon: "🎯",
+    },
+    predictions: {
+      name: "Predictions",
+      desc: `Commissioner creates questions each ${cadence === "episode" ? "episode" : "week"}. Players predict outcomes (pick one, yes/no, rank these). Points for correct answers.`,
+      icon: "🔮",
+    },
+    salary_cap: {
+      name: "Salary Cap",
+      desc: "Fixed budget to build your roster. Commissioner sets prices for each contestant. Spend wisely — premium picks cost more. Season-long roster.",
+      icon: "💰",
+    },
+    elimination_pool: {
+      name: "Elimination Pool",
+      desc: `Each ${cadence === "episode" ? "episode" : "week"}, pick one contestant you think will survive. Can't reuse picks. Points for correct calls, penalties for wrong ones.`,
+      icon: "💀",
+    },
+  };
+}
 
 function formatPts(val, league) {
   if (league?.decimalScoring === false) return Math.round(val).toString();
@@ -746,13 +764,13 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
                   fontSize:13,fontWeight:format===f?700:500,fontFamily:"'Outfit',sans-serif",
                   transition:"all 0.15s ease",flexShrink:0,opacity:isPreview?0.7:1,
                 }}>
-                  {FORMAT_INFO[f]?.name||f}{isPreview ? " \ud83e\uddea" : ""}
+                  {formatInfo({ scoringCadence })[f]?.name||f}{isPreview ? " \ud83e\uddea" : ""}
                 </button>
               );
             })}
           </div>
           <div style={{ padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",marginBottom:16 }}>
-            <div style={{ color:"#e8e8f0",fontSize:13,lineHeight:1.6 }}>{FORMAT_INFO[format]?.desc}</div>
+            <div style={{ color:"#e8e8f0",fontSize:13,lineHeight:1.6 }}>{formatInfo({ scoringCadence })[format]?.desc}</div>
           </div>
           {!["captains"].includes(format) && (
             <div style={{ padding:"10px 14px",background:"#f5a62311",borderRadius:8,border:"1px solid #f5a62333",marginBottom:16 }}>
@@ -962,7 +980,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
             <div style={{ fontSize:13,fontWeight:600,color:"#f0f0f5",marginBottom:6 }}>League Summary</div>
             <div style={{ fontSize:12,color:"#6a6a8a",lineHeight:1.6 }}>
               <div>{name || "Untitled"} · {preset?.name||showName||"Custom"} · {seasonName||"Season 1"}</div>
-              <div>{FORMAT_INFO[format]?.name} format · {scoringRules.length} scoring rules · {teams.length} team{teams.length!==1?"s":""}</div>
+              <div>{formatInfo({ scoringCadence })[format]?.name} format · {scoringRules.length} scoring rules · {teams.length} team{teams.length!==1?"s":""}</div>
               {headToHead && <div style={{color:"#f5a623"}}>Head-to-Head matchups enabled</div>}
               {bestBall && <div style={{color:"#4ecdc4"}}>Best Ball enabled</div>}
               {rotoScoring && <div style={{color:"#9d5dff"}}>Categories/Roto scoring enabled</div>}
@@ -1039,7 +1057,7 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
             <div style={{ color:"#6a6a8a",fontSize:11,marginTop:3,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap" }}>
               <span>{league.seasonName}</span>
               <span style={{ width:3,height:3,borderRadius:"50%",background:"#3a3a5a" }}></span>
-              <span>{FORMAT_INFO[league.format]?.name}</span>
+              <span>{formatInfo(league)[league.format]?.name}</span>
               <span style={{ width:3,height:3,borderRadius:"50%",background:"#3a3a5a" }}></span>
               <span>{cadenceLabel(league, league.currentWeek)}</span>
             </div>
@@ -4500,9 +4518,9 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
 
       <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
         <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>
-          {FORMAT_INFO[league.format]?.icon} {FORMAT_INFO[league.format]?.name} Format
+          {formatInfo(league)[league.format]?.icon} {formatInfo(league)[league.format]?.name} Format
         </div>
-        <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.5 }}>{FORMAT_INFO[league.format]?.desc}</div>
+        <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.5 }}>{formatInfo(league)[league.format]?.desc}</div>
         {league.format==="captains" && <div style={{ fontSize:12,color:"#6a6a8a",marginTop:6 }}>Regular slots: {league.captainsConfig?.regularSlots||3}</div>}
         {league.format==="standard" && <div style={{ fontSize:12,color:"#6a6a8a",marginTop:6 }}>Picks/manager: {league.standardConfig?.picksPerManager||2} · Gendered: {league.standardConfig?.genderedDraft?"Yes":"No"}</div>}
       </div>
@@ -4771,7 +4789,7 @@ function AddTeamModal({ open, onClose, league, onUpdate, editing }) {
 function JoinConfirmModal({ pendingJoin, onConfirm, onCancel, displayName, error }) {
   if (!pendingJoin) return null;
   const { league, type, teamId } = pendingJoin;
-  const formatInfo = FORMAT_INFO[league.format] || {};
+  const fmtInfo = formatInfo(league)[league.format] || {};
   const showInfo = SHOW_PRESETS[league.showType] || {};
   const teamCount = (league.teams || []).length;
   const existingTeam = type === "team" ? (league.teams || []).find(t => t.id === teamId) : null;
@@ -4791,7 +4809,7 @@ function JoinConfirmModal({ pendingJoin, onConfirm, onCancel, displayName, error
         </div>
       </div>
       <div style={{ display:"flex",flexWrap:"wrap",gap:8,marginBottom:16 }}>
-        <Badge color={showInfo.color||"#9d5dff"}>{formatInfo.name || league.format}</Badge>
+        <Badge color={showInfo.color||"#9d5dff"}>{fmtInfo.name || league.format}</Badge>
         <Badge color="#6a6a8a">{teamCount} team{teamCount !== 1 ? "s" : ""}</Badge>
         <Badge color="#6a6a8a">{cadenceLabel(league, league.currentWeek || 1)}</Badge>
       </div>
