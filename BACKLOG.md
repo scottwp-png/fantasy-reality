@@ -10,6 +10,7 @@
 ## Now (in flight / next up)
 
 - [ ] 🔴 **Per-episode scoring cadence** — refactor scoring from per-week to per-episode. Commissioner scores each episode individually (Ep 1, Ep 2, …), not "Week 1." Standings update after each scored episode. Covers all show cadences: 1×/wk (Survivor), 3×/wk (Big Brother), 5–6×/wk (Love Island). Weekly rollups still available in standings. *Critical for DAW metrics and high-frequency shows.*
+  - *Phase 2 carryover:* revisit FORMAT_INFO descriptions and FAQ paragraph for cadence-aware copy where league or selected-cadence context permits.
 - [ ] 🟡 **Shows management / Commissioner tab** — admin-facing tools for managing show metadata, contestant lists, episode tracking.
 - [ ] 🟡 **Teams tab rework** — make useful for regular players: all teams' rosters, H2H records, comparative stats, league-wide views.
 
@@ -29,6 +30,7 @@
 - [ ] 🟢 **Global roster lock** tied to show air times.
 - [ ] 🟢 **League chat / comments.**
 - [ ] 🟢 **Trade system** between managers.
+- [ ] 🟢 **survivor_pool sort comparator is asymmetric for null-pick (no-pick) teams.** [src/scoring.js:85-88](src/scoring.js#L85-L88) returns `+1` for both `compare(false, null)` and `compare(null, false)`, violating the comparator contract. Output order for tied null-pick vs. eliminated teams is V8-dependent. Two related issues: `isAlive` is literal `null` (not `false`) for no-pick teams due to short-circuit on line 86; `total` for no-pick reports as `weeks.length` because `eliminatedWeek` is undefined, rendering "survived all weeks" in UI. *Fix:* explicit tier ordering (alive > eliminated > no-pick) + coerce `isAlive` to boolean. Discovered during Phase 0 baseline verification — see [_snapshots/synthetic/survivor_pool.json](_snapshots/synthetic/survivor_pool.json) baseline notes.
 
 ## Ideas (unscheduled)
 

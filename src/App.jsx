@@ -200,29 +200,29 @@ const DEFAULT_SCORING_RULES = [
 ];
 
 const SHOW_PRESETS = {
-  survivor: { name: "Survivor", emoji: "S", color: "#d4a24e", defaultFormat: "captains",
+  survivor: { name: "Survivor", emoji: "S", color: "#d4a24e", defaultFormat: "captains", scoringCadence: "weekly",
     scoringDefaults: ["loses_vote_due_to_risk","volunteers_for_journey___risk","gains_advantage___idol","finds_hidden_immunity_idol","successfully_splits_vote","uses_extra_vote_successfully","steals_vote_successfully","successfully_executes_blindside","1st_to_make_fire_for_their_tribe","wins_shot_in_the_dark","blamed_for_team_loss","last_place_team_immunity","last_place_team_reward","first_place_team_reward","first_place_team_immunity","picked_to_go_with_winner_of_individual_reward","wins_individual_reward","wins_individual_immunity","eliminated_with_idol_advantage","sv_eliminated","plays_hidden_immunity_idol_incorrectly","receives_a_vote","receives_zero_votes_at_tribal","correct_vote","saved_by_advantage","plays_hidden_immunity_idol_successfully","1st_member_of_the_jury","wins_final_4_fire_making_challenge","final_5","final_4","sv_winner"] },
-  top_chef: { name: "Top Chef", emoji: "TC", color: "#3dd6c8", defaultFormat: "captains",
+  top_chef: { name: "Top Chef", emoji: "TC", color: "#3dd6c8", defaultFormat: "captains", scoringCadence: "weekly",
     scoringDefaults: ["money_earned_per_1k","favorite_dish_in_quickfire","favorite_dish_in_elimination","win_quickfire","win_elimination","win_restaurant_wars","return_from_last_chance_kitchen","tc_final_3","tc_winner","least_favorite_dish_in_quickfire","least_favorite_dish_in_elimination","cuts_self","fails_to_get_all_components_on_plate","entirely_empty_plate","tc_eliminated"] },
-  love_island: { name: "Love Island", emoji: "LI", color: "#ff5da0", defaultFormat: "standard",
+  love_island: { name: "Love Island", emoji: "LI", color: "#ff5da0", defaultFormat: "standard", scoringCadence: "episode",
     scoringDefaults: ["li_coupled","li_dumped","li_recoupled","li_got_text","li_date","li_casa_loyal","li_casa_switched","li_public_vote_saved","li_public_vote_bottom","li_challenge_win","li_final_couple","li_winner","li_crying"] },
-  the_bachelor: { name: "The Bachelor/ette", emoji: "B", color: "#e86b8a", defaultFormat: "standard",
+  the_bachelor: { name: "The Bachelor/ette", emoji: "B", color: "#e86b8a", defaultFormat: "standard", scoringCadence: "weekly",
     scoringDefaults: ["ba_rose","ba_no_rose","ba_first_impression","ba_one_on_one","ba_group_date_rose","ba_two_on_one","ba_kiss","ba_self_elim","ba_crying","ba_limo_exit_drama","ba_hometown","ba_fantasy_suite","ba_final_rose","ba_engaged"] },
-  bake_off: { name: "Great British Bake Off", emoji: "BO", color: "#ffd23d", defaultFormat: "standard",
+  bake_off: { name: "Great British Bake Off", emoji: "BO", color: "#ffd23d", defaultFormat: "standard", scoringCadence: "weekly",
     scoringDefaults: ["bo_star_baker","bo_technical_1st","bo_technical_top3","bo_technical_bottom3","bo_technical_last","bo_hollywood","bo_raw_soggy","bo_praised","bo_criticized","bo_eliminated","bo_final","bo_winner"] },
-  custom: { name: "Custom Show", emoji: "TV", color: "#9d5dff", defaultFormat: "captains",
+  custom: { name: "Custom Show", emoji: "TV", color: "#9d5dff", defaultFormat: "captains", scoringCadence: "weekly",
     scoringDefaults: ["eliminated","survived","won_episode","crying","winner_of_the_show"] },
-  the_traitors: { name: "The Traitors", emoji: "T", color: "#e24b4a", defaultFormat: "captains",
+  the_traitors: { name: "The Traitors", emoji: "T", color: "#e24b4a", defaultFormat: "captains", scoringCadence: "weekly",
     scoringDefaults: ["tr_murdered","tr_banished","tr_banished_traitor","tr_banished_faithful","tr_won_shield","tr_recruited","tr_survived_roundtable","tr_mission_money","tr_accused","tr_traitor_survived","tr_final","tr_winner"] },
-  big_brother: { name: "Big Brother", emoji: "BB", color: "#4d8aff", defaultFormat: "captains",
+  big_brother: { name: "Big Brother", emoji: "BB", color: "#4d8aff", defaultFormat: "captains", scoringCadence: "episode",
     scoringDefaults: ["bb_won_hoh","bb_won_veto","bb_nominated","bb_used_veto_on_self","bb_veto_used_on_them","bb_backdoored","bb_survived_block","bb_evicted","bb_have_not","bb_won_luxury","bb_unanimous_vote","bb_final_2","bb_winner"] },
-  the_challenge: { name: "The Challenge", emoji: "CH", color: "#ff8a3d", defaultFormat: "captains",
+  the_challenge: { name: "The Challenge", emoji: "CH", color: "#ff8a3d", defaultFormat: "captains", scoringCadence: "weekly",
     scoringDefaults: ["ch_daily_win","ch_elim_win","ch_sent_in","ch_purged","ch_skull","ch_eliminated","ch_last_place_daily","ch_power_position","ch_called_out","ch_final","ch_winner"] },
-  drag_race: { name: "RuPaul's Drag Race", emoji: "DR", color: "#9d5dff", defaultFormat: "captains",
+  drag_race: { name: "RuPaul's Drag Race", emoji: "DR", color: "#9d5dff", defaultFormat: "captains", scoringCadence: "weekly",
     scoringDefaults: ["dr_won_maxi","dr_won_mini","dr_top2","dr_safe","dr_low","dr_bottom2","dr_shantay","dr_sashay","dr_runway_praised","dr_snatch_game_win","dr_final","dr_winner"] },
-  amazing_race: { name: "The Amazing Race", emoji: "AR", color: "#3ddc84", defaultFormat: "captains",
+  amazing_race: { name: "The Amazing Race", emoji: "AR", color: "#3ddc84", defaultFormat: "captains", scoringCadence: "weekly",
     scoringDefaults: ["ar_leg_first","ar_leg_2nd","ar_leg_3rd","ar_leg_last","ar_eliminated","ar_non_elim","ar_detour_first","ar_roadblock_complete","ar_uturn","ar_speed_bump","ar_express_pass","ar_won_prize","ar_final","ar_winner"] },
-  love_is_blind: { name: "Love is Blind", emoji: "LB", color: "#c084fc", defaultFormat: "captains",
+  love_is_blind: { name: "Love is Blind", emoji: "LB", color: "#c084fc", defaultFormat: "captains", scoringCadence: "episode",
     scoringDefaults: ["lb_pod_date","lb_engaged","lb_met_irl","lb_argument","lb_broke_up","lb_said_yes","lb_said_no","lb_still_together","lb_crying"] },
 };
 
@@ -290,6 +290,32 @@ function getActiveSpoilerWeek(league, userProfile) {
   return weeks.length > 0 ? weeks[0] : null;
 }
 
+// ─── Cadence-aware UI labels ───
+// Pure label swap based on league.scoringCadence. Default ("weekly" or
+// missing) reads identically to pre-v2.4.4.0 — that's the backwards-compat
+// guarantee. UI strings only; src/scoring.js stays pure data-transform per
+// the no-go-zone rule.
+//
+// Three helpers, distinct surfaces:
+//   cadenceWord(league)   "Week"     | "Episode"   — full singular noun
+//   cadenceShort(league)  "Wk"       | "Ep"        — abbreviated form
+//   cadenceLabel(league, n)  "Week 3" | "Episode 3" — noun + number
+//                            null/undefined n -> just the unit word, so call
+//                            sites can pass possibly-missing values safely.
+//
+// cadenceShort does NOT derive from cadenceWord — note that
+// `cadenceWord(league).slice(0,2)` would yield "We"/"Ep" (wrong: "We" is not
+// the standard abbreviation for "Week"). Keep these as independent constants.
+//
+// For the few ASYMMETRIC adjective sites where "Weekly X" doesn't have a
+// clean "Episode X" mirror (e.g. "Weekly paired matchups" -> "Per-episode
+// paired matchups"), use an inline ternary at the call site rather than
+// adding a fourth helper. Symmetric "Weekly X" / "Episode X" sites also use
+// inline ternaries for consistency — see lines tagged with scoringCadence.
+const cadenceWord = (league) => league?.scoringCadence === "episode" ? "Episode" : "Week";
+const cadenceShort = (league) => league?.scoringCadence === "episode" ? "Ep" : "Wk";
+const cadenceLabel = (league, n) => n != null ? `${cadenceWord(league)} ${n}` : cadenceWord(league);
+
 // ─── Final Lock-In helpers (Heroes only) ───
 const isLockInEligible = (league) => league?.format === "captains";
 const getLockInStatus = (league) => league?.lockInStatus || "closed";
@@ -306,7 +332,7 @@ const getEffectiveRoster = (league, team) => {
   return null;
 };
 
-function SpoilerBlur({ active, children, onReveal, week }) {
+function SpoilerBlur({ active, children, onReveal, week, league }) {
   if (!active) return children;
   return (
     <div style={{ position: "relative" }}>
@@ -321,12 +347,12 @@ function SpoilerBlur({ active, children, onReveal, week }) {
         <div style={{ textAlign: "center", padding: 24 }}>
           <div style={{ fontSize: 28, marginBottom: 8 }}>&#128065;</div>
           <div style={{ color: "#e8e8f0", fontWeight: 700, fontSize: 16, marginBottom: 4 }}>
-            Week {week} Scores Finalized
+            {cadenceLabel(league, week)} Scores Finalized
           </div>
           <div style={{ color: "#8888aa", fontSize: 13, marginBottom: 16 }}>
             Tap below when you're ready to see results
           </div>
-          <Btn onClick={onReveal}>Reveal Week {week}</Btn>
+          <Btn onClick={onReveal}>Reveal {cadenceLabel(league, week)}</Btn>
         </div>
       </div>
     </div>
@@ -702,7 +728,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
           {format === "standard" && (
             <div style={{ padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",marginBottom:16 }}>
               <div style={{ fontSize:12,fontWeight:600,color:"#4ecdc4",marginBottom:10 }}>STANDARD CONFIG</div>
-              <Input label="Picks Per Manager (per week)" type="number" min="1" max="10" value={picksPerManager} onChange={e=>setPicksPerManager(e.target.value)} />
+              <Input label={`Picks Per Manager (per ${SHOW_PRESETS[showType]?.scoringCadence === "episode" ? "episode" : "week"})`} type="number" min="1" max="10" value={picksPerManager} onChange={e=>setPicksPerManager(e.target.value)} />
               <label style={{ display:"flex",alignItems:"center",gap:8,cursor:"pointer",color:"#ccc",fontSize:13 }}>
                 <input type="checkbox" checked={genderedDraft} onChange={e=>setGenderedDraft(e.target.checked)} style={{ accentColor:"#e94560" }} />
                 Gendered draft (equal picks per gender category)
@@ -718,7 +744,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
                 <input type="checkbox" checked={headToHead} onChange={e=>setHeadToHead(e.target.checked)} style={{ accentColor:"#e94560",width:18,height:18 }} />
                 <div>
                   <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>Head-to-Head Matchups <span style={{ fontSize:10,color:"#f5a623",marginLeft:6,fontWeight:700 }}>PREVIEW</span></div>
-                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>Weekly paired matchups. W/L record determines standings instead of total points.</div>
+                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>{SHOW_PRESETS[showType]?.scoringCadence === "episode" ? "Per-episode" : "Weekly"} paired matchups. W/L record determines standings instead of total points.</div>
                 </div>
               </label>
             )}
@@ -727,7 +753,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
                 <input type="checkbox" checked={bestBall} onChange={e=>setBestBall(e.target.checked)} style={{ accentColor:"#e94560",width:18,height:18 }} />
                 <div>
                   <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>Best Ball <span style={{ fontSize:10,color:"#f5a623",marginLeft:6,fontWeight:700 }}>PREVIEW</span></div>
-                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>Auto-optimizes your lineup each week. No roster management needed — just draft well.</div>
+                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>Auto-optimizes your lineup each {SHOW_PRESETS[showType]?.scoringCadence === "episode" ? "episode" : "week"}. No roster management needed — just draft well.</div>
                 </div>
               </label>
             )}
@@ -928,7 +954,7 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
     ...(league.format === "standard" ? [{ id:"weekly-draft",label:"Draft",icon:"grid",access:"commissioner" }] : []),
     ...(league.format === "captains" ? [{ id:"depth-chart",label:"My Roster",icon:"crown",access:"all" }] : []),
     ...(league.format === "survivor_pool" ? [{ id:"my-pick",label:"My Pick",icon:"star",access:"all" }] : []),
-    ...(league.format === "elimination_pool" ? [{ id:"weekly-pick",label:"Weekly Pick",icon:"star",access:"all" }] : []),
+    ...(league.format === "elimination_pool" ? [{ id:"weekly-pick",label:league.scoringCadence === "episode" ? "Episode Pick" : "Weekly Pick",icon:"star",access:"all" }] : []),
     ...(league.format === "salary_cap" ? [
       { id:"my-roster-cap",label:"My Roster",icon:"crown",access:"all" },
       { id:"set-prices",label:"Prices",icon:"settings",access:"commissioner" },
@@ -961,7 +987,7 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
               <span style={{ width:3,height:3,borderRadius:"50%",background:"#3a3a5a" }}></span>
               <span>{FORMAT_INFO[league.format]?.name}</span>
               <span style={{ width:3,height:3,borderRadius:"50%",background:"#3a3a5a" }}></span>
-              <span>Week {league.currentWeek}</span>
+              <span>{cadenceLabel(league, league.currentWeek)}</span>
             </div>
           </div>
           <div style={{ textAlign:"right",flexShrink:0 }}>
@@ -992,17 +1018,17 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
       </div>
 
       <div style={{ padding:20 }}>
-        {tab === "standings" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek}><StandingsTab league={league} standings={standings} /></SpoilerBlur>}
-        {tab === "contestants" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek}><ContestantsTab league={league} onUpdate={isCommissioner?onUpdate:null} setModal={isCommissioner?setModal:()=>{}} setEditing={isCommissioner?setEditingItem:()=>{}} readOnly={!isCommissioner} /></SpoilerBlur>}
-        {tab === "teams" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek}><TeamsTab league={league} onUpdate={isCommissioner?onUpdate:null} setModal={isCommissioner?setModal:()=>{}} setEditing={isCommissioner?setEditingItem:()=>{}} readOnly={!isCommissioner} /></SpoilerBlur>}
-        {tab === "scoring" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek}><ScoringTab league={league} onUpdate={isCommissioner ? onUpdate : null} isCommissioner={isCommissioner} /></SpoilerBlur>}
+        {tab === "standings" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><StandingsTab league={league} standings={standings} /></SpoilerBlur>}
+        {tab === "contestants" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><ContestantsTab league={league} onUpdate={isCommissioner?onUpdate:null} setModal={isCommissioner?setModal:()=>{}} setEditing={isCommissioner?setEditingItem:()=>{}} readOnly={!isCommissioner} /></SpoilerBlur>}
+        {tab === "teams" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><TeamsTab league={league} onUpdate={isCommissioner?onUpdate:null} setModal={isCommissioner?setModal:()=>{}} setEditing={isCommissioner?setEditingItem:()=>{}} readOnly={!isCommissioner} /></SpoilerBlur>}
+        {tab === "scoring" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><ScoringTab league={league} onUpdate={isCommissioner ? onUpdate : null} isCommissioner={isCommissioner} /></SpoilerBlur>}
         {tab === "weekly-draft" && isCommissioner && <WeeklyDraftTab league={league} onUpdate={onUpdate} standings={standings} />}
         {tab === "depth-chart" && <DepthChartTab league={league} onUpdate={onUpdate} lockedToTeamId={isCommissioner ? null : loggedInTeamId} defaultTeamId={loggedInTeamId} isCommissioner={isCommissioner} spoilerActive={spoilerActive} myTeamId={loggedInTeamId} />}
-        {tab === "my-pick" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek}><SurvivorPoolTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} /></SpoilerBlur>}
-        {tab === "weekly-pick" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek}><EliminationPoolTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} /></SpoilerBlur>}
-        {tab === "my-roster-cap" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek}><SalaryCapRosterTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} /></SpoilerBlur>}
+        {tab === "my-pick" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><SurvivorPoolTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} /></SpoilerBlur>}
+        {tab === "weekly-pick" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><EliminationPoolTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} /></SpoilerBlur>}
+        {tab === "my-roster-cap" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><SalaryCapRosterTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} /></SpoilerBlur>}
         {tab === "set-prices" && isCommissioner && <SalaryCapPricesTab league={league} onUpdate={onUpdate} />}
-        {tab === "predict" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek}><PredictionsPlayerTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} /></SpoilerBlur>}
+        {tab === "predict" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><PredictionsPlayerTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} /></SpoilerBlur>}
         {tab === "manage-questions" && isCommissioner && <PredictionsCommishTab league={league} onUpdate={onUpdate} />}
         {tab === "settings" && isCommissioner && <SettingsTab league={league} onUpdate={onUpdate} allLeagues={allLeagues} />}
       </div>
@@ -1031,7 +1057,7 @@ function WeeklyBreakdownSection({ league, standings }) {
 
   const viewOptions = [
     { value: "overall", label: "Overall" },
-    ...weeks.map(w => ({ value: w, label: `Week ${w}` }))
+    ...weeks.map(w => ({ value: w, label: cadenceLabel(league, w) }))
   ];
 
   const contestantStats = (league.contestants || []).map(c => {
@@ -1049,7 +1075,7 @@ function WeeklyBreakdownSection({ league, standings }) {
     <div style={{ marginTop:24 }}>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
         <h4 style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:15,color:"#e8e8f0",margin:0 }}>
-          {selectedView === "overall" ? "Season Breakdown" : `Week ${selectedView} Breakdown`}
+          {selectedView === "overall" ? "Season Breakdown" : `${cadenceLabel(league, selectedView)} Breakdown`}
         </h4>
         <select value={selectedView} onChange={e => setSelectedView(e.target.value)} style={{
           padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
@@ -1112,9 +1138,9 @@ function StandingsTab({ league, standings }) {
     <div>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
         <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Leaderboard</h3>
-        <Badge color="#f5a623">Week {league.currentWeek}</Badge>
+        <Badge color="#f5a623">{cadenceLabel(league, league.currentWeek)}</Badge>
       </div>
-      {standings.length === 0 ? <EmptyState message="Add teams and score weeks to see standings." /> : (
+      {standings.length === 0 ? <EmptyState message={`Add teams and score ${cadenceWord(league).toLowerCase()}s to see standings.`} /> : (
         <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
           {standings.map((team,i) => {
             const medal = i===0?"🥇":i===1?"🥈":i===2?"🥉":null;
@@ -1417,10 +1443,10 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
             const isExp=expandedId===c.id;
             // Determine display values based on sort
             let bigVal, bigLabel, subtitle;
-            if(sortBy==="total"){bigVal=c.total;bigLabel=null;subtitle=c.lastWeekPts!==0?`Last wk: ${c.lastWeekPts>0?"+":""}${formatPts(c.lastWeekPts, league)}`:null;}
-            else if(sortBy==="lastWeek"){bigVal=c.lastWeekPts;bigLabel=`wk ${(league.currentWeek||1)-1}`;subtitle=`Season: ${formatPts(c.total, league)}`;}
-            else if(sortBy==="best"){bigVal=c.bestWeekPts;bigLabel=c.bestWeekNum?`wk ${c.bestWeekNum}`:null;subtitle=`Season: ${formatPts(c.total, league)}`;}
-            else if(sortBy==="worst"){bigVal=c.worstWeekPts;bigLabel=c.worstWeekNum?`wk ${c.worstWeekNum}`:null;subtitle=`Season: ${formatPts(c.total, league)}`;}
+            if(sortBy==="total"){bigVal=c.total;bigLabel=null;subtitle=c.lastWeekPts!==0?`Last ${cadenceShort(league).toLowerCase()}: ${c.lastWeekPts>0?"+":""}${formatPts(c.lastWeekPts, league)}`:null;}
+            else if(sortBy==="lastWeek"){bigVal=c.lastWeekPts;bigLabel=`${cadenceShort(league).toLowerCase()} ${(league.currentWeek||1)-1}`;subtitle=`Season: ${formatPts(c.total, league)}`;}
+            else if(sortBy==="best"){bigVal=c.bestWeekPts;bigLabel=c.bestWeekNum?`${cadenceShort(league).toLowerCase()} ${c.bestWeekNum}`:null;subtitle=`Season: ${formatPts(c.total, league)}`;}
+            else if(sortBy==="worst"){bigVal=c.worstWeekPts;bigLabel=c.worstWeekNum?`${cadenceShort(league).toLowerCase()} ${c.worstWeekNum}`:null;subtitle=`Season: ${formatPts(c.total, league)}`;}
             else{bigVal=c.total;bigLabel=null;subtitle=null;}
             return(<div key={c.id} style={{borderRadius:12,background:"#12121f",border:"1px solid #1e1e38",opacity:c.status==="eliminated"?0.5:1,overflow:"hidden",transition:"all 0.2s"}}>
               <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",cursor:"pointer"}} onClick={()=>setExpandedId(isExp?null:c.id)}>
@@ -1430,7 +1456,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                   <div style={{color:"#e8e8f0",fontWeight:600,fontSize:13,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
                     {c.name}
                     {!isMerged&&c.tribe&&<span style={{color:"#4a4a6a",fontSize:10,marginLeft:6}}>{c.tribe}</span>}
-                    {c.status==="eliminated"&&<span style={{marginLeft:6,fontSize:10,color:"#e94560"}}>ELIM{c.eliminatedWeek?` Wk ${c.eliminatedWeek}`:""}</span>}
+                    {c.status==="eliminated"&&<span style={{marginLeft:6,fontSize:10,color:"#e94560"}}>ELIM{c.eliminatedWeek?` ${cadenceShort(league)} ${c.eliminatedWeek}`:""}</span>}
                   </div>
                   {subtitle&&<div style={{fontSize:11,color:"#6a6a8a",marginTop:1}}>{subtitle}</div>}
                 </div>
@@ -1451,10 +1477,10 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                   return (
                     <div style={{display:"flex",gap:0,marginTop:8,marginBottom:10,borderRadius:8,overflow:"hidden",border:"1px solid #1e1e38"}}>
                       {[
-                        {label:"Last Wk",val:lastWkPts,sub:`Wk ${weeks[weeks.length-1]}`,color:lastWkPts>0?"#4ecdc4":lastWkPts<0?"#e94560":"#6a6a8a"},
-                        {label:"Best",val:best.pts,sub:best.wk?`Wk ${best.wk}`:"—",color:"#f5a623"},
-                        {label:"Worst",val:worst.pts,sub:worst.wk?`Wk ${worst.wk}`:"—",color:"#e94560"},
-                        {label:"Season",val:c.total,sub:`${weeks.length} wks`,color:c.total>0?"#4ecdc4":"#6a6a8a"},
+                        {label:`Last ${cadenceShort(league)}`,val:lastWkPts,sub:`${cadenceShort(league)} ${weeks[weeks.length-1]}`,color:lastWkPts>0?"#4ecdc4":lastWkPts<0?"#e94560":"#6a6a8a"},
+                        {label:"Best",val:best.pts,sub:best.wk?`${cadenceShort(league)} ${best.wk}`:"—",color:"#f5a623"},
+                        {label:"Worst",val:worst.pts,sub:worst.wk?`${cadenceShort(league)} ${worst.wk}`:"—",color:"#e94560"},
+                        {label:"Season",val:c.total,sub:`${weeks.length} ${cadenceShort(league).toLowerCase()}s`,color:c.total>0?"#4ecdc4":"#6a6a8a"},
                       ].map(s=>(
                         <div key={s.label} style={{flex:1,padding:"8px 6px",textAlign:"center",background:"#0d0d18",borderRight:"1px solid #1e1e38"}}>
                           <div style={{fontSize:9,color:"#6a6a8a",textTransform:"uppercase",fontWeight:600,marginBottom:2}}>{s.label}</div>
@@ -1471,7 +1497,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                   <div style={{fontSize:11,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",marginBottom:6}}>Game Log</div>
                   <div style={{borderRadius:8,border:"1px solid #1e1e38",overflow:"hidden"}}>
                     <div style={{display:"flex",padding:"6px 10px",background:"#0d0d18",borderBottom:"1px solid #1e1e38"}}>
-                      <div style={{width:50,fontSize:10,fontWeight:600,color:"#6a6a8a"}}>Week</div>
+                      <div style={{width:50,fontSize:10,fontWeight:600,color:"#6a6a8a"}}>{cadenceWord(league)}</div>
                       <div style={{flex:1,fontSize:10,fontWeight:600,color:"#6a6a8a"}}>Events</div>
                       <div style={{width:50,textAlign:"right",fontSize:10,fontWeight:600,color:"#6a6a8a"}}>Pts</div>
                     </div>
@@ -1479,7 +1505,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                       const wP=c.weeklyTotals[w]||0;const dets=getWeekDetail(c.id,w);
                       if(wP===0&&dets.length===0)return null;
                       return(<div key={w} style={{display:"flex",alignItems:"flex-start",padding:"8px 10px",borderBottom:"1px solid #1a1a30"}}>
-                        <div style={{width:50,fontSize:12,fontWeight:600,color:"#8888aa"}}>Wk {w}</div>
+                        <div style={{width:50,fontSize:12,fontWeight:600,color:"#8888aa"}}>{cadenceShort(league)} {w}</div>
                         <div style={{flex:1,display:"flex",flexWrap:"wrap",gap:3}}>
                           {dets.map(d=>(<span key={d.rule.id} style={{fontSize:9,padding:"2px 5px",borderRadius:3,background:d.rule.points>=0?"#4ecdc418":"#e9456018",color:d.rule.points>=0?"#4ecdc4":"#e94560",whiteSpace:"nowrap"}}>{d.rule.label}{d.count>1?` ×${d.count}`:""}</span>))}
                         </div>
@@ -1681,7 +1707,7 @@ function TeamsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
   const [viewWeek, setViewWeek] = useState(String(league.currentWeek || 1));
 
   const weeks = Object.keys(league.weeklyScores || {}).sort((a,b)=>+a - +b);
-  const weekOpts = Array.from({length:Math.max(league.currentWeek||1,1)},(_,i)=>({value:String(i+1),label:`Week ${i+1}`}));
+  const weekOpts = Array.from({length:Math.max(league.currentWeek||1,1)},(_,i)=>({value:String(i+1),label:cadenceLabel(league, i+1)}));
 
   function getTeamRosterForWeek(team, weekNum) {
     if (league.format === "captains") {
@@ -1758,7 +1784,7 @@ function TeamsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                   <div style={{ padding:"0 16px 14px",borderTop:"1px solid #1e1e38" }}>
                     <div style={{ paddingTop:12 }}>
                       <div style={{ fontSize:11,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",marginBottom:8,letterSpacing:"0.05em" }}>
-                        {league.format==="captains"?"Depth Chart":"Roster"} — {viewWeek==="season"?"Season":"Week "+viewWeek}
+                        {league.format==="captains"?"Depth Chart":"Roster"} — {viewWeek==="season"?"Season":cadenceLabel(league, viewWeek)}
                       </div>
                       {roster.length===0 ? <div style={{ color:"#4a4a6a",fontSize:12,fontStyle:"italic" }}>Empty roster</div> :
                         roster.map((c,idx)=>{
@@ -1799,7 +1825,7 @@ function TeamsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                               </div>
                               <div style={{ display:"flex",gap:14,fontSize:10,color:"#6a6a8a",marginTop:5,paddingLeft:40 }}>
                                 <span>Last: <span style={{ color:lastWk>0?"#4ecdc4":lastWk<0?"#e94560":"#6a6a8a",fontWeight:600 }}>{lastWk>0?"+":""}{formatPts(lastWk, league)}</span></span>
-                                <span>Best: <span style={{ color:"#f5a623",fontWeight:600 }}>{bestPts>0?"+":""}{formatPts(bestPts, league)}</span>{bestWk?` (Wk ${bestWk})`:""}</span>
+                                <span>Best: <span style={{ color:"#f5a623",fontWeight:600 }}>{bestPts>0?"+":""}{formatPts(bestPts, league)}</span>{bestWk?` (${cadenceShort(league)} ${bestWk})`:""}</span>
                                 <span>Season: <span style={{ fontWeight:600,color:"#ccc" }}>{formatPts(seasonPts, league)}</span></span>
                               </div>
                             </div>
@@ -2013,7 +2039,7 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
 
   function reverseWeek() {
     if ((league.currentWeek||1) <= 1) return;
-    if (!confirm("Go back to Week " + ((league.currentWeek||1)-1) + "? This won't delete any scoring data — it just moves the current week pointer back.")) return;
+    if (!confirm("Go back to " + cadenceLabel(league, (league.currentWeek||1)-1) + "? This won't delete any scoring data — it just moves the current " + cadenceWord(league).toLowerCase() + " pointer back.")) return;
     // Don't touch linked leagues — only adjust this league's week
     onUpdate({ ...league, currentWeek: (league.currentWeek||1) - 1 });
   }
@@ -2086,10 +2112,10 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
       {/* Header */}
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8 }}>
         <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>
-          {view === "events" ? "Score Episode" : view === "assign" ? "" : view === "rules" ? "Scoring Rules" : "Week Summary"}
+          {view === "events" ? `Score ${cadenceWord(league)}` : view === "assign" ? "" : view === "rules" ? "Scoring Rules" : `${cadenceWord(league)} Summary`}
         </h3>
         <Select value={selectedWeek} onChange={e=>{setSelectedWeek(e.target.value);setEdits({});setView(onUpdate?"events":"summary");setSelectedRule(null)}}
-          options={Array.from({length: onUpdate ? Math.max(league.currentWeek||1,1)+2 : Math.max(league.currentWeek||1,1)},(_,i)=>({value:String(i+1),label:`Week ${i+1}`}))} />
+          options={Array.from({length: onUpdate ? Math.max(league.currentWeek||1,1)+2 : Math.max(league.currentWeek||1,1)},(_,i)=>({value:String(i+1),label:cadenceLabel(league, i+1)}))} />
       </div>
 
       {/* View tabs */}
@@ -2112,10 +2138,10 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
         <div style={{ padding:"10px 14px",background:"#4ecdc411",borderRadius:8,border:"1px solid #4ecdc433",marginBottom:16,
           display:"flex",justifyContent:"space-between",alignItems:"center" }}>
           <div style={{ fontSize:12,color:"#4ecdc4",fontWeight:600 }}>
-            🔒 Week {selectedWeek} is finalized. Scoring is locked.
+            🔒 {cadenceLabel(league, selectedWeek)} is finalized. Scoring is locked.
           </div>
           <Btn small variant="ghost" onClick={() => {
-            if (!confirm(`Unfinalize Week ${selectedWeek}? This will re-open scoring and disable spoiler protection for this week.`)) return;
+            if (!confirm(`Unfinalize ${cadenceLabel(league, selectedWeek)}? This will re-open scoring and disable spoiler protection for this ${cadenceWord(league).toLowerCase()}.`)) return;
             const updatedStatus = { ...(league.weekStatus || {}) };
             delete updatedStatus[String(selectedWeek)];
             onUpdate({ ...league, weekStatus: updatedStatus });
@@ -2328,7 +2354,7 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
       {/* ─── SUMMARY VIEW ─── */}
       {view === "summary" && (
         <div>
-          {getSummary().length === 0 ? <EmptyState message="No scores entered for this week yet." /> : (
+          {getSummary().length === 0 ? <EmptyState message={`No scores entered for this ${cadenceWord(league).toLowerCase()} yet.`} /> : (
             <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
               {getSummary().map(c => (
                 <div key={c.id} style={{ padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
@@ -2387,15 +2413,15 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
         <div style={{ position:"sticky",bottom:16,marginTop:20,padding:"14px 16px",background:"linear-gradient(135deg,#1a0a10,#12121f)",borderRadius:14,border:"1px solid #e94560",
           display:"flex",gap:10,justifyContent:"center",alignItems:"center",boxShadow:"0 -4px 24px rgba(233,69,96,0.2)" }}>
           <Btn small variant="ghost" onClick={discardChanges}>Discard</Btn>
-          <Btn onClick={saveScores}><Icon name="save" size={14}/> Save Week {selectedWeek}</Btn>
+          <Btn onClick={saveScores}><Icon name="save" size={14}/> Save {cadenceLabel(league, selectedWeek)}</Btn>
         </div>
       ) : (
         <div style={{ display:"flex",gap:8,marginTop:20,flexWrap:"wrap" }}>
-          {(league.currentWeek||1) > 1 && <Btn variant="ghost" onClick={reverseWeek} small>← Back to Week {(league.currentWeek||1)-1}</Btn>}
-          <Btn variant="secondary" onClick={advanceWeek} small>Advance to Week {(league.currentWeek||1)+1} →</Btn>
+          {(league.currentWeek||1) > 1 && <Btn variant="ghost" onClick={reverseWeek} small>← Back to {cadenceLabel(league, (league.currentWeek||1)-1)}</Btn>}
+          <Btn variant="secondary" onClick={advanceWeek} small>Advance to {cadenceLabel(league, (league.currentWeek||1)+1)} →</Btn>
           {Object.keys(weekScores).length > 0 && !league.weekStatus?.[selectedWeek]?.finalizedAt && (
             <Btn variant="ghost" onClick={() => {
-              if (!confirm(`Finalize Week ${selectedWeek}? This enables spoiler protection for all members.`)) return;
+              if (!confirm(`Finalize ${cadenceLabel(league, selectedWeek)}? This enables spoiler protection for all members.`)) return;
               onUpdate({
                 ...league,
                 weekStatus: {
@@ -2403,10 +2429,10 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
                   [String(selectedWeek)]: { status: "finalized", finalizedAt: Date.now() }
                 }
               });
-            }} small>Finalize Week {selectedWeek}</Btn>
+            }} small>Finalize {cadenceLabel(league, selectedWeek)}</Btn>
           )}
           {league.weekStatus?.[selectedWeek]?.finalizedAt && (
-            <Badge color="#4ecdc4">Week {selectedWeek} Finalized</Badge>
+            <Badge color="#4ecdc4">{cadenceLabel(league, selectedWeek)} Finalized</Badge>
           )}
         </div>
       ))}
@@ -2495,16 +2521,16 @@ function WeeklyDraftTab({ league, onUpdate, standings }) {
   return (
     <div>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8 }}>
-        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Weekly Draft</h3>
+        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>{league.scoringCadence === "episode" ? "Episode" : "Weekly"} Draft</h3>
         <Select value={draftWeek} onChange={e=>{setDraftWeek(e.target.value);setDraftStarted(false);setCurrentPick(0)}}
-          options={Array.from({length:Math.max(league.currentWeek||1,1)+2},(_,i)=>({value:String(i+1),label:`Week ${i+1}`}))} />
+          options={Array.from({length:Math.max(league.currentWeek||1,1)+2},(_,i)=>({value:String(i+1),label:cadenceLabel(league, i+1)}))} />
       </div>
 
       {numTeams < 2 ? <EmptyState message="Need at least 2 teams to draft."/> :
        !draftStarted ? (
         <div>
           <div style={{ padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",marginBottom:16 }}>
-            <div style={{ fontSize:13,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>Week {draftWeek} Draft Setup</div>
+            <div style={{ fontSize:13,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>{cadenceLabel(league, draftWeek)} Draft Setup</div>
             <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.5 }}>
               {config.picksPerManager} picks/manager · Snake draft · {numTeams} teams · {totalPicks} total picks
               {config.genderedDraft && " · Gendered (equal per category)"}
@@ -2517,12 +2543,12 @@ function WeeklyDraftTab({ league, onUpdate, standings }) {
               })}
             </div>
           </div>
-          <Btn onClick={startDraft} style={{ width:"100%",justifyContent:"center" }}><Icon name="grid" size={14}/> Start Week {draftWeek} Draft</Btn>
+          <Btn onClick={startDraft} style={{ width:"100%",justifyContent:"center" }}><Icon name="grid" size={14}/> Start {cadenceLabel(league, draftWeek)} Draft</Btn>
         </div>
       ) : isDone ? (
         <div style={{ textAlign:"center",padding:30,background:"linear-gradient(135deg,rgba(78,205,196,0.08),rgba(233,69,96,0.08))",borderRadius:12,border:"1px solid #2a2a4a" }}>
           <div style={{ fontSize:36,marginBottom:8 }}>🎉</div>
-          <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:16,fontFamily:"'Anybody',sans-serif" }}>Week {draftWeek} Draft Complete!</div>
+          <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:16,fontFamily:"'Anybody',sans-serif" }}>{cadenceLabel(league, draftWeek)} Draft Complete!</div>
           <div style={{ marginTop:16,display:"flex",flexWrap:"wrap",justifyContent:"center",gap:6 }}>
             {(league.teams||[]).map(t => (
               <div key={t.id} style={{ padding:"8px 14px",background:"#1e1e38",borderRadius:8,fontSize:12,textAlign:"left" }}>
@@ -2888,7 +2914,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
         <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>
           {lockedToTeamId ? "My Roster" : "Depth Chart"}
         </h3>
-        <Badge color="#f5a623">Week {effectiveWeek}</Badge>
+        <Badge color="#f5a623">{cadenceLabel(league, effectiveWeek)}</Badge>
       </div>
 
       {/* Week selector for commissioners to edit past weeks */}
@@ -2898,21 +2924,21 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
             const v = e.target.value;
             setEditingWeek(v ? Number(v) : null);
           }} options={[
-            { value: "", label: "Current week (" + currentWeek + ")" },
-            ...Array.from({length:currentWeek-1},(_,i)=>({ value: String(i+1), label: "Week " + (i+1) + " (past)" })).reverse()
+            { value: "", label: "Current " + cadenceWord(league).toLowerCase() + " (" + currentWeek + ")" },
+            ...Array.from({length:currentWeek-1},(_,i)=>({ value: String(i+1), label: cadenceLabel(league, i+1) + " (past)" })).reverse()
           ]} />
         </div>
       )}
       {editingWeek && (
         <div style={{ padding:"10px 14px",background:"#e9456011",borderRadius:8,border:"1px solid #e9456033",marginBottom:14 }}>
-          <div style={{ fontSize:12,color:"#e94560",lineHeight:1.5,fontWeight:600 }}>Editing Week {editingWeek} roster for {team?.name || "this team"}. Changes will only affect this week's scoring.</div>
+          <div style={{ fontSize:12,color:"#e94560",lineHeight:1.5,fontWeight:600 }}>Editing {cadenceLabel(league, editingWeek)} roster for {team?.name || "this team"}. Changes will only affect this {cadenceWord(league).toLowerCase()}'s scoring.</div>
         </div>
       )}
 
       {/* Best Ball banner */}
       {league.bestBall && (
         <div style={{ padding:"10px 14px",background:"#4ecdc411",borderRadius:8,border:"1px solid #4ecdc433",marginBottom:14 }}>
-          <div style={{ fontSize:12,color:"#4ecdc4",lineHeight:1.5,fontWeight:600 }}>Best Ball is ON — your lineup is auto-optimized each week. The highest scorer gets Hero (2x), second gets Side-Kick (1.5x), rest get Vigilante (1x).</div>
+          <div style={{ fontSize:12,color:"#4ecdc4",lineHeight:1.5,fontWeight:600 }}>Best Ball is ON — your lineup is auto-optimized each {cadenceWord(league).toLowerCase()}. The highest scorer gets Hero (2x), second gets Side-Kick (1.5x), rest get Vigilante (1x).</div>
         </div>
       )}
 
@@ -2948,7 +2974,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
                     color:teamWeekTotal>0?"#4ecdc4":teamWeekTotal<0?"#e94560":"#6a6a8a" }}>
                     <SpoilerText active={spoilerActive}>{teamWeekTotal>0?"+":""}{formatPts(teamWeekTotal, league)}</SpoilerText>
                   </div>
-                  <div style={{ fontSize:10,color:"#6a6a8a" }}>wk {currentWeek} total</div>
+                  <div style={{ fontSize:10,color:"#6a6a8a" }}>{cadenceShort(league).toLowerCase()} {currentWeek} total</div>
                 </div>
                 <button onClick={()=>setEditingName(true)} style={{ background:"none",border:"none",color:"#6a6a8a",cursor:"pointer",padding:4 }}>
                   <Icon name="edit" size={14}/>
@@ -3039,7 +3065,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
         }}>
           <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
             <div style={{ fontSize:12,fontWeight:600,color:swapLimitReached?"#e94560":"#4ecdc4" }}>
-              Weekly Swap: {swapsMade} / 1 used
+              {league.scoringCadence === "episode" ? "Episode" : "Weekly"} Swap: {swapsMade} / 1 used
             </div>
             {swapLimitReached && <span style={{ fontSize:10,color:"#e94560" }}>Swap limit reached</span>}
           </div>
@@ -3053,7 +3079,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
 
       {currentWeek <= 1 && (
         <div style={{ padding:"10px 14px",background:"#f5a62311",borderRadius:8,border:"1px solid #f5a62333",marginBottom:14 }}>
-          <div style={{ fontSize:12,color:"#f5a623",lineHeight:1.5 }}>Week 1 — set your initial roster freely.</div>
+          <div style={{ fontSize:12,color:"#f5a623",lineHeight:1.5 }}>{cadenceLabel(league, 1)} — set your initial roster freely.</div>
         </div>
       )}
 
@@ -3101,7 +3127,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
         <div style={{ display:"flex",alignItems:"center",padding:"10px 12px",background:"#0d0d18",borderBottom:"1px solid #1e1e38" }}>
           <div style={{ width:38,fontSize:10,fontWeight:600,color:"#4a4a6a",textAlign:"center",flexShrink:0 }}>Slot</div>
           <div style={{ flex:1,fontSize:10,fontWeight:600,color:"#4a4a6a",paddingLeft:10 }}>Player</div>
-          <div style={{ width:46,fontSize:10,fontWeight:600,color:"#4a4a6a",textAlign:"right" }}>Wk {effectiveWeek}</div>
+          <div style={{ width:46,fontSize:10,fontWeight:600,color:"#4a4a6a",textAlign:"right" }}>{cadenceShort(league)} {effectiveWeek}</div>
         </div>
         <RosterRow label="H" slot="captain" currentId={localChart.captain} multiplierLabel="2×" multiplierNum={2} color="#f5a623" />
         <RosterRow label="SK" slot="coCaptain" currentId={localChart.coCaptain} multiplierLabel="1.5×" multiplierNum={1.5} color="#4ecdc4" />
@@ -3211,7 +3237,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
                 borderRadius:10,border:isCurrentWeek?"1px solid #2a2a4a":"1px solid #1a1a30" }}>
                 <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
                   <div style={{ fontSize:13,fontWeight:700,color:"#e8e8f0" }}>
-                    Week {w}{isCurrentWeek ? " (current)" : ""}
+                    {cadenceLabel(league, w)}{isCurrentWeek ? " (current)" : ""}
                   </div>
                   <SpoilerText active={spoilerActive}>
                     <span style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:15,
@@ -3290,7 +3316,7 @@ function SurvivorPoolTab({ league, onUpdate, loggedInTeamId, isCommissioner }) {
           <div style={{margin:"0 auto 12px"}}><ContestantAvatar contestant={myContestant} league={league} size={56} /></div>
           <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:22,fontWeight:800,color:isEliminated?"#e94560":"#4ecdc4" }}>{myContestant.name}</div>
           <div style={{ fontSize:13,color:isEliminated?"#e94560":"#4ecdc4",marginTop:4 }}>
-            {isEliminated ? "ELIMINATED" + (myContestant.eliminatedWeek ? " — Week " + myContestant.eliminatedWeek : "") + " — YOU'RE OUT" : "STILL ALIVE"}
+            {isEliminated ? "ELIMINATED" + (myContestant.eliminatedWeek ? " — " + cadenceLabel(league, myContestant.eliminatedWeek) : "") + " — YOU'RE OUT" : "STILL ALIVE"}
           </div>
           {canChange && <Btn small variant="ghost" onClick={()=>setPick(null)} style={{marginTop:12}}>Change Pick</Btn>}
         </div>
@@ -3506,14 +3532,14 @@ function EliminationPoolTab({ league, onUpdate, loggedInTeamId, isCommissioner }
   return (
     <div>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
-        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Weekly Pick</h3>
-        <Badge color="#f5a623">Week {currentWeek}</Badge>
+        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>{league.scoringCadence === "episode" ? "Episode" : "Weekly"} Pick</h3>
+        <Badge color="#f5a623">{cadenceLabel(league, currentWeek)}</Badge>
       </div>
-      <div style={{ fontSize:13,color:"#6a6a8a",marginBottom:16 }}>Pick one contestant you think will survive this week. You can't reuse picks.</div>
+      <div style={{ fontSize:13,color:"#6a6a8a",marginBottom:16 }}>Pick one contestant you think will survive this {cadenceWord(league).toLowerCase()}. You can't reuse picks.</div>
 
       {currentPick ? (
         <div style={{ padding:"16px",background:"#0a1a18",borderRadius:12,border:"1px solid #4ecdc444",textAlign:"center",marginBottom:16 }}>
-          <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:6 }}>Your pick for Week {currentWeek}:</div>
+          <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:6 }}>Your pick for {cadenceLabel(league, currentWeek)}:</div>
           <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:20,fontWeight:800,color:"#4ecdc4" }}>{allContestants.find(c=>c.id===currentPick)?.name || "Unknown"}</div>
           {!league.rostersLocked && <Btn small variant="ghost" onClick={()=>makePick(null)} style={{marginTop:8}}>Change</Btn>}
         </div>
@@ -3542,7 +3568,7 @@ function EliminationPoolTab({ league, onUpdate, loggedInTeamId, isCommissioner }
               const survived = !c || c.status !== "eliminated" || (c.eliminatedWeek && c.eliminatedWeek > Number(wk));
               return (
                 <div key={wk} style={{ display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderRadius:8,background:"#12121f",border:"1px solid #1e1e38" }}>
-                  <Badge color="#6a6a8a">Wk {wk}</Badge>
+                  <Badge color="#6a6a8a">{cadenceShort(league)} {wk}</Badge>
                   <span style={{ flex:1,color:"#e8e8f0",fontSize:13,fontWeight:600 }}>{c?.name||"?"}</span>
                   <span style={{ fontSize:12,fontWeight:700,color:survived?"#4ecdc4":"#e94560" }}>{survived?"+3":"-5"}</span>
                 </div>
@@ -3576,11 +3602,11 @@ function PredictionsPlayerTab({ league, onUpdate, loggedInTeamId }) {
     <div>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
         <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Predictions</h3>
-        <Badge color="#f5a623">Week {currentWeek}</Badge>
+        <Badge color="#f5a623">{cadenceLabel(league, currentWeek)}</Badge>
       </div>
 
       {questions.length === 0 ? (
-        <EmptyState message="No questions posted yet for this week. Check back before the episode!" />
+        <EmptyState message={`No questions posted yet for this ${cadenceWord(league).toLowerCase()}. Check back before the episode!`} />
       ) : (
         <div style={{ display:"flex",flexDirection:"column",gap:12 }}>
           {questions.map((q,qi) => (
@@ -3678,7 +3704,7 @@ function PredictionsCommishTab({ league, onUpdate }) {
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
         <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Manage Questions</h3>
         <Select value={selectedWeek} onChange={e=>setSelectedWeek(e.target.value)}
-          options={Array.from({length:Math.max(league.currentWeek||1,1)+2},(_,i)=>({value:String(i+1),label:"Week "+(i+1)}))} />
+          options={Array.from({length:Math.max(league.currentWeek||1,1)+2},(_,i)=>({value:String(i+1),label:cadenceLabel(league, i+1)}))} />
       </div>
 
       {/* Existing questions */}
@@ -3709,7 +3735,7 @@ function PredictionsCommishTab({ league, onUpdate }) {
       {/* Add new question */}
       <div style={{ padding:"14px 16px",background:"#0d0d18",borderRadius:12,border:"1px solid #1e1e38" }}>
         <div style={{ fontSize:13,fontWeight:700,color:"#f0f0f5",marginBottom:10 }}>Add Question</div>
-        <Input label="Question" placeholder='e.g. "Who gets eliminated this week?"' value={newText} onChange={e=>setNewText(e.target.value)} />
+        <Input label="Question" placeholder={`e.g. "Who gets eliminated this ${cadenceWord(league).toLowerCase()}?"`} value={newText} onChange={e=>setNewText(e.target.value)} />
         <div style={{ display:"flex",gap:10,marginBottom:14 }}>
           <Select label="Type" value={newType} onChange={e=>setNewType(e.target.value)} options={[
             {value:"pick_one",label:"Pick One"},{value:"yes_no",label:"Yes / No"},
@@ -3739,7 +3765,7 @@ function EliminateRow({ contestant, league, onUpdate }) {
           <span style={{ color:"#e94560",fontSize:13,fontWeight:600 }}>Eliminate {contestant.name}?</span>
         </div>
         <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-          <label style={{ color:"#8888aa",fontSize:12 }}>Week:</label>
+          <label style={{ color:"#8888aa",fontSize:12 }}>{cadenceWord(league)}:</label>
           <input type="number" min="1" value={week} onChange={e=>setWeek(e.target.value)} style={{
             width:60,padding:"5px 8px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:4,
             color:"#e8e8f0",fontSize:13,textAlign:"center",fontFamily:"'Outfit',sans-serif",
@@ -4023,7 +4049,7 @@ function ImportXLSXSection({ league, onUpdate }) {
     <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
       <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:4 }}>Import from XLSX</div>
       <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:10,lineHeight:1.4 }}>
-        Upload your league spreadsheet. Reads: Scoring rules, Scoring Table (weekly scores), Teams (depth charts), Contestants (status, tribes). Existing bios are preserved.
+        Upload your league spreadsheet. Reads: Scoring rules, Scoring Table (per-{cadenceWord(league).toLowerCase()} scores), Teams (depth charts), Contestants (status, tribes). Existing bios are preserved.
       </div>
       <input type="file" accept=".xlsx,.xls" onChange={handleFile}
         style={{ fontSize:12,color:"#8888aa",marginBottom:8,display:"block" }} />
@@ -4037,9 +4063,9 @@ function ImportXLSXSection({ league, onUpdate }) {
             {d.scoringRules.length > 0 && <Badge color="#4ecdc4">{d.scoringRules.length} scoring rules</Badge>}
             {d.contestants.length > 0 && <Badge color="#4ecdc4">{d.contestants.length} contestants</Badge>}
             {Object.keys(d.teams).length > 0 && <Badge color="#4ecdc4">{Object.keys(d.teams).length} teams</Badge>}
-            {Object.keys(d.weeklyScores).length > 0 && <Badge color="#f5a623">{Object.keys(d.weeklyScores).length} weeks of scores</Badge>}
+            {Object.keys(d.weeklyScores).length > 0 && <Badge color="#f5a623">{Object.keys(d.weeklyScores).length} {cadenceWord(league).toLowerCase()}s of scores</Badge>}
             {Object.keys(d.tribes).length > 0 && <Badge color="#c44bbe">{Object.keys(d.tribes).length} tribes</Badge>}
-            {d.maxWeek > 0 && <Badge color="#6a6a8a">Through wk {d.maxWeek}</Badge>}
+            {d.maxWeek > 0 && <Badge color="#6a6a8a">Through {cadenceShort(league).toLowerCase()} {d.maxWeek}</Badge>}
           </div>
 
           {d.contestants.length > 0 && (
@@ -4064,7 +4090,7 @@ function ImportXLSXSection({ league, onUpdate }) {
 
           <div style={{ padding:"8px 12px",background:"#f5a62311",borderRadius:6,border:"1px solid #f5a62333",marginBottom:12 }}>
             <div style={{ fontSize:11,color:"#f5a623",lineHeight:1.4 }}>
-              This will replace scoring rules, weekly scores, teams, and contestant status. Existing bios will be preserved. This cannot be undone.
+              This will replace scoring rules, per-{cadenceWord(league).toLowerCase()} scores, teams, and contestant status. Existing bios will be preserved. This cannot be undone.
             </div>
           </div>
 
@@ -4134,7 +4160,7 @@ function LinkedScoringSection({ league, allLeagues, onUpdate }) {
             return linked ? (
               <div style={{ marginTop:8,padding:"8px 12px",background:"#4ecdc411",borderRadius:6,border:"1px solid #4ecdc433" }}>
                 <div style={{ fontSize:12,color:"#4ecdc4" }}>Linked to: {linked.name} ({linked.seasonName})</div>
-                <div style={{ fontSize:10,color:"#6a6a8a",marginTop:4 }}>Scoring, eliminations, and week advances sync both ways.</div>
+                <div style={{ fontSize:10,color:"#6a6a8a",marginTop:4 }}>Scoring, eliminations, and {cadenceWord(league).toLowerCase()} advances sync both ways.</div>
                 <Btn small variant="ghost" style={{marginTop:6}} onClick={()=>onUpdate({...league, linkedLeagueId: null})}>Unlink</Btn>
               </div>
             ) : null;
@@ -4210,7 +4236,7 @@ function FinalLockInCommishPanel({ league, onUpdate }) {
   }
 
   function cancelLockIn() {
-    if (!confirm("Cancel Final Lock-In entirely?\n\nThis closes lock-in and clears ALL locked rosters on every team. Normal weekly swapping resumes.")) return;
+    if (!confirm(`Cancel Final Lock-In entirely?\n\nThis closes lock-in and clears ALL locked rosters on every team. Normal ${league.scoringCadence === "episode" ? "per-episode" : "weekly"} swapping resumes.`)) return;
     const updatedTeams = teams.map(t => ({ ...t, lockedRoster: null, lockInConfirmedAt: null }));
     onUpdate({ ...league, teams: updatedTeams, lockInStatus: "closed", lockInOpenedWeek: null, lockInOpenedAt: null });
   }
@@ -4240,7 +4266,7 @@ function FinalLockInCommishPanel({ league, onUpdate }) {
   return (
     <div style={{ marginBottom:20,padding:"16px",background:"#f5a62311",borderRadius:10,border:"1px solid #f5a62333" }}>
       <div style={{ fontSize:14,fontWeight:700,color:"#f5a623",display:"flex",alignItems:"center",gap:6 }}>
-        🔒 Final Lock-In: {status === "locked" ? "LOCKED" : "OPEN"}{league.lockInOpenedWeek ? ` (since Week ${league.lockInOpenedWeek})` : ""}
+        🔒 Final Lock-In: {status === "locked" ? "LOCKED" : "OPEN"}{league.lockInOpenedWeek ? ` (since ${cadenceLabel(league, league.lockInOpenedWeek)})` : ""}
       </div>
       <div style={{ marginTop:10,display:"flex",flexDirection:"column",gap:4 }}>
         {teams.map(t => {
@@ -4280,7 +4306,7 @@ function SpoilerProtectionEditor({ league, onUpdate }) {
     <div style={{ padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
       <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>Spoiler Protection</div>
       <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:10,lineHeight:1.4 }}>
-        After you finalize a week's scores, members won't see results until they choose to reveal them or the grace period expires.
+        After you finalize {league?.scoringCadence === "episode" ? "an episode's" : "a week's"} scores, members won't see results until they choose to reveal them or the grace period expires.
       </div>
       <Input label="Grace Period (hours)" type="number" value={hours}
         onChange={e => setHours(Number(e.target.value) || 48)} />
@@ -4362,7 +4388,7 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
               <span style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>{league.seasonName}</span>
             </div>
             <div style={{ display:"flex",justifyContent:"space-between",padding:"6px 0" }}>
-              <span style={{ color:"#6a6a8a",fontSize:12 }}>Current Week</span>
+              <span style={{ color:"#6a6a8a",fontSize:12 }}>Current {cadenceWord(league)}</span>
               <span style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>{league.currentWeek}</span>
             </div>
           </div>
@@ -4437,7 +4463,7 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
               <div key={c.id} style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #1a1a30" }}>
                 <div style={{ flex:1 }}>
                   <span style={{ color:"#6a6a8a",fontSize:13 }}>{c.name}</span>
-                  {c.eliminatedWeek && <span style={{ color:"#e94560",fontSize:10,marginLeft:6 }}>Week {c.eliminatedWeek}</span>}
+                  {c.eliminatedWeek && <span style={{ color:"#e94560",fontSize:10,marginLeft:6 }}>{cadenceLabel(league, c.eliminatedWeek)}</span>}
                 </div>
                 <Btn small variant="ghost" onClick={()=>onUpdate({...league,contestants:league.contestants.map(x=>x.id===c.id?{...x,status:"active",eliminatedWeek:null}:x)})}>Reinstate</Btn>
               </div>
@@ -4680,7 +4706,7 @@ function JoinConfirmModal({ pendingJoin, onConfirm, onCancel, displayName, error
       <div style={{ display:"flex",flexWrap:"wrap",gap:8,marginBottom:16 }}>
         <Badge color={showInfo.color||"#9d5dff"}>{formatInfo.name || league.format}</Badge>
         <Badge color="#6a6a8a">{teamCount} team{teamCount !== 1 ? "s" : ""}</Badge>
-        <Badge color="#6a6a8a">Week {league.currentWeek || 1}</Badge>
+        <Badge color="#6a6a8a">{cadenceLabel(league, league.currentWeek || 1)}</Badge>
       </div>
       <div style={{ padding:"12px 14px",background:"#0d0d18",borderRadius:10,border:"1px solid #1e1e38",marginBottom:20 }}>
         <div style={{ color:"#8888aa",fontSize:12 }}>
@@ -5333,10 +5359,10 @@ function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }
                 <div>
                   <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>{league.name}</div>
                   <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>
-                    {league.seasonName} · {league.format} · {(league.teams||[]).length} teams · {(league.contestants||[]).length} contestants · Wk {league.currentWeek||1}
+                    {league.seasonName} · {league.format} · {(league.teams||[]).length} teams · {(league.contestants||[]).length} contestants · {cadenceShort(league)} {league.currentWeek||1}
                   </div>
                   <div style={{ fontSize:10,color:"#4a4a6a",marginTop:2 }}>
-                    {Object.keys(league.weeklyScores||{}).length} weeks scored
+                    {Object.keys(league.weeklyScores||{}).length} {cadenceWord(league).toLowerCase()}s scored
                     {league.linkedLeagueId && <span style={{ color:"#4ecdc4",marginLeft:8 }}>Linked</span>}
                     {league.commissionerUid && <span style={{ color:"#f5a623",marginLeft:8 }}>Has commissioner</span>}
                   </div>
@@ -5398,7 +5424,7 @@ function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }
             leagues.forEach(l => {
               // Score saves
               Object.keys(l.weeklyScores||{}).forEach(w => {
-                entries.push({ time: l.createdAt + Number(w)*86400000, type: "scoring", desc: `Week ${w} scored`, league: l.name });
+                entries.push({ time: l.createdAt + Number(w)*86400000, type: "scoring", desc: `${cadenceLabel(l, w)} scored`, league: l.name });
               });
               // League creation
               if (l.createdAt) entries.push({ time: l.createdAt, type: "create", desc: "League created", league: l.name });
@@ -5821,7 +5847,7 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
                     }}>{SHOW_PRESETS[league.showType]?.emoji||"TV"}</div>
                     <div style={{ flex:1 }}>
                       <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:15,fontFamily:"'Anybody',sans-serif" }}>{league.name}</div>
-                      <div style={{ color:"#6a6a8a",fontSize:12,marginTop:2 }}>{league.seasonName} · Wk {league.currentWeek||1} · {(league.teams||[]).length} team{(league.teams||[]).length!==1?"s":""}{league.commissionerUid === user?.uid && !isAdmin ? " · Commissioner" : ""}</div>
+                      <div style={{ color:"#6a6a8a",fontSize:12,marginTop:2 }}>{league.seasonName} · {cadenceShort(league)} {league.currentWeek||1} · {(league.teams||[]).length} team{(league.teams||[]).length!==1?"s":""}{league.commissionerUid === user?.uid && !isAdmin ? " · Commissioner" : ""}</div>
                       {myTeam && (()=>{
                         const standings = calcStandings(league);
                         const myRank = standings.findIndex(t=>t.id===myTeam.id) + 1;

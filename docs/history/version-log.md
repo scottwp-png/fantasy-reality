@@ -1,7 +1,7 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.3.0
+**Current Production Version:** v2.4.4.0
 **Last Deploy Date:** 2026-05-09
 **App.jsx Line Count:** ~5,860
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
@@ -22,6 +22,18 @@
 ---
 
 ## Version Log
+
+### v2.4.4.0 — 2026-05-09
+Label-only refactor behind `scoringCadence` flag. No behavior change in default-weekly mode. All 10 regression baselines pass.
+- Add `cadenceWord(league)`, `cadenceShort(league)`, `cadenceLabel(league, n)` helpers in `src/App.jsx` (alongside `isLockInEligible` cluster). UI strings only — `src/scoring.js` stays pure data-transform per the no-go-zone rule.
+- Helpers default to "Week"/"Wk" when `league.scoringCadence` is missing or `"weekly"`; emit "Episode"/"Ep" when explicitly `"episode"`. `cadenceLabel(league, null)` returns just the unit word so call sites tolerate missing `n`. Helper block carries an explicit comment that `cadenceShort` does NOT derive from `cadenceWord` via `.slice(0,2)` (would yield the wrong "We" for "Week").
+- Replaced ~80 hardcoded "Week N", "Wk N", "Weekly X", "this week", "each week", and lower-case "weekly" user-facing strings across Scoring tab, Standings, Roster/Depth-Chart tab, Weekly Draft, Weekly Pick (elim_pool), Survivor Pool, Predictions, Lock-In banner, Spoiler Protection settings, Best Ball banner, Admin overview, Activity feed, XLSX import dialog, league-link description, and the spoiler-blur overlay. Variable names (`weeklyScores`, `weekStatus`, `eliminatedWeek`, `currentWeek`, `lastWeekPts`, `bestWk`, etc.), function names (`WeeklyDraftTab`, `WeeklyBreakdownSection`, `reverseWeek`, `advanceWeek`), tab IDs (`weekly-pick`, `weekly-draft`), and code comments untouched.
+- Added `scoringCadence` to every `SHOW_PRESETS` entry: `"weekly"` for survivor, top_chef, bake_off, the_traitors, the_bachelor, the_challenge, drag_race, amazing_race, love_is_blind, custom; `"episode"` for big_brother, love_island.
+- Six asymmetric "Weekly X" / "Episode X" sites use inline ternaries (per design — no `cadenceAdj` helper because "Weekly paired matchups" → "Per-episode paired matchups" doesn't share a clean adjective form): H2H matchup description in league-create, elimination_pool tab label, Weekly Draft section title, Weekly Swap tracker, Weekly Pick section title, and the lock-in cancellation confirm message. League-create form sites use `SHOW_PRESETS[showType]?.scoringCadence` since no `league` exists yet.
+- **Note:** existing weekly-cadence leagues will see "Score Week" on the Score-Events tab title instead of "Score Episode" (which was incorrect copy regardless of cadence — pre-existing inconsistency where `view === "events"` rendered "Score Episode" while `view === "summary"` rendered "Week Summary"). Both now use `cadenceWord(league)` so the labels match.
+- **Out of scope (deferred to Phase 2 carryover in BACKLOG.md):** FORMAT_INFO descriptions ("Weekly snake redraft…"), the FAQ format-explanation paragraph, and the site-announcement placeholder example are global / pre-league marketing copy with no `league` or selected `showType` context. Will revisit when cadence toggle ships in league-create / league-settings UI.
+- No UI exposure for the toggle yet — Phase 1 wires the helper and presets only; league-create form and settings UI are Phase 2 work.
+- Verified `node _snapshots/diff-against-baseline.mjs` → all 10 baselines (9 synthetic + sanitized real-league) byte-identical pre/post. `npm run build` clean (2.82s).
 
 ### v2.4.3.0 — 2026-05-09
 Extract scoring engine to `src/scoring.js` (no behavior change). Pure infrastructure commit — enables the regression harness for upcoming per-episode scoring cadence work.
