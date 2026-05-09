@@ -32,6 +32,7 @@ Full tech-stack table, key-file inventory, and important constants live in [docs
 ## Conventions actually in use
 
 - **One-file React app.** `App.jsx` holds all components, hooks, scoring rules, and screens. Don't split it without explicit go-ahead — the codebase has been intentionally kept this way through v2.4.x.
+  - Scoring engine (`calcContestantWeekPoints`, `calcTeamWeekPoints`, `calcStandings`, plus their helpers) lives in [src/scoring.js](src/scoring.js). This is the one extracted module from App.jsx — it's pure data-transform with no React/JSX/UI, used by both App.jsx and the regression harness in `_snapshots/`. The single-file rule still applies to UI components and state management.
 - **State management:** local React hooks (`useState` / `useMemo` / `useCallback` / `useRef`). No Redux, no Context provider tree, no Zustand. Persistence goes through [src/firebase.js](src/firebase.js).
 - **DB writes:** prefer `saveLeague(league)` (granular `update()` on a single league path) over `saveAllLeagues(leagues)` (bulk replace). The bulk version caused a race condition fixed in v2.1.0.0 — see [docs/architecture/firebase.md](docs/architecture/firebase.md). Use `saveAllLeagues` **only** for join-via-invite, create/duplicate league, and admin bulk ops.
 - **DB paths:** app data is namespaced under `frtv/`. User profiles live at `frtv_users/<uid>`. See [docs/architecture/data-model.md](docs/architecture/data-model.md).
@@ -50,7 +51,7 @@ Full tech-stack table, key-file inventory, and important constants live in [docs
 - Don't edit [dist/](dist/) — it's the build output.
 - Don't commit `.env*`, service-account JSON, or RTDB exports.
 - Don't push directly to `main` without a clean local `npm run build`.
-- Don't refactor [src/App.jsx](src/App.jsx) into multiple files without explicit ask.
+- Don't refactor [src/App.jsx](src/App.jsx) into more files without explicit ask. The scoring-engine carve-out in [src/scoring.js](src/scoring.js) is the only sanctioned split — see Conventions above.
 - The Firebase web config in [src/firebase.js](src/firebase.js) is **intentional and public-safe** — actual access control is in `database.rules.json`. Do not "fix" it by extracting to env vars.
 - Don't add Firestore — this app is RTDB end-to-end.
 - Don't introduce Cloud Functions, Firebase Hosting, or Firebase Storage without a design discussion first.

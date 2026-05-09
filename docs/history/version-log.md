@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.2.2
-**Last Deploy Date:** 2026-04-07
-**App.jsx Line Count:** ~6,065
+**Current Production Version:** v2.4.3.0
+**Last Deploy Date:** 2026-05-09
+**App.jsx Line Count:** ~5,860
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,14 @@
 ---
 
 ## Version Log
+
+### v2.4.3.0 — 2026-05-09
+Extract scoring engine to `src/scoring.js` (no behavior change). Pure infrastructure commit — enables the regression harness for upcoming per-episode scoring cadence work.
+- Pure line-move: `calcContestantWeekPoints`, `calcTeamWeekPoints`, `calcStandings` (~205 lines) moved from `src/App.jsx` to `src/scoring.js`. App.jsx imports the trio; no call-site changes; UI logic untouched.
+- CLAUDE.md: scoring-engine carve-out documented under the "One-file React app" convention; one-file rule still applies to UI components and state management.
+- Smoke-tested via `_snapshots/` harness — byte-identical `calcStandings` JSON output across 7 synthetic leagues (captains, standard, standard+roto, survivor_pool, elimination_pool, salary_cap, predictions) pre vs post extraction. `npm run build` clean (2.74s).
+- Build warnings: pre-existing dynamic+static-import notices on `firebase/auth` and `src/firebase.js` are unchanged by this commit — present on `main` before extraction, out of scope here.
+- **Commit:** _pending_
 
 ### v2.4.2.0 → v2.4.2.2 — 2026-04-07
 Final Lock-In (Heroes) — end-of-season roster lock with same-day UX polish

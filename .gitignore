@@ -6,5 +6,9 @@ dist
 # Local data dumps — xlsx, csv, RTDB exports kept out of git
 _data/
 
+# Regression-harness scaffold (synthetic inputs, captured baselines, scoring-pre
+# temp file). Local-only tooling; everything regenerable from src/scoring.js.
+_snapshots/
+
 # Claude Code per-project settings/cache
 .claude/

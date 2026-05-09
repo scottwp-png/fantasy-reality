@@ -5,6 +5,9 @@ dist/
 # Local data dumps (xlsx, csv, RTDB exports) live here, not source
 _data/
 
+# Regression-harness scaffold for scoring engine (gitignored too)
+_snapshots/
+
 # Production-paperwork docx (cast/crew/location releases) — TV concept, not app code
 Assets/
 
