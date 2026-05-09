@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.5.0
+**Current Production Version:** v2.4.6.0
 **Last Deploy Date:** 2026-05-09
-**App.jsx Line Count:** ~5,929
+**App.jsx Line Count:** ~5,961
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,17 @@
 ---
 
 ## Version Log
+
+### v2.4.6.0 — 2026-05-09
+Cadence is now configurable per-league for the first time. Phase 2 Commit B of per-episode scoring cadence work — exposes the `scoringCadence` toggle to two UI surfaces (league-create `CreateLeagueScreen` and league-settings `SettingsTab`). Phase 1 wired the helpers + presets behind a flag; Commit A (v2.4.5.0) added the `episodes[]` data model; Commit B is what users actually see. All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **CreateLeagueScreen toggle** — new "Per-Episode Scoring" checkbox inserted as the first item in the Settings toggles section (above H2H). Visual pattern matches the H2H toggle: label-wrapped checkbox, `padding:"12px 14px"`, `background:"#12121f"`, `borderRadius:10`, `border:"1px solid #1e1e38"`, 18px checkbox at `#e94560`, 13pt title, 11pt `#6a6a8a` description. New local `scoringCadence` state defaults to `SHOW_PRESETS["survivor"]?.scoringCadence` (initial showType). Persisted into the new league via `handleSave`.
+- **SettingsTab card** — new "Scoring Rhythm" card inserted in the General section between Linked Scoring and the Format card. Outer card matches the canonical SettingsTab pattern (`marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38"`) — same pattern as 11 other cards in SettingsTab. Reads from `league.scoringCadence`; persists via `onUpdate({...league, scoringCadence: <new>})` which bubbles to `saveLeague`.
+- **Microcopy** below each control (identical text on both surfaces): _"You can change this later. Switching mid-season may change weekly rollup behavior — recommended for new leagues."_ Rendered as 11pt italic `#6a6a8a` with `lineHeight:1.4`.
+- **Preset cascade** — extended the existing `useEffect` at `App.jsx:622-631`. When `showType` changes, the cascade now also runs `setScoringCadence(preset.scoringCadence || "weekly")` alongside the existing `setFormat` and `setScoringRules` calls. Manual toggle override persists until the user changes `showType` again, at which point the preset re-asserts. Inline comment at lines 627-628 documents the semantics.
+- **Heroes config inline ternary fix** — Phase 1 introduced inline ternaries reading `SHOW_PRESETS[showType]?.scoringCadence` for three CreateLeagueScreen sites: the standard-config "Picks Per Manager (per week/episode)" label, the H2H description, and the Best Ball description. With the toggle now exposing manual override, those three labels would show stale copy if the user flipped the toggle without changing `showType`. Switched all three to read from local `scoringCadence` state. Post-fix audit: `grep -n "SHOW_PRESETS\[showType\]\?\.scoringCadence" src/App.jsx` returns zero hits — every in-scope reference now reads from local state. Out-of-scope inline ternaries (six sites reading `league.scoringCadence` against saved leagues) unchanged.
+- `src/scoring.js` untouched. `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.82s).
+- Legacy leagues without `scoringCadence` continue to default to `"weekly"` via the helper fallback. `league.scoringCadence === undefined` is treated identically to `"weekly"` everywhere it's read. No migration.
+- **Commit:** `_pending_`
 
 ### v2.4.5.0 — 2026-05-09
 Phase 2 Commit A of per-episode scoring cadence work. Adds `league.episodes` metadata model with lazy-seed helper. Pure data-model addition — no UI consumers, no scoring impact. All 10 regression baselines pass byte-identical with synthetic JSONs unchanged.

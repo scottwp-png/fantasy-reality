@@ -605,6 +605,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
   const [salaryBudget, setSalaryBudget] = useState(100);
   const [rotoScoring, setRotoScoring] = useState(false);
   const [decimalScoring, setDecimalScoring] = useState(true);
+  const [scoringCadence, setScoringCadence] = useState(SHOW_PRESETS["survivor"]?.scoringCadence || "weekly");
   const [scoringRules, setScoringRules] = useState([]);
 
   // Step 3: Teams
@@ -623,6 +624,9 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
     if (preset) {
       setFormat(preset.defaultFormat);
       setScoringRules(DEFAULT_SCORING_RULES.filter(r => preset.scoringDefaults.includes(r.id)));
+      // Cadence cascades from showType. Manual override (via the toggle) persists
+      // until the user changes showType again, at which point the preset wins.
+      setScoringCadence(preset.scoringCadence || "weekly");
     }
   }, [showType]);
 
@@ -669,6 +673,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
       rotoScoring,
       decimalScoring,
       bestBall: format === "captains" ? bestBall : false,
+      scoringCadence,
       scoringRules,
       contestants: [],
       teams,
@@ -765,7 +770,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
           {format === "standard" && (
             <div style={{ padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",marginBottom:16 }}>
               <div style={{ fontSize:12,fontWeight:600,color:"#4ecdc4",marginBottom:10 }}>STANDARD CONFIG</div>
-              <Input label={`Picks Per Manager (per ${SHOW_PRESETS[showType]?.scoringCadence === "episode" ? "episode" : "week"})`} type="number" min="1" max="10" value={picksPerManager} onChange={e=>setPicksPerManager(e.target.value)} />
+              <Input label={`Picks Per Manager (per ${scoringCadence === "episode" ? "episode" : "week"})`} type="number" min="1" max="10" value={picksPerManager} onChange={e=>setPicksPerManager(e.target.value)} />
               <label style={{ display:"flex",alignItems:"center",gap:8,cursor:"pointer",color:"#ccc",fontSize:13 }}>
                 <input type="checkbox" checked={genderedDraft} onChange={e=>setGenderedDraft(e.target.checked)} style={{ accentColor:"#e94560" }} />
                 Gendered draft (equal picks per gender category)
@@ -776,12 +781,24 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
           {/* Settings toggles */}
           <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:8,marginTop:8,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>League Settings</label>
           <div style={{ display:"flex",flexDirection:"column",gap:8,marginBottom:16 }}>
+            <div>
+              <label style={{ display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",cursor:"pointer" }}>
+                <input type="checkbox" checked={scoringCadence === "episode"} onChange={e=>setScoringCadence(e.target.checked ? "episode" : "weekly")} style={{ accentColor:"#e94560",width:18,height:18 }} />
+                <div>
+                  <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>Per-Episode Scoring</div>
+                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>Score each episode individually. Best for shows that air multiple times per week (Big Brother, Love Island). Off = one rollup per week.</div>
+                </div>
+              </label>
+              <div style={{ fontSize:11,color:"#6a6a8a",marginTop:6,marginLeft:2,fontStyle:"italic",lineHeight:1.4 }}>
+                You can change this later. Switching mid-season may change weekly rollup behavior — recommended for new leagues.
+              </div>
+            </div>
             {featureFlags?.h2h!==false && (format === "standard" || format === "captains") && (
               <label style={{ display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",cursor:"pointer" }}>
                 <input type="checkbox" checked={headToHead} onChange={e=>setHeadToHead(e.target.checked)} style={{ accentColor:"#e94560",width:18,height:18 }} />
                 <div>
                   <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>Head-to-Head Matchups <span style={{ fontSize:10,color:"#f5a623",marginLeft:6,fontWeight:700 }}>PREVIEW</span></div>
-                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>{SHOW_PRESETS[showType]?.scoringCadence === "episode" ? "Per-episode" : "Weekly"} paired matchups. W/L record determines standings instead of total points.</div>
+                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>{scoringCadence === "episode" ? "Per-episode" : "Weekly"} paired matchups. W/L record determines standings instead of total points.</div>
                 </div>
               </label>
             )}
@@ -790,7 +807,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
                 <input type="checkbox" checked={bestBall} onChange={e=>setBestBall(e.target.checked)} style={{ accentColor:"#e94560",width:18,height:18 }} />
                 <div>
                   <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>Best Ball <span style={{ fontSize:10,color:"#f5a623",marginLeft:6,fontWeight:700 }}>PREVIEW</span></div>
-                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>Auto-optimizes your lineup each {SHOW_PRESETS[showType]?.scoringCadence === "episode" ? "episode" : "week"}. No roster management needed — just draft well.</div>
+                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>Auto-optimizes your lineup each {scoringCadence === "episode" ? "episode" : "week"}. No roster management needed — just draft well.</div>
                 </div>
               </label>
             )}
@@ -4453,6 +4470,21 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
 
       {/* Linked Scoring */}
       <LinkedScoringSection league={league} allLeagues={allLeagues} onUpdate={onUpdate} />
+
+      {/* Scoring Rhythm */}
+      <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+        <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:12 }}>Scoring Rhythm</div>
+        <label style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38",cursor:"pointer" }}>
+          <input type="checkbox" checked={league.scoringCadence === "episode"} onChange={e=>onUpdate({...league, scoringCadence: e.target.checked ? "episode" : "weekly"})} style={{ accentColor:"#e94560",width:18,height:18 }} />
+          <div>
+            <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>Per-Episode Scoring</div>
+            <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>Score each episode individually. Best for shows that air multiple times per week (Big Brother, Love Island). Off = one rollup per week.</div>
+          </div>
+        </label>
+        <div style={{ fontSize:11,color:"#6a6a8a",marginTop:10,fontStyle:"italic",lineHeight:1.4 }}>
+          You can change this later. Switching mid-season may change weekly rollup behavior — recommended for new leagues.
+        </div>
+      </div>
 
       <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
         <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>
