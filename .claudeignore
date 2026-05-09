@@ -1,0 +1,21 @@
+# Build output and dependencies — never useful as Claude context
+node_modules/
+dist/
+
+# Local data dumps (xlsx, csv, RTDB exports) live here, not source
+_data/
+
+# Production-paperwork docx (cast/crew/location releases) — TV concept, not app code
+Assets/
+
+# Landing-page source — separate Netlify site, deployed manually
+landing_page/
+
+# Local secrets / env
+.env
+.env.*
+*.local
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
