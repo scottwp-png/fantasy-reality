@@ -37,7 +37,7 @@ After finalizing a week or episode, commissioners now see an inline "Score [next
 - **Out-of-scope decisions** — bottom-of-tab "Advance to {next} →" button at `App.jsx:2491` stays as-is. There's slight redundancy with the new banner's Advance button when both are visible (banner = post-finalize nudge; bottom button = always-on neutral-state action), but refactoring is out of scope for Commit C.
 - **Browser smoke** — verified all four observable states (hidden when unfinalized, visible with correct copy when finalized, disappears on Advance, disappears on Unfinalize) plus visual stack with locked banner. Stack reads clean; mobile wrap degrades gracefully.
 - `src/scoring.js` untouched. `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.56s).
-- **Commit:** `_pending_`
+- **Commit:** `d93dcfc`
 
 ### v2.4.6.0 — 2026-05-09
 Cadence is now configurable per-league for the first time. Phase 2 Commit B of per-episode scoring cadence work — exposes the `scoringCadence` toggle to two UI surfaces (league-create `CreateLeagueScreen` and league-settings `SettingsTab`). Phase 1 wired the helpers + presets behind a flag; Commit A (v2.4.5.0) added the `episodes[]` data model; Commit B is what users actually see. All 10 regression baselines pass byte-identical, `npm run build` clean.
