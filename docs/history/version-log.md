@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.8.0
+**Current Production Version:** v2.4.9.0
 **Last Deploy Date:** 2026-05-09
-**App.jsx Line Count:** ~5,991
+**App.jsx Line Count:** ~6,073
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,26 @@
 ---
 
 ## Version Log
+
+### v2.4.9.0 — 2026-05-09
+Standard-format draft cursor now persists to the league object so the in-progress state survives a refresh. Smallest viable fix to make the existing `WeeklyDraftTab` actually usable end-to-end — previously a refresh mid-draft would drop the user back to the Setup screen even though committed picks were already in `weeklyRosters`. Commissioner-only flow remains the only consumer; no manager-side UI, no real-time sync, no timer / auto-pick / undo / audit-trail (all explicit non-goals for this commit). All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **New persisted field `league.draftStatus`** at the league-object root (sibling of `teams`, `standardConfig`, `weeklyScores`). Shape: `{ [String(week)]: { started: bool, currentPick: number, startedAt: number|null } }`. Keyed by week-as-string to match `weeklyRosters` / `weeklyScores` convention. `startedAt` is `Date.now()` at start, **stored for future audit/debug — not read by any current logic** (inline comment at the read site documents this). Default for missing entries: `{ started: false, currentPick: 0, startedAt: null }`.
+- **Persistence boundary** — no new RTDB paths, no rules changes. Writes ride the existing `onUpdate(league) → persistLeague → saveLeague` path at `App.jsx:4902-4905`. `setLeagues(updated)` runs synchronously before the awaited Firebase write, so the next render reads the new cursor immediately — same pattern existing `makePick` / `weeklyRosters` mutations rely on.
+- **`WeeklyDraftTab` refactor** at `App.jsx:2536-2588` — replaced the two local `useState` hooks (`draftStarted`, `currentPick`) with a single derived `status` object read from `league.draftStatus?.[draftWeek]`. All three downstream usages (`draftStarted` ⇒ `status.started`, `currentPick` ⇒ `status.currentPick`, snake-order helper, gendered-draft filter, "Round N, Pick M of T" header, Done detection) flow from the same source. No changes to `getCurrentTeamId`, `getInverseDraftOrder`, the `draftedThisWeek` memo, or any UI block.
+- **`startDraft()` now safe** — guards with `window.confirm("This week already has picks. Restart will clear all picks for this week. Continue?")` when any team has a non-empty `weeklyRosters[draftWeek]`. Matches the existing destructive-action pattern (e.g. unfinalize). On proceed, atomically writes both `teams.weeklyRosters[draftWeek] = []` and `draftStatus[draftWeek] = { started: true, currentPick: 0, startedAt: Date.now() }` in a single `onUpdate(updated)` call.
+- **`makePick(contestantId)` atomic write** — single `onUpdate(updated)` carries both the `weeklyRosters` append and the `draftStatus[draftWeek].currentPick + 1` cursor bump. Removed the local `setCurrentPick(prev => prev + 1)` line; the next render reads the new cursor from the league object. No risk of partial state where the roster updated but the cursor didn't (or vice versa).
+- **Re-entry path** — when the tab mounts and `status.started === true && status.currentPick < totalPicks`, render branches directly into the in-progress UI with the right team on the clock and the right pick number. No separate "Resume Draft" button — the persisted cursor IS the resume affordance; binary state (started/not-started) keeps the UX clean.
+- **Week selector cleanup** at `App.jsx:2615` — dropped the `setDraftStarted(false); setCurrentPick(0)` side effects from the `Select` `onChange`. Switching weeks just re-derives `status` from the new `draftWeek` key. No state to reset, no stale-cursor bug possible.
+- **Empty-state fallback** added inside the in-progress UI at `App.jsx:2680-2688`. Three branches via cascading ternary on `filteredAvailable.length === 0`:
+  - `(league.contestants||[]).length === 0` → "No contestants in the Cast yet. Add contestants on the Cast tab before drafting." (the case that triggered the smoke regression — fresh league, draft started, blank contestant list because Cast was empty.)
+  - `config.genderedDraft && available.length > 0` → "No eligible contestants for {currentTeam.name} — gender quota reached. Check Cast or league settings." (gender-quota-exhausted case for the gendered-draft variant.)
+  - else → "No contestants available to draft this {episode|week}." (generic fallback — covers all-eliminated and all-already-drafted edge cases.)
+  - Pre-existing UX gap that became reachable across refreshes once cursor persistence landed; same `EmptyState` component already used for the `numTeams < 2` guard at `App.jsx:2619`.
+- **Backward compatibility** — leagues with no `draftStatus` field read the default `{ started: false, currentPick: 0, startedAt: null }` and behave identically to pre-2.4.9.0 from a fresh-Setup-screen standpoint. Heroes / Captains / Survivor-Pool / Elimination-Pool / Salary-Cap / Predictions leagues never mount `WeeklyDraftTab` (gated by `league.format === "standard"` at `App.jsx:1026`), so they're untouched.
+- **Out-of-scope (deferred to a real draft-system arc):** pick timer / clock, auto-pick on expiry, manager-side draft UI, real-time multi-device cursor sync, undo last pick, search / filter / sort on available list, push notifications, persisted pick-history audit trail, RTDB rules for per-pick eligibility enforcement.
+- **Browser smoke verified** — fresh draft start → 2-3 picks → hard refresh → in-progress UI restored with correct team on the clock and correct "Pick N of M" → finish to Done screen. Restart confirm dialog fires when re-clicking Start Draft on a week with existing picks; Cancel preserves state, OK clears roster and resets cursor. Empty-state fallback verified by starting a draft with no contestants in Cast — friendly message renders instead of blank screen.
+- `src/scoring.js` untouched. `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.69s).
+- **Commit:** `_pending_`
 
 ### v2.4.8.0 — 2026-05-09
 Format descriptions in the league-create form and settings tab now reflect each league's cadence. Episode-mode leagues see cadence-aware copy on the four formats whose mechanics involve scoring frequency (Standard, Heroes, Predictions, Elimination Pool). Phase 2 Commit D — final commit of the per-episode scoring cadence work.

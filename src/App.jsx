@@ -2535,12 +2535,16 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function WeeklyDraftTab({ league, onUpdate, standings }) {
   const [draftWeek, setDraftWeek] = useState(String(league.currentWeek||1));
-  const [currentPick, setCurrentPick] = useState(0);
-  const [draftStarted, setDraftStarted] = useState(false);
 
   const config = league.standardConfig || { picksPerManager: 2, genderedDraft: false };
   const numTeams = (league.teams||[]).length;
   const totalPicks = numTeams * config.picksPerManager;
+
+  // Cursor lives on the league object so it survives refresh and cross-device.
+  // startedAt: stored for future audit/debug — not read by any current logic.
+  const status = league.draftStatus?.[draftWeek] || { started: false, currentPick: 0, startedAt: null };
+  const currentPick = status.currentPick;
+  const draftStarted = status.started;
 
   const draftOrder = useMemo(() => {
     if (standings.length === 0) return (league.teams||[]).map(t=>t.id);
@@ -2569,22 +2573,35 @@ function WeeklyDraftTab({ league, onUpdate, standings }) {
   }
 
   function startDraft() {
-    const updated = { ...league, teams: league.teams.map(t => ({
-      ...t, weeklyRosters: { ...(t.weeklyRosters||{}), [draftWeek]: [] }
-    }))};
+    const hasExistingPicks = (league.teams||[]).some(t => (t.weeklyRosters?.[draftWeek]||[]).length > 0);
+    if (hasExistingPicks && !window.confirm("This week already has picks. Restart will clear all picks for this week. Continue?")) return;
+    const updated = {
+      ...league,
+      teams: league.teams.map(t => ({
+        ...t, weeklyRosters: { ...(t.weeklyRosters||{}), [draftWeek]: [] }
+      })),
+      draftStatus: {
+        ...(league.draftStatus||{}),
+        [draftWeek]: { started: true, currentPick: 0, startedAt: Date.now() },
+      },
+    };
     onUpdate(updated);
-    setCurrentPick(0);
-    setDraftStarted(true);
   }
 
   function makePick(contestantId) {
     const teamId = getCurrentTeamId();
     if (!teamId) return;
-    const updated = { ...league, teams: league.teams.map(t =>
-      t.id === teamId ? { ...t, weeklyRosters: { ...(t.weeklyRosters||{}), [draftWeek]: [...(t.weeklyRosters?.[draftWeek]||[]), contestantId] } } : t
-    )};
+    const updated = {
+      ...league,
+      teams: league.teams.map(t =>
+        t.id === teamId ? { ...t, weeklyRosters: { ...(t.weeklyRosters||{}), [draftWeek]: [...(t.weeklyRosters?.[draftWeek]||[]), contestantId] } } : t
+      ),
+      draftStatus: {
+        ...(league.draftStatus||{}),
+        [draftWeek]: { ...status, currentPick: status.currentPick + 1 },
+      },
+    };
     onUpdate(updated);
-    setCurrentPick(prev => prev + 1);
   }
 
   const currentTeam = (league.teams||[]).find(t=>t.id===getCurrentTeamId());
@@ -2612,7 +2629,7 @@ function WeeklyDraftTab({ league, onUpdate, standings }) {
     <div>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8 }}>
         <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>{league.scoringCadence === "episode" ? "Episode" : "Weekly"} Draft</h3>
-        <Select value={draftWeek} onChange={e=>{setDraftWeek(e.target.value);setDraftStarted(false);setCurrentPick(0)}}
+        <Select value={draftWeek} onChange={e=>setDraftWeek(e.target.value)}
           options={Array.from({length:Math.max(league.currentWeek||1,1)+2},(_,i)=>({value:String(i+1),label:cadenceLabel(league, i+1)}))} />
       </div>
 
@@ -2659,6 +2676,15 @@ function WeeklyDraftTab({ league, onUpdate, standings }) {
               <div style={{ fontSize:11,color:"#8888aa",marginTop:4 }}>Already picked: {Object.entries(genderCounts).map(([g,n])=>`${n} ${g}`).join(", ")}</div>
             )}
           </div>
+          {filteredAvailable.length === 0 ? (
+            <EmptyState message={
+              (league.contestants||[]).length === 0
+                ? "No contestants in the Cast yet. Add contestants on the Cast tab before drafting."
+                : config.genderedDraft && available.length > 0
+                ? `No eligible contestants for ${currentTeam?.name||"this team"} — gender quota reached. Check Cast or league settings.`
+                : `No contestants available to draft this ${league.scoringCadence === "episode" ? "episode" : "week"}.`
+            }/>
+          ) : (
           <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
             {filteredAvailable.map(c=>(
               <button key={c.id} onClick={()=>makePick(c.id)} style={{
@@ -2674,6 +2700,7 @@ function WeeklyDraftTab({ league, onUpdate, standings }) {
               </button>
             ))}
           </div>
+          )}
         </div>
       )}
     </div>
