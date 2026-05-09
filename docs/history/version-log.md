@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.6.0
+**Current Production Version:** v2.4.7.0
 **Last Deploy Date:** 2026-05-09
-**App.jsx Line Count:** ~5,961
+**App.jsx Line Count:** ~5,973
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,22 @@
 ---
 
 ## Version Log
+
+### v2.4.7.0 — 2026-05-09
+After finalizing a week or episode, commissioners now see an inline "Score [next] next →" banner in the Scoring tab. The banner is a proactive next-step affordance, particularly valuable for batch-scoring high-frequency shows like Big Brother and Love Island. Phase 2 Commit C of per-episode scoring cadence work. Phase 1 wired the helpers + presets behind a flag; Commit A (v2.4.5.0) added the `episodes[]` data model; Commit B (v2.4.6.0) exposed the cadence toggle UI; Commit C is the post-finalize ergonomic win. All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **Banner placement** — inserted at `App.jsx:2210-2220`, immediately after the existing `FINALIZED WEEK LOCKED BANNER` block. Shows at the top of ScoringTab regardless of which week is selected.
+- **Show condition** — `onUpdate && league.weekStatus?.[String(league.currentWeek||1)]?.status === "finalized"`. `onUpdate` gates this to commissioner view; read-only viewers don't see an advance CTA they can't action.
+- **Cadence-aware copy** via `cadenceLabel(league, n)`:
+  - Weekly leagues: `"Week 3 finalized. Score Week 4 next →"`
+  - Episode leagues: `"Episode 3 finalized. Score Episode 4 next →"`
+- **Visual** — coral accent (`#e94560` with `#e9456011` background, `#e9456033` border) to differentiate from the existing teal locked banner and match the app's primary CTA color. Same dimensions and flex pattern as the locked banner (`padding:"10px 14px"`, `borderRadius:8`, `marginBottom:16`, `display:flex`, `justifyContent:space-between`, `alignItems:center`, `gap:8`, `flexWrap:wrap`).
+- **Persistence semantics** — banner is keyed to `currentWeek`, not `selectedWeek`. It persists even when the commissioner navigates back to view a prior week. Disappears automatically on advance (`currentWeek+1` is not yet finalized → condition false) or unfinalize (`weekStatus[currentWeek]` deleted → condition false). No auto-dismiss timer; no manual dismiss control. Inline comment at line 2211 documents the keying.
+- **Co-existence with locked banner** — when `selectedWeek === currentWeek` AND the week is finalized, both the locked banner and the advance nudge render stacked. Locked banner offers Unfinalize; advance banner offers Advance. Different actions, mild visual stack, no functional conflict.
+- **Cap behavior** — verified no season-length / max-week / total-episodes field exists anywhere in the codebase. `advanceWeek` at `App.jsx:2101-2133` is unconditional. The only `maxWeek` references are XLSX-import-side artifacts (highest week found in imported sheets), not season caps. Banner show-condition needs no cap-side guard. If a season cap is ever added (e.g., `league.totalEpisodes`), the condition would extend to `&& (league.currentWeek||1) < league.totalEpisodes`.
+- **Out-of-scope decisions** — bottom-of-tab "Advance to {next} →" button at `App.jsx:2491` stays as-is. There's slight redundancy with the new banner's Advance button when both are visible (banner = post-finalize nudge; bottom button = always-on neutral-state action), but refactoring is out of scope for Commit C.
+- **Browser smoke** — verified all four observable states (hidden when unfinalized, visible with correct copy when finalized, disappears on Advance, disappears on Unfinalize) plus visual stack with locked banner. Stack reads clean; mobile wrap degrades gracefully.
+- `src/scoring.js` untouched. `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.56s).
+- **Commit:** `_pending_`
 
 ### v2.4.6.0 — 2026-05-09
 Cadence is now configurable per-league for the first time. Phase 2 Commit B of per-episode scoring cadence work — exposes the `scoringCadence` toggle to two UI surfaces (league-create `CreateLeagueScreen` and league-settings `SettingsTab`). Phase 1 wired the helpers + presets behind a flag; Commit A (v2.4.5.0) added the `episodes[]` data model; Commit B is what users actually see. All 10 regression baselines pass byte-identical, `npm run build` clean.

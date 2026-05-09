@@ -2207,6 +2207,18 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
         </div>
       )}
 
+      {/* ─── ADVANCE NUDGE BANNER ─── */}
+      {/* Keyed to currentWeek (not selectedWeek) so the nudge persists even when commissioner navigates to a prior week. Disappears on advance or unfinalize. */}
+      {onUpdate && league.weekStatus?.[String(league.currentWeek||1)]?.status === "finalized" && (
+        <div style={{ padding:"10px 14px",background:"#e9456011",borderRadius:8,border:"1px solid #e9456033",marginBottom:16,
+          display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap" }}>
+          <div style={{ fontSize:12,color:"#e94560",fontWeight:600 }}>
+            {cadenceLabel(league, league.currentWeek||1)} finalized. Score {cadenceLabel(league, (league.currentWeek||1)+1)} next →
+          </div>
+          <Btn small onClick={advanceWeek}>Advance</Btn>
+        </div>
+      )}
+
       {/* ─── EVENT LIST VIEW ─── */}
       {view === "events" && onUpdate && (
         <div>
