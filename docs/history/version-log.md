@@ -29,7 +29,7 @@ Extract scoring engine to `src/scoring.js` (no behavior change). Pure infrastruc
 - CLAUDE.md: scoring-engine carve-out documented under the "One-file React app" convention; one-file rule still applies to UI components and state management.
 - Smoke-tested via `_snapshots/` harness — byte-identical `calcStandings` JSON output across 7 synthetic leagues (captains, standard, standard+roto, survivor_pool, elimination_pool, salary_cap, predictions) pre vs post extraction. `npm run build` clean (2.74s).
 - Build warnings: pre-existing dynamic+static-import notices on `firebase/auth` and `src/firebase.js` are unchanged by this commit — present on `main` before extraction, out of scope here.
-- **Commit:** _pending_
+- **Commit:** `487a6ed`
 
 ### v2.4.2.0 → v2.4.2.2 — 2026-04-07
 Final Lock-In (Heroes) — end-of-season roster lock with same-day UX polish
