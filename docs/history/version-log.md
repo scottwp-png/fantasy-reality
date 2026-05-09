@@ -46,7 +46,7 @@ Phase 1 wired the helpers + presets behind a flag; Commit A (v2.4.5.0) added the
 - **Audit verification** — pre-edit grep returned 8 `FORMAT_INFO` references (1 declaration + 7 reading sites). Post-edit grep returns 1 `FORMAT_INFO` hit (a documentation reference inside the new function's comment block describing the prior shape) and 0 functional references. All 7 reading sites converted; no third-location consumers missed.
 - **Browser smoke verified** — descriptions live-update across all four cadence-relevant formats when the cadence toggle flips in CreateLeagueScreen. The showType cascade still resets cadence to the new preset (Commit B's behavior preserved). Visual transitions clean.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.92s).
-- **Commit:** `_pending_`
+- **Commit:** `ebba3fa`
 
 ### v2.4.7.0 — 2026-05-09
 After finalizing a week or episode, commissioners now see an inline "Score [next] next →" banner in the Scoring tab. The banner is a proactive next-step affordance, particularly valuable for batch-scoring high-frequency shows like Big Brother and Love Island. Phase 2 Commit C of per-episode scoring cadence work. Phase 1 wired the helpers + presets behind a flag; Commit A (v2.4.5.0) added the `episodes[]` data model; Commit B (v2.4.6.0) exposed the cadence toggle UI; Commit C is the post-finalize ergonomic win. All 10 regression baselines pass byte-identical, `npm run build` clean.
