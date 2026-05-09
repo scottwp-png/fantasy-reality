@@ -316,6 +316,41 @@ const cadenceWord = (league) => league?.scoringCadence === "episode" ? "Episode"
 const cadenceShort = (league) => league?.scoringCadence === "episode" ? "Ep" : "Wk";
 const cadenceLabel = (league, n) => n != null ? `${cadenceWord(league)} ${n}` : cadenceWord(league);
 
+// ─── Episode metadata: lazy-seed { title, airDate } per episode key ───
+// Stores at league.episodes[String(N)] alongside weekStatus / weeklyScores /
+// weeklyDepthCharts. Pure metadata — never read by src/scoring.js.
+//
+// Wired into the three save paths that establish or mutate episode state:
+//   1. league-create handleSave  -> seeds episodes["1"]
+//   2. advanceWeek                -> seeds episodes[String(nextWeek)]
+//   3. weekStatus writes (finalize, unfinalize) -> lazy backfill
+//
+// airDate inference: prefer weekStatus[N].finalizedAt as the historical signal
+// for already-finalized weeks; fall back to Date.now() when no finalizedAt
+// exists (new week, unfinalized week, or pre-Phase-2 league missing episodes).
+// Optional chaining is mandatory — unfinalized weeks may have weekStatus[N]
+// populated as {} with no finalizedAt.
+//
+// airDate inference reads weekStatus[N].finalizedAt when present so finalize
+// flows align both timestamps to the same Date.now() value. Do NOT call
+// Date.now() inside this helper for paths where weekStatus was just written —
+// that would introduce timestamp drift between the finalize event and the
+// episode metadata.
+//
+// No-op if episodes[N] already exists. First-seed wins.
+function ensureEpisode(league, n) {
+  const key = String(n);
+  if (league?.episodes?.[key]) return league;
+  const airDate = league?.weekStatus?.[key]?.finalizedAt || Date.now();
+  return {
+    ...league,
+    episodes: {
+      ...(league?.episodes || {}),
+      [key]: { title: "", airDate }
+    }
+  };
+}
+
 // ─── Final Lock-In helpers (Heroes only) ───
 const isLockInEligible = (league) => league?.format === "captains";
 const getLockInStatus = (league) => league?.lockInStatus || "closed";
@@ -617,7 +652,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
   function handleSave() {
     if (!name.trim()) return;
     const preset = SHOW_PRESETS[showType];
-    onSave({
+    let league = {
       id: generateId(),
       name: name.trim(),
       showType,
@@ -642,7 +677,9 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
       commissionerUid: commissionerUid || null,
       leagueInviteCode: generateInviteCode(),
       createdAt: Date.now(),
-    });
+    };
+    league = ensureEpisode(league, 1);
+    onSave(league);
   }
 
   const preset = SHOW_PRESETS[showType];
@@ -2075,7 +2112,9 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
       }
     }
 
-    onUpdate({ ...league, currentWeek: nextWeek, teams: updatedTeams, contestants: updatedContestants });
+    let updated = { ...league, currentWeek: nextWeek, teams: updatedTeams, contestants: updatedContestants };
+    updated = ensureEpisode(updated, nextWeek);
+    onUpdate(updated);
   }
 
   // Group scoring rules by category
@@ -2142,9 +2181,11 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
           </div>
           <Btn small variant="ghost" onClick={() => {
             if (!confirm(`Unfinalize ${cadenceLabel(league, selectedWeek)}? This will re-open scoring and disable spoiler protection for this ${cadenceWord(league).toLowerCase()}.`)) return;
-            const updatedStatus = { ...(league.weekStatus || {}) };
+            // Backfill episode metadata BEFORE deleting weekStatus so finalizedAt is still readable.
+            let updated = ensureEpisode(league, selectedWeek);
+            const updatedStatus = { ...(updated.weekStatus || {}) };
             delete updatedStatus[String(selectedWeek)];
-            onUpdate({ ...league, weekStatus: updatedStatus });
+            onUpdate({ ...updated, weekStatus: updatedStatus });
           }}>Unfinalize</Btn>
         </div>
       )}
@@ -2422,13 +2463,15 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
           {Object.keys(weekScores).length > 0 && !league.weekStatus?.[selectedWeek]?.finalizedAt && (
             <Btn variant="ghost" onClick={() => {
               if (!confirm(`Finalize ${cadenceLabel(league, selectedWeek)}? This enables spoiler protection for all members.`)) return;
-              onUpdate({
+              let updated = {
                 ...league,
                 weekStatus: {
                   ...(league.weekStatus || {}),
                   [String(selectedWeek)]: { status: "finalized", finalizedAt: Date.now() }
                 }
-              });
+              };
+              updated = ensureEpisode(updated, selectedWeek);
+              onUpdate(updated);
             }} small>Finalize {cadenceLabel(league, selectedWeek)}</Btn>
           )}
           {league.weekStatus?.[selectedWeek]?.finalizedAt && (

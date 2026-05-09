@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.4.0
+**Current Production Version:** v2.4.5.0
 **Last Deploy Date:** 2026-05-09
-**App.jsx Line Count:** ~5,860
+**App.jsx Line Count:** ~5,929
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,20 @@
 ---
 
 ## Version Log
+
+### v2.4.5.0 — 2026-05-09
+Phase 2 Commit A of per-episode scoring cadence work. Adds `league.episodes` metadata model with lazy-seed helper. Pure data-model addition — no UI consumers, no scoring impact. All 10 regression baselines pass byte-identical with synthetic JSONs unchanged.
+- Add `ensureEpisode(league, n)` helper in `src/App.jsx` (alongside the cadence helper cluster). Stores per-episode metadata at `league.episodes[String(N)] = { title, airDate }` keyed as an object map matching the existing `weekStatus` / `weeklyScores` / `weeklyDepthCharts` convention (RTDB-friendly, no array-as-object footgun).
+- airDate inference is lazy: prefer `weekStatus[N].finalizedAt` as the historical signal for already-finalized weeks; fall back to `Date.now()` when no finalizedAt exists (new week, unfinalized week, or pre-Phase-2 league missing episodes). Optional chaining mandatory — unfinalized weeks may have `weekStatus[N]` populated as `{}` with no finalizedAt. No-op if `episodes[N]` already exists; first-seed wins.
+- Wired into exactly four save sites — the three save paths that establish or mutate episode state, no broader propagation:
+  1. **League-create `handleSave`** — seeds `episodes["1"] = { title: "", airDate: <createdAt> }` on every newly-created league.
+  2. **`advanceWeek`** — seeds `episodes[String(nextWeek)]` when the commissioner advances; new weeks have no `weekStatus[N+1]` yet so airDate falls through to `Date.now()`.
+  3. **`weekStatus` writes — finalize** — `ensureEpisode` runs after weekStatus is set so the just-set `finalizedAt` aligns with episode `airDate` (same `Date.now()` call chain). Defensive comment in helper warns against introducing timestamp drift.
+  4. **`weekStatus` writes — unfinalize** — `ensureEpisode` runs *before* the `delete updatedStatus[String(N)]` so the historical `finalizedAt` is still readable as the airDate fallback for pre-Phase-2 leagues being unfinalized post-deploy.
+- `src/scoring.js` untouched. `episodes[]` is pure metadata, never read by `calcContestantWeekPoints` / `calcTeamWeekPoints` / `calcStandings`. Regression confirms: `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification.
+- Verified zero consumers in `src/App.jsx`: `grep "league\.episodes\|\.episodes\["` returns one hit (the comment line inside `ensureEpisode`'s documentation block) and zero functional reads. UI exposure is Phase 2 Commit B+ work.
+- `npm run build` clean.
+- **Commit:** `_pending_`
 
 ### v2.4.4.0 — 2026-05-09
 Label-only refactor behind `scoringCadence` flag. No behavior change in default-weekly mode. All 10 regression baselines pass.
