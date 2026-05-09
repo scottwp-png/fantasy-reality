@@ -87,7 +87,7 @@ Phase 2 Commit A of per-episode scoring cadence work. Adds `league.episodes` met
 - `src/scoring.js` untouched. `episodes[]` is pure metadata, never read by `calcContestantWeekPoints` / `calcTeamWeekPoints` / `calcStandings`. Regression confirms: `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification.
 - Verified zero consumers in `src/App.jsx`: `grep "league\.episodes\|\.episodes\["` returns one hit (the comment line inside `ensureEpisode`'s documentation block) and zero functional reads. UI exposure is Phase 2 Commit B+ work.
 - `npm run build` clean.
-- **Commit:** `01df988`
+- **Commit:** `1648e7d`
 
 ### v2.4.4.0 — 2026-05-09
 Label-only refactor behind `scoringCadence` flag. No behavior change in default-weekly mode. All 10 regression baselines pass.
