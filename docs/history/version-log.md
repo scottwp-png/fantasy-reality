@@ -32,7 +32,7 @@ Cadence is now configurable per-league for the first time. Phase 2 Commit B of p
 - **Heroes config inline ternary fix** — Phase 1 introduced inline ternaries reading `SHOW_PRESETS[showType]?.scoringCadence` for three CreateLeagueScreen sites: the standard-config "Picks Per Manager (per week/episode)" label, the H2H description, and the Best Ball description. With the toggle now exposing manual override, those three labels would show stale copy if the user flipped the toggle without changing `showType`. Switched all three to read from local `scoringCadence` state. Post-fix audit: `grep -n "SHOW_PRESETS\[showType\]\?\.scoringCadence" src/App.jsx` returns zero hits — every in-scope reference now reads from local state. Out-of-scope inline ternaries (six sites reading `league.scoringCadence` against saved leagues) unchanged.
 - `src/scoring.js` untouched. `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.82s).
 - Legacy leagues without `scoringCadence` continue to default to `"weekly"` via the helper fallback. `league.scoringCadence === undefined` is treated identically to `"weekly"` everywhere it's read. No migration.
-- **Commit:** `_pending_`
+- **Commit:** `f4963c1`
 
 ### v2.4.5.0 — 2026-05-09
 Phase 2 Commit A of per-episode scoring cadence work. Adds `league.episodes` metadata model with lazy-seed helper. Pure data-model addition — no UI consumers, no scoring impact. All 10 regression baselines pass byte-identical with synthetic JSONs unchanged.
