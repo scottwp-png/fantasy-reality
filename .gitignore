@@ -5,3 +5,6 @@ dist
 
 # Local data dumps — xlsx, csv, RTDB exports kept out of git
 _data/
+
+# Claude Code per-project settings/cache
+.claude/

@@ -1,7 +1,7 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.1.0 *(v2.4.2.0–v2.4.2.2 pending entry)*
+**Current Production Version:** v2.4.2.2
 **Last Deploy Date:** 2026-04-07
 **App.jsx Line Count:** ~6,065
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
@@ -22,6 +22,13 @@
 ---
 
 ## Version Log
+
+### v2.4.2.0 → v2.4.2.2 — 2026-04-07
+Final Lock-In (Heroes) — end-of-season roster lock with same-day UX polish
+- **v2.4.2.0** — Introduce Final Lock-In on Captains/Heroes leagues: `closed → open → locked` state machine, commissioner opens the window, players confirm a final roster, eliminated contestants not selectable, depth-chart positions stay editable but contestant swaps end at lock. Read-only "Locked Roster" card visible to all viewers of a locked team. Plus spoiler-protection fix: scan all `weekStatus` entries (not just current week) so blur survives the commissioner advancing past a still-in-grace week, and reveals proceed in chronological order.
+- **v2.4.2.1** — Lock-In UX rework: drop the standalone picker, add an inline "Confirm Final Roster" button below the existing depth-chart roster. Waive the weekly 1-swap limit while lock-in is open and the team is unconfirmed (so they can shuffle freely before locking). Hide the swap tracker during lock-in.
+- **v2.4.2.2** — Confirm reads `localChart` not `team.depthChart` (in-progress dropdown edits no longer lost), persists depth chart + `weeklyDepthCharts` in the same write, validates all `2 + regularSlots` slots are filled before locking. Swap tracker stays hidden once locked. Commissioner gains per-team Reset, Reopen Lock-In (locked → open), and Cancel Lock-In (any → closed) controls.
+- **Commits:** `5c91f77` (v2.4.2.0), `d8eb4f5` (v2.4.2.1), `be826b9` (v2.4.2.2)
 
 ### v2.4.1.0 — 2026-03-29
 Eliminated contestant visibility, finalized week lock, unfinalize button, roster slot fix
