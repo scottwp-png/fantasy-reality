@@ -2604,6 +2604,45 @@ function WeeklyDraftTab({ league, onUpdate, standings }) {
     onUpdate(updated);
   }
 
+  // Commissioner escape hatch — clears all picks + cursor for this week.
+  // Reachable from in-progress and Done screens.
+  function resetDraft() {
+    if (!window.confirm(`Reset ${cadenceLabel(league, draftWeek)} draft? All picks will be cleared.`)) return;
+    const updated = {
+      ...league,
+      teams: league.teams.map(t => ({
+        ...t, weeklyRosters: { ...(t.weeklyRosters||{}), [draftWeek]: [] }
+      })),
+      draftStatus: {
+        ...(league.draftStatus||{}),
+        [draftWeek]: { started: false, currentPick: 0, startedAt: null },
+      },
+    };
+    onUpdate(updated);
+  }
+
+  // Manual roster edit — Done-screen only. Bypasses snake order & gender quota.
+  // draftStatus is intentionally untouched: currentPick stays at totalPicks so Done remains Done.
+  function removeFromRoster(teamId, contestantId) {
+    const updated = {
+      ...league,
+      teams: league.teams.map(t =>
+        t.id === teamId ? { ...t, weeklyRosters: { ...(t.weeklyRosters||{}), [draftWeek]: (t.weeklyRosters?.[draftWeek]||[]).filter(id => id !== contestantId) } } : t
+      ),
+    };
+    onUpdate(updated);
+  }
+  function addToRoster(teamId, contestantId) {
+    if (!contestantId) return;
+    const updated = {
+      ...league,
+      teams: league.teams.map(t =>
+        t.id === teamId ? { ...t, weeklyRosters: { ...(t.weeklyRosters||{}), [draftWeek]: [...(t.weeklyRosters?.[draftWeek]||[]), contestantId] } } : t
+      ),
+    };
+    onUpdate(updated);
+  }
+
   const currentTeam = (league.teams||[]).find(t=>t.id===getCurrentTeamId());
   const round = numTeams > 0 ? Math.floor(currentPick / numTeams) + 1 : 0;
   const isDone = currentPick >= totalPicks;
@@ -2653,17 +2692,42 @@ function WeeklyDraftTab({ league, onUpdate, standings }) {
           <Btn onClick={startDraft} style={{ width:"100%",justifyContent:"center" }}><Icon name="grid" size={14}/> Start {cadenceLabel(league, draftWeek)} Draft</Btn>
         </div>
       ) : isDone ? (
-        <div style={{ textAlign:"center",padding:30,background:"linear-gradient(135deg,rgba(78,205,196,0.08),rgba(233,69,96,0.08))",borderRadius:12,border:"1px solid #2a2a4a" }}>
-          <div style={{ fontSize:36,marginBottom:8 }}>🎉</div>
-          <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:16,fontFamily:"'Anybody',sans-serif" }}>{cadenceLabel(league, draftWeek)} Draft Complete!</div>
-          <div style={{ marginTop:16,display:"flex",flexWrap:"wrap",justifyContent:"center",gap:6 }}>
-            {(league.teams||[]).map(t => (
-              <div key={t.id} style={{ padding:"8px 14px",background:"#1e1e38",borderRadius:8,fontSize:12,textAlign:"left" }}>
-                <div style={{ color:"#e8e8f0",fontWeight:700,marginBottom:4 }}>{t.name}</div>
-                <div style={{ color:"#8888aa" }}>{(t.weeklyRosters?.[draftWeek]||[]).map(cid=>(league.contestants||[]).find(x=>x.id===cid)?.name).filter(Boolean).join(", ")||"—"}</div>
-              </div>
-            ))}
+        <div style={{ padding:24,background:"linear-gradient(135deg,rgba(78,205,196,0.08),rgba(233,69,96,0.08))",borderRadius:12,border:"1px solid #2a2a4a" }}>
+          <div style={{ textAlign:"center" }}>
+            <div style={{ fontSize:36,marginBottom:8 }}>🎉</div>
+            <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:16,fontFamily:"'Anybody',sans-serif" }}>{cadenceLabel(league, draftWeek)} Draft Complete!</div>
+            <div style={{ color:"#6a6a8a",fontSize:11,marginTop:4 }}>Tap × to remove or use the dropdown to add. Commissioner overrides bypass snake order and gender quotas.</div>
           </div>
+          <div style={{ marginTop:16,display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:8 }}>
+            {(league.teams||[]).map(t => {
+              const roster = t.weeklyRosters?.[draftWeek] || [];
+              return (
+                <div key={t.id} style={{ padding:"10px 12px",background:"#1e1e38",borderRadius:8,fontSize:12,textAlign:"left" }}>
+                  <div style={{ color:"#e8e8f0",fontWeight:700,marginBottom:6 }}>{t.name}</div>
+                  <div style={{ display:"flex",flexWrap:"wrap",gap:4,marginBottom:6 }}>
+                    {roster.length === 0 && <span style={{ color:"#6a6a8a",fontSize:11,fontStyle:"italic" }}>empty</span>}
+                    {roster.map(cid => {
+                      const c = (league.contestants||[]).find(x=>x.id===cid);
+                      if (!c) return null;
+                      return (
+                        <span key={cid} style={{ display:"inline-flex",alignItems:"center",gap:4,padding:"2px 4px 2px 8px",background:"#2a2a4a",borderRadius:6,fontSize:11,color:"#e8e8f0" }}>
+                          {c.name}
+                          <button onClick={()=>removeFromRoster(t.id, cid)} title="Remove" style={{ background:"transparent",border:"none",color:"#8888aa",cursor:"pointer",padding:"0 4px",fontSize:14,lineHeight:1 }}>×</button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                  <select value="" onChange={e=>{ const v=e.target.value; e.target.value=""; addToRoster(t.id, v); }} style={{ width:"100%",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:11,padding:"5px 8px",fontFamily:"'Outfit',sans-serif",cursor:"pointer" }}>
+                    <option value="">+ Add contestant…</option>
+                    {available.map(c => <option key={c.id} value={c.id}>{c.name}{c.gender ? ` (${c.gender})` : ""}</option>)}
+                  </select>
+                </div>
+              );
+            })}
+          </div>
+          <button onClick={resetDraft} style={{ marginTop:16,width:"100%",padding:"9px 14px",background:"transparent",border:"1px solid #2a2a4a",borderRadius:8,color:"#8888aa",fontSize:12,fontFamily:"'Outfit',sans-serif",cursor:"pointer",fontWeight:600 }}>
+            Reset {cadenceLabel(league, draftWeek)} Draft
+          </button>
         </div>
       ) : (
         <div>
@@ -2701,6 +2765,9 @@ function WeeklyDraftTab({ league, onUpdate, standings }) {
             ))}
           </div>
           )}
+          <button onClick={resetDraft} style={{ marginTop:14,width:"100%",padding:"9px 14px",background:"transparent",border:"1px solid #2a2a4a",borderRadius:8,color:"#8888aa",fontSize:12,fontFamily:"'Outfit',sans-serif",cursor:"pointer",fontWeight:600 }}>
+            Reset {cadenceLabel(league, draftWeek)} Draft
+          </button>
         </div>
       )}
     </div>

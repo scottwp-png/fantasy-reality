@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.9.0
-**Last Deploy Date:** 2026-05-09
-**App.jsx Line Count:** ~6,073
+**Current Production Version:** v2.4.10.0
+**Last Deploy Date:** 2026-05-15
+**App.jsx Line Count:** ~6,120
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,26 @@
 ---
 
 ## Version Log
+
+### v2.4.10.0 — 2026-05-15
+Standard-format draft now has commissioner escape hatches: a **Reset Draft** button and **manual roster editing** on the Done screen. Surfaces in response to a real test-draft mistake — previously, once `currentPick >= totalPicks` the Done screen was a dead end with no way to fix wrong picks short of editing RTDB directly. Reset goes back to Setup; manual edit lets the commissioner add/remove contestants per team without reshuffling the snake order. `src/scoring.js` untouched, 10/10 regression baselines pass, `npm run build` clean.
+- **`resetDraft()` helper** added next to `startDraft` / `makePick`. Single atomic `onUpdate` write: clears every team's `weeklyRosters[draftWeek]` to `[]` and sets `draftStatus[draftWeek] = { started: false, currentPick: 0, startedAt: null }`. The reset lands on the Setup screen because `started: false`. Guards with `window.confirm("Reset {cadenceLabel} draft? All picks will be cleared.")` — matches the `startDraft` restart-confirm pattern shipped in 2.4.9.0.
+- **Reset Draft button placement** — visible on both the in-progress screen (under the contestant list / empty state) and the Done screen (below the team-card grid). Not visible on Setup, where Start Draft already covers the same intent (with its own confirm if picks exist). Styling: muted/secondary — `background:"transparent",border:"1px solid #2a2a4a",color:"#8888aa"`. Deliberately distinct from the primary coral CTA so it reads as a destructive escape hatch, not a primary action.
+- **`removeFromRoster(teamId, contestantId)` and `addToRoster(teamId, contestantId)`** added alongside `resetDraft`. Each performs a single atomic `onUpdate` touching only `teams[].weeklyRosters[draftWeek]`. `draftStatus` is intentionally NOT touched — `currentPick` stays at `totalPicks` regardless of actual roster sizes, so Done remains Done after edits. Means the commissioner can have a 1-pick or 3-pick team in a 2-pick league if they have reason to; no auto-correction.
+- **Done-screen team cards now editable** at `App.jsx:2685-2725`. Replaced the comma-separated read-only roster string with:
+  - Pill chips for each contestant, each with a × remove button (`removeFromRoster`).
+  - "empty" placeholder italic text when roster is empty.
+  - `<select>` dropdown labeled "+ Add contestant…" populated from `available` (= `activeContestants - draftedThisWeek`, same filter the draft uses). Selecting an option calls `addToRoster` and resets the dropdown to the placeholder via `e.target.value=""`.
+- **Layout change on Done card** — flex-wrap row replaced with `display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))"`. Wider cards fit the picker dropdown; auto-fill keeps the layout responsive. Outer celebration container loses its blanket `textAlign:"center"` (now applied only to the 🎉 header) so per-card content stays left-aligned.
+- **Helper hint copy** under the 🎉 header on Done: _"Tap × to remove or use the dropdown to add. Commissioner overrides bypass snake order and gender quotas."_ Sets expectation that manual edits are a power-user tool, not a guarded draft action.
+- **Gendered-draft quota intentionally bypassed** by manual edit. `addToRoster` does not consult `genderCounts` — it appends whatever contestant the commissioner picks. Reasoning: the commissioner is the league authority; if a fix requires temporarily breaking quota balance, that's a legitimate use case. The quota is enforced only inside the snake-draft loop (via `filteredAvailable` in `makePick`).
+- **In-progress remains pick-only** — no per-team editing while mid-draft. The cursor-driven snake order is incompatible with manual edits to non-current teams, so the only escape from in-progress is Reset → restart. Done is the dedicated manual-edit surface.
+- **Available pool for manual add** uses the same `eliminatedWeek` filter as the snake draft (`activeContestants` at `App.jsx:2569-2573`). Contestants eliminated in earlier weeks stay pickable for the week of their elimination, then disappear from later weeks — matches existing draft behavior. Re-adding a removed contestant works because `removeFromRoster` updates `weeklyRosters`, which feeds `draftedThisWeek`, which feeds `available`.
+- **No new RTDB paths, no rules changes.** All writes ride the existing `onUpdate(league) → persistLeague → saveLeague` path. Atomic semantics — every UI action is a single league-level write.
+- **Out-of-scope (deferred):** per-pick undo (would need a persisted pick log), pre-draft "build manually without drafting" entry point, manager-side editing, trading between teams as a single transaction.
+- **Browser smoke verified** — Reset from Done → lands on Setup, all rosters cleared. Reset from in-progress → same. Remove on Done → contestant returns to the Add dropdown immediately. Add on Done → contestant disappears from every team's Add dropdown. Done state preserved across all manual edits regardless of resulting roster sizes.
+- `src/scoring.js` untouched. `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.04s).
+- **Commit:** `_pending_`
 
 ### v2.4.9.0 — 2026-05-09
 Standard-format draft cursor now persists to the league object so the in-progress state survives a refresh. Smallest viable fix to make the existing `WeeklyDraftTab` actually usable end-to-end — previously a refresh mid-draft would drop the user back to the Setup screen even though committed picks were already in `weeklyRosters`. Commissioner-only flow remains the only consumer; no manager-side UI, no real-time sync, no timer / auto-pick / undo / audit-trail (all explicit non-goals for this commit). All 10 regression baselines pass byte-identical, `npm run build` clean.
