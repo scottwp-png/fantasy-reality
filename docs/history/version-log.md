@@ -61,7 +61,7 @@ Standard-format draft cursor now persists to the league object so the in-progres
 - **Out-of-scope (deferred to a real draft-system arc):** pick timer / clock, auto-pick on expiry, manager-side draft UI, real-time multi-device cursor sync, undo last pick, search / filter / sort on available list, push notifications, persisted pick-history audit trail, RTDB rules for per-pick eligibility enforcement.
 - **Browser smoke verified** — fresh draft start → 2-3 picks → hard refresh → in-progress UI restored with correct team on the clock and correct "Pick N of M" → finish to Done screen. Restart confirm dialog fires when re-clicking Start Draft on a week with existing picks; Cancel preserves state, OK clears roster and resets cursor. Empty-state fallback verified by starting a draft with no contestants in Cast — friendly message renders instead of blank screen.
 - `src/scoring.js` untouched. `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.69s).
-- **Commit:** `_pending_`
+- **Commit:** `9fd3c4a`
 
 ### v2.4.8.0 — 2026-05-09
 Format descriptions in the league-create form and settings tab now reflect each league's cadence. Episode-mode leagues see cadence-aware copy on the four formats whose mechanics involve scoring frequency (Standard, Heroes, Predictions, Elimination Pool). Phase 2 Commit D — final commit of the per-episode scoring cadence work.
