@@ -41,7 +41,7 @@ Standard-format draft now has commissioner escape hatches: a **Reset Draft** but
 - **Out-of-scope (deferred):** per-pick undo (would need a persisted pick log), pre-draft "build manually without drafting" entry point, manager-side editing, trading between teams as a single transaction.
 - **Browser smoke verified** — Reset from Done → lands on Setup, all rosters cleared. Reset from in-progress → same. Remove on Done → contestant returns to the Add dropdown immediately. Add on Done → contestant disappears from every team's Add dropdown. Done state preserved across all manual edits regardless of resulting roster sizes.
 - `src/scoring.js` untouched. `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.04s).
-- **Commit:** `_pending_`
+- **Commit:** `5683242`
 
 ### v2.4.9.0 — 2026-05-09
 Standard-format draft cursor now persists to the league object so the in-progress state survives a refresh. Smallest viable fix to make the existing `WeeklyDraftTab` actually usable end-to-end — previously a refresh mid-draft would drop the user back to the Setup screen even though committed picks were already in `weeklyRosters`. Commissioner-only flow remains the only consumer; no manager-side UI, no real-time sync, no timer / auto-pick / undo / audit-trail (all explicit non-goals for this commit). All 10 regression baselines pass byte-identical, `npm run build` clean.
