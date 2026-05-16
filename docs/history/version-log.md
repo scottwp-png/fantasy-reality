@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.10.0
+**Current Production Version:** v2.4.11.0
 **Last Deploy Date:** 2026-05-15
-**App.jsx Line Count:** ~6,120
+**App.jsx Line Count:** ~6,131
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,29 @@
 ---
 
 ## Version Log
+
+### v2.4.11.0 — 2026-05-15
+Phase 3 Commits A+B — foundational layer for decoupling draft cadence from scoring cadence in Standard-format leagues. Adds `league.episodesPerWeek` (default 1, integer ≥ 1) plus a new `getDraftWeek` resolver in `src/scoring.js` that maps a scoring unit (episode) to the draft-week key used in `team.weeklyRosters`. When `episodesPerWeek === N > 1` in episode-mode Standard leagues, one roster covers N consecutive episodes — drafts happen weekly, scoring stays per-episode. Both league-creation (Commit A) and existing-league editing in SettingsTab (Commit B) ship together so the field can be tested against existing leagues. Draft tab UI labeling and other roster-display copy still pending (Commits C/D). All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **New top-level league field** `league.episodesPerWeek` at the same level as `scoringCadence` / `format`. Integer ≥ 1, default 1. Persisted via the existing `saveLeague` path; no new RTDB paths, no rules change. Deliberately NOT nested under `standardConfig` even though Standard is the only consumer in this arc — the field is format-agnostic in concept (Captains / Best Ball / Roto could reuse it later for swap/roster-move cadence) and lifting it to league root avoids a future migration.
+- **`getDraftWeek(league, weekOrEpisode)` helper** added to `src/scoring.js` as a new export. Pure data-transform — no React, no Firebase. Returns the input unchanged when (a) `episodesPerWeek` is `1` or undefined, (b) `scoringCadence !== "episode"`, or (c) `format !== "standard"`. Otherwise returns `Math.ceil(Number(weekOrEpisode) / n)`. Three layered safety guards mean the helper is safe to call from any code path; misuse degrades to current behavior. Comment block documents the contract above the function.
+- **Two scoring-engine re-routes** in `src/scoring.js`, both Standard-format roster lookups:
+  - `calcTeamWeekPoints` at line 22 (was line 13 pre-edit): `team.weeklyRosters?.[weekNum]` → `team.weeklyRosters?.[String(getDraftWeek(league, weekNum))]`.
+  - `calcStandings` Roto category aggregation at line 133 (was line 124 pre-edit): `team.weeklyRosters?.[w]` → `team.weeklyRosters?.[String(getDraftWeek(league, w))]`.
+  - `weeklyScores` lookups stay keyed by episode — only the roster source maps through the resolver. The two keys diverge when N>1; this is the whole point.
+  - Both lookups gained a `String()` wrap for consistent key typing. Pre-baseline-verification risk was that the wrap might change lookup semantics; in practice JS object key coercion makes string/number indistinguishable for the values stored here, and **all 10 regression baselines passed byte-identical** without any synthetic JSON modification — confirming the wrap is a no-op for existing leagues.
+- **CreateLeagueScreen input** at `App.jsx:797-804`. New `useState` hook `episodesPerWeek` defaulting to `1` (alongside `picksPerManager` / `genderedDraft`). Conditional `Input` element rendered inside the existing `STANDARD CONFIG` block, gated on `scoringCadence === "episode"`. Numeric input, `min=1, max=14`. Help-text microcopy: _"How many episodes air per week. Drafts happen once per week; scoring stays per episode. Set to 1 if each episode is its own week."_ Hidden in weekly-mode leagues entirely (per the design decision — weekly mode has no episode concept and the field would be meaningless).
+- **Persistence in `handleSave`** at `App.jsx:686`. New line `episodesPerWeek: Number(episodesPerWeek) || 1` appended after the format-config branches. Falls back to 1 if the input is empty or NaN. Sits next to the format-specific config slots but at the league root, not nested.
+- **SettingsTab input** (Commit B, bundled into this release) at `App.jsx:4618-4627`. New conditional block inside the existing Scoring Rhythm card, gated on `league.scoringCadence === "episode" && league.format === "standard"`. Same numeric `Input` styling and microcopy as the create-screen version. `onChange` writes `onUpdate({...league, episodesPerWeek: Number(e.target.value) || 1})` — direct persistence via the existing per-league save path, no intermediate local state. Hidden in weekly-mode leagues and in non-Standard formats. Sits below the Per-Episode Scoring toggle but above the existing _"You can change this later. Switching mid-season may change weekly rollup behavior — recommended for new leagues."_ caveat — which now applies to both the cadence toggle and the new field.
+- **Backward compatibility** — legacy leagues without `episodesPerWeek` read as `undefined` → `n = league?.episodesPerWeek || 1` → resolver returns the input unchanged → `weeklyRosters` lookup behavior byte-identical. Existing weekly-mode leagues also unaffected (helper short-circuits on `scoringCadence !== "episode"`). Captains / Survivor-Pool / Salary-Cap / Predictions / Elimination-Pool leagues unaffected (helper short-circuits on `format !== "standard"`).
+- **What this commit does NOT yet enable end-to-end** — although you can now create a Standard episode-mode league with N>1 from the CreateLeagueScreen, the Draft tab's week selector still labels by episode (Commit C will replace it with a period selector showing `"Week 1 (Eps 1-N)"` etc.). Functionally the draft will work — picking at "episode 1" writes to `weeklyRosters[1]` which under the new semantics covers episodes 1..N — but the UI labels are temporarily misleading. SettingsTab editing for existing leagues lands in Commit B; roster-display copy in TeamsTab / StandingsTab lands in Commit D.
+- **Empty-roster behavior** (per the locked design decision) — episodes inside an undrafted week score zero. No carry-over from the previous week. Commissioner must redraft at each week boundary.
+- **Out-of-scope (deferred to later commits in the Phase 3 arc):**
+  - **Commit C** — WeeklyDraftTab period selector. Week dropdown becomes a period dropdown when N>1; labels show episode ranges. New `periodLabel` helper alongside the existing `cadenceLabel`.
+  - **Commit D** — Roster display copy in TeamsTab / StandingsTab / Scoring tab "current week" indicator. Show both episode and week (`"Ep 5 · Wk 2"`) where relevant.
+  - Captains / Best Ball / Roto / Salary Cap support — Standard-only per the locked design.
+- **Browser smoke verified** for the SettingsTab edit path on an existing Love Island Standard league — the Episodes per week input appears in the Scoring Rhythm card when Per-Episode Scoring is on. Vite HMR cache required a dev-server restart on Windows before the change became visible; the underlying source/conditional was correct from the first edit. **Not yet smoke-tested end-to-end:** full N>1 flow (draft a roster at week 1, score episodes 1..N against that roster, advance to week 2 and confirm empty-roster gives zero points). 10/10 regression baselines passing byte-identical is the load-bearing safety: existing leagues without `episodesPerWeek` short-circuit through the resolver unchanged, so the risk of this release breaking any current league is bounded to the new-feature opt-in path. Rollback path on prod is `git revert` on this commit; no schema change to undo.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.41s after the bundled SettingsTab edit).
+- **Commit:** `_pending_`
 
 ### v2.4.10.0 — 2026-05-15
 Standard-format draft now has commissioner escape hatches: a **Reset Draft** button and **manual roster editing** on the Done screen. Surfaces in response to a real test-draft mistake — previously, once `currentPick >= totalPicks` the Done screen was a dead end with no way to fix wrong picks short of editing RTDB directly. Reset goes back to Setup; manual edit lets the commissioner add/remove contestants per team without reshuffling the snake order. `src/scoring.js` untouched, 10/10 regression baselines pass, `npm run build` clean.

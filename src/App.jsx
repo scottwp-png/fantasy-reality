@@ -618,6 +618,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
   const [regularSlots, setRegularSlots] = useState(3);
   const [picksPerManager, setPicksPerManager] = useState(2);
   const [genderedDraft, setGenderedDraft] = useState(false);
+  const [episodesPerWeek, setEpisodesPerWeek] = useState(1);
   const [headToHead, setHeadToHead] = useState(false);
   const [bestBall, setBestBall] = useState(false);
   const [salaryBudget, setSalaryBudget] = useState(100);
@@ -683,6 +684,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
       format,
       captainsConfig: format === "captains" ? { regularSlots: Number(regularSlots) } : null,
       standardConfig: format === "standard" ? { picksPerManager: Number(picksPerManager), genderedDraft } : null,
+      episodesPerWeek: Number(episodesPerWeek) || 1,
       survivorPoolConfig: format === "survivor_pool" ? {} : null,
       salaryCapConfig: format === "salary_cap" ? { budget: Number(salaryBudget) } : null,
       eliminationPoolConfig: format === "elimination_pool" ? {} : null,
@@ -789,6 +791,14 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
             <div style={{ padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",marginBottom:16 }}>
               <div style={{ fontSize:12,fontWeight:600,color:"#4ecdc4",marginBottom:10 }}>STANDARD CONFIG</div>
               <Input label={`Picks Per Manager (per ${scoringCadence === "episode" ? "episode" : "week"})`} type="number" min="1" max="10" value={picksPerManager} onChange={e=>setPicksPerManager(e.target.value)} />
+              {scoringCadence === "episode" && (
+                <div style={{ marginBottom:10 }}>
+                  <Input label="Episodes per week" type="number" min="1" max="14" value={episodesPerWeek} onChange={e=>setEpisodesPerWeek(e.target.value)} />
+                  <div style={{ fontSize:11,color:"#6a6a8a",marginTop:4,fontStyle:"italic",lineHeight:1.4 }}>
+                    How many episodes air per week. Drafts happen once per week; scoring stays per episode. Set to 1 if each episode is its own week.
+                  </div>
+                </div>
+              )}
               <label style={{ display:"flex",alignItems:"center",gap:8,cursor:"pointer",color:"#ccc",fontSize:13 }}>
                 <input type="checkbox" checked={genderedDraft} onChange={e=>setGenderedDraft(e.target.checked)} style={{ accentColor:"#e94560" }} />
                 Gendered draft (equal picks per gender category)
@@ -4605,6 +4615,16 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
             <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>Score each episode individually. Best for shows that air multiple times per week (Big Brother, Love Island). Off = one rollup per week.</div>
           </div>
         </label>
+        {league.scoringCadence === "episode" && league.format === "standard" && (
+          <div style={{ marginTop:10,padding:"10px 12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38" }}>
+            <Input label="Episodes per week" type="number" min="1" max="14"
+              value={league.episodesPerWeek || 1}
+              onChange={e=>onUpdate({...league, episodesPerWeek: Number(e.target.value) || 1})} />
+            <div style={{ fontSize:11,color:"#6a6a8a",marginTop:4,fontStyle:"italic",lineHeight:1.4 }}>
+              How many episodes air per week. Drafts happen once per week; scoring stays per episode. Set to 1 if each episode is its own week.
+            </div>
+          </div>
+        )}
         <div style={{ fontSize:11,color:"#6a6a8a",marginTop:10,fontStyle:"italic",lineHeight:1.4 }}>
           You can change this later. Switching mid-season may change weekly rollup behavior — recommended for new leagues.
         </div>

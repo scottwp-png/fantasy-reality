@@ -5,12 +5,25 @@ export function calcContestantWeekPoints(weekScores, contestantId) {
   return Object.values(cs).reduce((s, v) => s + v, 0);
 }
 
+// Maps a scoring unit (episode in episode-mode, week in weekly-mode) to the
+// draft-week key used in team.weeklyRosters. Returns the input unchanged when
+// episodesPerWeek is 1/undefined, when not in episode-mode, or when format
+// isn't standard — preserving N=1 / weekly-mode / non-Standard behavior.
+export function getDraftWeek(league, weekOrEpisode) {
+  const n = league?.episodesPerWeek || 1;
+  if (n === 1) return weekOrEpisode;
+  if (league?.scoringCadence !== "episode") return weekOrEpisode;
+  if (league?.format !== "standard") return weekOrEpisode;
+  const num = Number(weekOrEpisode);
+  return Math.ceil(num / n);
+}
+
 export function calcTeamWeekPoints(league, team, weekNum) {
   const weekScores = league.weeklyScores?.[weekNum] || {};
   const format = league.format;
 
   if (format === "standard") {
-    const weekRoster = team.weeklyRosters?.[weekNum] || [];
+    const weekRoster = team.weeklyRosters?.[String(getDraftWeek(league, weekNum))] || [];
     return weekRoster.reduce((sum, cid) => sum + calcContestantWeekPoints(weekScores, cid), 0);
   }
 
@@ -121,7 +134,7 @@ export function calcStandings(league) {
               catRules.forEach(r => { catTotal += (ws[cid]?.[r.id] || 0); });
             });
           } else if (league.format === "standard") {
-            const roster = team.weeklyRosters?.[w] || [];
+            const roster = team.weeklyRosters?.[String(getDraftWeek(league, w))] || [];
             roster.forEach(cid => {
               catRules.forEach(r => { catTotal += (ws[cid]?.[r.id] || 0); });
             });
