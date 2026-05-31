@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.23.0
+**Current Production Version:** v2.4.24.0
 **Last Deploy Date:** 2026-05-31
-**App.jsx Line Count:** ~6,990
+**App.jsx Line Count:** ~7,090
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,19 @@
 ---
 
 ## Version Log
+
+### v2.4.24.0 — 2026-05-31
+ContestantProfileModal added — parallel to TeamProfileModal but for contestants. Contestant thumbnails are stripped from the expanded team card's roster list (the small 30px avatars next to each name are gone) and the contestant name itself is now the clickable surface — clicking opens the fullscreen profile modal with the contestant's photo, bio, tribe/couple/elimination chips, the same 4-cell stats summary used everywhere else, and a per-week scored-event log. Game-log contribution chips inside the expanded card are also clickable now — clicking a contestant chip opens the same modal. All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **`ContestantProfileModal` component** at `App.jsx:1505-1605` (just below TeamProfileModal). Self-contained: takes `{ contestant, league, onClose }`, computes weekly pts / best / worst / season locally and renders. Layout mirrors TeamProfileModal exactly: large `min(280px, 36vh)` photo at the top (with the contestant's saved `photoCropY` / `photoCropZoom` applied so the avatar matches what the Cast tab shows), name in Anybody display font, then a single line of metadata chips (tribe color-chip, couple-heart with partner name, ELIM with week if applicable), optional bio panel (whitespace-preserved), the 4-cell stats summary, and an event log. Event log uses the existing `league.scoringRules` mapping over `weeklyScores[w][cid]` to convert stored cumulative points back to rule-event chips (same `Math.round(stored / rule.points)` recovery pattern the scoring-rules editor uses) — chips show `<rule label><×count if >1>` colored teal positive / coral negative.
+- **State threading** at `App.jsx:1273-1278`. New `contestantModalId` state in `StandingsTab` (sibling of the existing `teamModalId`). `contestantModalContestant` resolves the id to the contestant object on each render. Modal renders at the end of StandingsTab's JSX alongside `<TeamProfileModal>`.
+- **Roster row strip + name link** at `App.jsx:1416-1431`. The 30px `<ContestantAvatar>` is removed from each row of the expanded team card's roster list. The contestant `name` becomes a `<span>` with `cursor:"pointer"`, `textDecoration:"underline"` (subtle dotted-feeling via `#2a2a4a` decoration color), and a 14px font (was 13px) so the click target is more obvious. The previous `paddingLeft:40` on the Last/Best/Season line (which was aligning under the avatar that no longer exists) is removed so that line aligns to the row's left edge.
+- **Game-log chip clickability** at `App.jsx:1469-1473`. Each contribution chip in the Team Game Log now has an `onClick` handler that opens the contestant modal. The contribs array now carries `id` alongside `name` and `pts` (one-line addition) so the chip can pass the id to `setContestantModalId`. Chip styling otherwise unchanged.
+- **Pattern parity.** ContestantProfileModal and TeamProfileModal share the same visual rhythm: 18px corner radius, sticky-but-not-actually-sticky close button, vh-relative avatar sizing, centered alignment, 4-cell stats summary, and the same `position:fixed,zIndex:1100,padding:16` overlay. A user who's familiar with one modal will immediately know how to read the other. Width is 480px for ContestantProfileModal vs 440px for TeamProfileModal — slightly wider to give the event log table room without wrapping rule labels too aggressively.
+- **Why the contestant modal scrolls and the team modal doesn't.** TeamProfileModal uses `overflow:"hidden"` and a fixed roster layout, designed to fit without scroll because the content is bounded (depth chart is always 4-5 items). ContestantProfileModal uses `overflowY:"auto"` because the event log can be arbitrarily long (10+ weeks × many events per week on a deep-season league). Scrolling is the right behavior here; trying to cap the event log would hide history.
+- **What this commit does NOT do.** Per-rule navigation from the event log (clicking a rule chip doesn't open the rule editor). No "scoring history" graph / sparkline yet. No keyboard nav between contestants. No swipe gestures on mobile to flip between teammates. All deferred to future polish.
+- **Not yet smoke-tested in browser** — recommended smoke path: (a) expand any standings row, click a contestant name in the roster list → modal opens with photo + stats + event log, (b) click a contestant chip in the Team Game Log → same modal opens, (c) close modal, verify the expanded team card row stays expanded (modal close doesn't collapse it), (d) on a leaguewith a contestant who has a bio set, verify the bio panel renders correctly with line breaks preserved.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.71s, no new warnings). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.23.0 — 2026-05-31
 Expanded team card on the Standings tab now mirrors the depth of the expanded contestant card on the Cast tab. Two new sections added to the existing inline expand: (1) a **Team Stats Summary** — 4-cell horizontal grid showing Last [period] / Best / Worst / Season — directly mirroring the contestant card's stats block; and (2) a **Team Game Log** — week-by-week history with the team's per-week total plus chips showing which rostered contestants contributed (and how much) that week, mirroring the contestant card's event log. Roster list and period header strip kept unchanged. All 10 regression baselines pass byte-identical, `npm run build` clean.
