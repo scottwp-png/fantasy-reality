@@ -4818,8 +4818,6 @@ function AddContestantModal({ open, onClose, league, onUpdate, editing }) {
     onClose();
   }
 
-  const showGender = league.format === "standard" && league.standardConfig?.genderedDraft;
-
   return (
     <Modal open={open} onClose={onClose} title={editing?"Edit Contestant":"Add Contestant"}>
       <Input label="Name" placeholder="e.g. Buddha Lo" value={name} onChange={e=>setName(e.target.value)} />
@@ -4831,7 +4829,11 @@ function AddContestantModal({ open, onClose, league, onUpdate, editing }) {
           borderRadius:8,color:"#e8e8f0",fontSize:14,fontFamily:"'Outfit',sans-serif",resize:"vertical",boxSizing:"border-box",lineHeight:1.5
         }} />
       </div>
-      {showGender && <Input label="Gender Category" placeholder="e.g. Male, Female" value={gender} onChange={e=>setGender(e.target.value)} />}
+      <Select label="Gender" value={gender} onChange={e=>setGender(e.target.value)} options={[
+        { value:"", label:"— Not set —" },
+        { value:"Male", label:"Male" },
+        { value:"Female", label:"Female" },
+      ]} />
       {photoUrl && (
         <div style={{ marginBottom:14 }}>
           <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>Thumbnail Position</label>

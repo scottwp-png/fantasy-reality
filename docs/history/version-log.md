@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.11.0
+**Current Production Version:** v2.4.12.0
 **Last Deploy Date:** 2026-05-15
-**App.jsx Line Count:** ~6,131
+**App.jsx Line Count:** ~6,127
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,19 @@
 ---
 
 ## Version Log
+
+### v2.4.12.0 — 2026-05-15
+Contestant gender field promoted to an always-visible dropdown in `AddContestantModal`. Previously the field was a free-text `<Input>` gated to Standard format + `genderedDraft` enabled — a typo trap (`"male"` vs `"Male"` vs `"M"` would break gendered-draft matching), and unusable for non-Standard formats that nonetheless want gender as contestant metadata. Now: 2-option `<Select>` (`Male` / `Female`) with an explicit `— Not set —` empty option, rendered for every league regardless of format. Foundational for the upcoming Captains 2M/2F roster validation (v2.4.13.0). All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **`AddContestantModal` change** at `App.jsx:4821-4838`. Removed the `showGender = league.format === "standard" && league.standardConfig?.genderedDraft` gate entirely. The free-text `<Input label="Gender Category" placeholder="e.g. Male, Female" .../>` is replaced with `<Select label="Gender" .../>` using the existing `Select` component at `App.jsx:495`. Options: `[{value:"", label:"— Not set —"}, {value:"Male", label:"Male"}, {value:"Female", label:"Female"}]`.
+- **Controlled vocabulary, no typos.** Existing leagues with gender entered as the exact strings `"Male"` / `"Female"` continue to work — those values match the dropdown options byte-for-byte. Existing leagues with stored variants (`"male"`, `"M"`, `"non-binary"`, etc.) will see the dropdown render as `— Not set —` until re-saved. **Not a migration trigger;** values are only rewritten when the modal saves, so legacy data is preserved on read.
+- **Two-options decision.** Standard's gendered-draft logic at `App.jsx:2660-2675` and the upcoming Captains 2M/2F validation both assume two categories for the equal-split math. Including a third option (Non-binary / Other) would break gendered-draft if any contestant had it selected — at minimum requires a "third bucket goes where?" rule that doesn't exist. Deferred. Two options is the locked design until the upstream constraint logic supports more.
+- **Always-visible decision.** Gender as contestant metadata is useful regardless of format — non-Standard leagues benefit from displaying gender pills in roster lists, Captains will need it for the 2M/2F constraint, future formats may use it too. The cost of always showing the field is one extra UI element per contestant; the benefit is having data populated when downstream features need it.
+- **No data-model change.** `contestant.gender` field continues to be a free-form string stored at `league.contestants[i].gender`. Only the input UI changed. `AddContestantModal`'s save path at `App.jsx:4810` still does `gender: gender.trim()` — the trim is now a no-op (dropdown values are exact) but harmless to keep.
+- **Bulk import path unaffected.** XLSX-driven contestant import (Bulk Add Contestants) still accepts free-form gender strings. If a sheet has `"male"` (lowercase), it imports as `"male"` and would render as `— Not set —` in the dropdown until a commissioner re-edits. Bringing the bulk importer onto the controlled vocabulary is deferred to a follow-up; not blocking tonight's launch.
+- **What this enables next:** v2.4.13.0 will introduce a `captainsConfig.genderedRoster` flag and live 2M/2F validation in `DepthChartTab`, slot-agnostic across the 4-person roster (Hero + Side-Kick + 2 Vigilantes). Reading `c.gender === "Male"` / `"Female"` from the dropdown's controlled values means the validation logic doesn't need to handle case-folding or aliases. v2.4.13.0 will also extend the `getDraftWeek` resolver and `episodesPerWeek` UI from Standard-only (v2.4.11.0) to Captains, enforcing weekly roster swap when N>1 episodes per week.
+- **Browser smoke verified** — dropdown renders on every league regardless of format. Three options visible, existing un-set contestants render as `— Not set —`, save+reopen round-trips the selected value correctly. Verified on the user's existing Love Island Standard league plus other formats.
+- `src/scoring.js` untouched. `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (3.60s).
+- **Commit:** `_pending_`
 
 ### v2.4.11.0 — 2026-05-15
 Phase 3 Commits A+B — foundational layer for decoupling draft cadence from scoring cadence in Standard-format leagues. Adds `league.episodesPerWeek` (default 1, integer ≥ 1) plus a new `getDraftWeek` resolver in `src/scoring.js` that maps a scoring unit (episode) to the draft-week key used in `team.weeklyRosters`. When `episodesPerWeek === N > 1` in episode-mode Standard leagues, one roster covers N consecutive episodes — drafts happen weekly, scoring stays per-episode. Both league-creation (Commit A) and existing-league editing in SettingsTab (Commit B) ship together so the field can be tested against existing leagues. Draft tab UI labeling and other roster-display copy still pending (Commits C/D). All 10 regression baselines pass byte-identical, `npm run build` clean.
