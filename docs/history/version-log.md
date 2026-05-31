@@ -1,7 +1,7 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.29.0
+**Current Production Version:** v2.4.30.0
 **Last Deploy Date:** 2026-05-31
 **App.jsx Line Count:** ~7,220
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
@@ -22,6 +22,18 @@
 ---
 
 ## Version Log
+
+### v2.4.30.0 — 2026-05-31
+Reverts v2.4.29.0's cross-tab navigation and instead reuses the **fullscreen photo+bio lightbox that `ContestantAvatar` already had built in**. Turns out the Cast tab's contestant thumbnail click opens this self-contained lightbox (portal-rendered, photo + name + bio with `Label: value` pretty-printing) — not the row-expand I assumed. v2.4.29.0 sent users to the Cast tab's row-expand which has different content. v2.4.30.0 extracts that lightbox to a module-level `<ContestantPhotoLightbox>` so clicking a contestant name on Standings opens the **same exact modal** the avatar click on Cast does. All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **`ContestantPhotoLightbox` extracted** at `App.jsx:686-727`. The portal-rendered fullscreen modal (the `{showFull && hasPhoto && ReactDOM.createPortal(...)}` block previously embedded in `ContestantAvatar`) is now a standalone module-level component. Single-prop interface: `{ contestant, league, onClose }`. Always renders when mounted — caller controls visibility via conditional rendering (`{open && <ContestantPhotoLightbox .../>}`). One small generalization: where the original required `hasPhoto` (no placeholder for missing photos), the extracted version renders a 360px colored initial when the contestant has no photo, so the lightbox works for any contestant — name+bio is still the meaningful payload either way.
+- **`ContestantAvatar` simplified** at `App.jsx:729-755`. The portal modal JSX is gone; `ContestantAvatar` now just renders the thumbnail and conditionally mounts `<ContestantPhotoLightbox>` when `showFull` is true. All prior thumbnail-click behavior preserved exactly — pixel-identical modal opens.
+- **StandingsTab lightbox state** at `App.jsx:1283-1289`. New `lightboxContestantId` state. `openContestant(id)` (existing helper, now rewired) sets the id; the four contestant-link sites (Hall of Fame MVP/Wooden Spoon, Team Records Star/Bench/Hit/Miss, expanded team-card roster names, Team Game Log chips) all funnel through it. Lightbox mounted at end of `StandingsTab`'s JSX: `{lightboxContestant && <ContestantPhotoLightbox .../>}`.
+- **Cross-tab navigation reverted.** v2.4.29.0's `pendingExpandContestantId` state in `LeagueDashboard`, `navigateToContestant` callback, prop threading to `ContestantsTab`, and the consuming `useEffect` are all removed. Net effect: `LeagueDashboard` and `ContestantsTab` signatures revert to pre-v2.4.29.0 — the navigation infrastructure was never the right approach.
+- **Why the lightbox is correct here vs. the modal I built earlier.** The `ContestantProfileModal` I built in v2.4.24.0 → slimmed in v2.4.28.0 → deleted in v2.4.29.0 was a parallel-but-different modal. The user's mental model is "click the thing → see the same picture+bio popup I see on Cast." Reusing the exact same component achieves consistency by construction — no risk of the two surfaces drifting visually.
+- **What this commit does NOT do.** Doesn't change the lightbox's visual design — same layout, same scroll behavior, same Label:value parsing. Doesn't make the lightbox-from-Standings opt-out (clicking always opens it, no inline-expand alternative). The team-card expand on Standings still expands the row inline (separate from the name-click behavior).
+- **Not yet smoke-tested in browser** — recommended smoke: (a) on Cast tab, tap a contestant's avatar thumbnail → fullscreen lightbox opens with photo + name + bio; (b) on Standings, expand a team row, click a contestant name → the SAME lightbox should open with the same content; (c) click an MVP entry in the League Legacy panel → same lightbox.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.70s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.29.0 — 2026-05-31
 Two corrections. (1) **Clicking a contestant name on Standings now navigates to the Cast tab and auto-expands that contestant's card** — replaces the previous modal approach. The user reported the slimmed v2.4.28.0 modal "looked broken" compared to the Cast tab's richer expanded contestant view; this commit makes the click jump directly to that richer view instead of trying to mirror it in a modal. (2) **Hot Picks and Most Rostered now render side-by-side** in a flex container on the My Roster (DepthChart) tab, wrapping to stacked on narrow viewports. `ContestantProfileModal` component is deleted entirely — 50 lines of dead code removed. All 10 regression baselines pass byte-identical, `npm run build` clean.

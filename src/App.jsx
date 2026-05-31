@@ -683,6 +683,52 @@ function Spinner({ size=20, color="#e94560" }) {
   return <div style={{ width:size,height:size,border:`2px solid ${color}33`,borderTop:`2px solid ${color}`,borderRadius:"50%",animation:"spin 0.6s linear infinite" }}/>;
 }
 
+// Shared fullscreen photo + bio modal. Lifted out of ContestantAvatar in
+// v2.4.30.0 so the same modal can open from any contestant name click, not just
+// thumbnail clicks. Renders the contestant's photo (or colored initial when no
+// photo), name, and bio with the Label:value pretty-printing the cast tab uses.
+// Caller mounts conditionally — this component always renders its portal when
+// called, so use `{open && <ContestantPhotoLightbox .../>}`.
+function ContestantPhotoLightbox({ contestant, league, onClose }) {
+  if (!contestant) return null;
+  const color = getTribeColor(league, contestant);
+  const hasPhoto = !!contestant.photoUrl;
+  return ReactDOM.createPortal(
+    <div onClick={onClose} style={{
+      position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.92)",
+      display:"flex",alignItems:"flex-start",justifyContent:"center",zIndex:9999,cursor:"pointer",
+      padding:"40px 20px",overflowY:"auto",WebkitOverflowScrolling:"touch"
+    }}>
+      <div style={{ maxWidth:400,width:"100%",textAlign:"center",flexShrink:0 }} onClick={e=>e.stopPropagation()}>
+        {hasPhoto ? (
+          <img src={contestant.photoUrl} alt={contestant?.name} style={{ width:"100%",maxWidth:360,borderRadius:14,objectFit:"contain",border:`3px solid ${color}` }} />
+        ) : (
+          <div style={{ width:"min(360px,80vw)",aspectRatio:"1/1",borderRadius:14,background:color,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto",fontFamily:"'Anybody',sans-serif",fontSize:140,fontWeight:900,color:"#fff",border:`3px solid ${color}` }}>
+            {contestant.name?.[0] || "?"}
+          </div>
+        )}
+        <div style={{ marginTop:12,color:"#e8e8f0",fontFamily:"'Anybody',sans-serif",fontSize:22,fontWeight:700 }}>{contestant?.name}</div>
+        {contestant?.bio && (
+          <div style={{ marginTop:12,textAlign:"left",padding:"0 8px",fontSize:13,lineHeight:1.8 }}>
+            {contestant.bio.split("\n").map((line, i) => {
+              const colonIdx = line.indexOf(":");
+              if (colonIdx > 0 && colonIdx < 30 && i < 10) {
+                const label = line.slice(0, colonIdx + 1);
+                const value = line.slice(colonIdx + 1);
+                return <div key={i}><span style={{ fontWeight:700,color:"#e8e8f0" }}>{label}</span><span style={{ color:"#8888aa" }}>{value}</span></div>;
+              }
+              if (!line.trim()) return <div key={i} style={{ height:8 }}/>;
+              return <div key={i} style={{ color:"#8888aa" }}>{line}</div>;
+            })}
+          </div>
+        )}
+        <button onClick={onClose} style={{ marginTop:16,marginBottom:20,background:"#2a2a4a",border:"none",borderRadius:8,padding:"8px 20px",color:"#ccc",fontSize:13,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>Close</button>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function ContestantAvatar({ contestant, league, size=32 }) {
   const [showFull, setShowFull] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -707,34 +753,7 @@ function ContestantAvatar({ contestant, league, size=32 }) {
           {contestant?.name?.[0] || "?"}
         </div>
       )}
-      {showFull && hasPhoto && ReactDOM.createPortal(
-        <div onClick={()=>setShowFull(false)} style={{
-          position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.92)",
-          display:"flex",alignItems:"flex-start",justifyContent:"center",zIndex:9999,cursor:"pointer",
-          padding:"40px 20px",overflowY:"auto",WebkitOverflowScrolling:"touch"
-        }}>
-          <div style={{ maxWidth:400,width:"100%",textAlign:"center",flexShrink:0 }} onClick={e=>e.stopPropagation()}>
-            <img src={contestant.photoUrl} alt={contestant?.name} style={{ width:"100%",maxWidth:360,borderRadius:14,objectFit:"contain",border:`3px solid ${color}` }} />
-            <div style={{ marginTop:12,color:"#e8e8f0",fontFamily:"'Anybody',sans-serif",fontSize:22,fontWeight:700 }}>{contestant?.name}</div>
-            {contestant?.bio && (
-              <div style={{ marginTop:12,textAlign:"left",padding:"0 8px",fontSize:13,lineHeight:1.8 }}>
-                {contestant.bio.split("\n").map((line, i) => {
-                  const colonIdx = line.indexOf(":");
-                  if (colonIdx > 0 && colonIdx < 30 && i < 10) {
-                    const label = line.slice(0, colonIdx + 1);
-                    const value = line.slice(colonIdx + 1);
-                    return <div key={i}><span style={{ fontWeight:700,color:"#e8e8f0" }}>{label}</span><span style={{ color:"#8888aa" }}>{value}</span></div>;
-                  }
-                  if (!line.trim()) return <div key={i} style={{ height:8 }}/>;
-                  return <div key={i} style={{ color:"#8888aa" }}>{line}</div>;
-                })}
-              </div>
-            )}
-            <button onClick={()=>setShowFull(false)} style={{ marginTop:16,marginBottom:20,background:"#2a2a4a",border:"none",borderRadius:8,padding:"8px 20px",color:"#ccc",fontSize:13,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>Close</button>
-          </div>
-        </div>,
-        document.body
-      )}
+      {showFull && <ContestantPhotoLightbox contestant={contestant} league={league} onClose={()=>setShowFull(false)} />}
     </>
   );
 }
@@ -1191,13 +1210,6 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
   const [tab, setTab] = useState("standings");
   const [modal, setModal] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
-  // pendingExpandContestantId: set when a contestant link is clicked on another
-  // tab (e.g., a name in the Standings team-card roster). ContestantsTab consumes
-  // it on mount/render — sets its local expandedId to this value and scrolls to
-  // it, then clears via clearPending so re-navigating doesn't re-expand.
-  const [pendingExpandContestantId, setPendingExpandContestantId] = useState(null);
-  const navigateToContestant = (id) => { setPendingExpandContestantId(id); setTab("contestants"); };
-  const clearPendingExpand = () => setPendingExpandContestantId(null);
 
   const standings = useMemo(() => calcStandings(league), [league]);
 
@@ -1283,8 +1295,8 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
       </div>
 
       <div style={{ padding:20 }}>
-        {tab === "standings" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><StandingsTab league={league} standings={standings} onNavigateToContestant={navigateToContestant} /></SpoilerBlur>}
-        {tab === "contestants" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><ContestantsTab league={league} onUpdate={isCommissioner?onUpdate:null} setModal={isCommissioner?setModal:()=>{}} setEditing={isCommissioner?setEditingItem:()=>{}} readOnly={!isCommissioner} pendingExpandContestantId={pendingExpandContestantId} clearPendingExpand={clearPendingExpand} /></SpoilerBlur>}
+        {tab === "standings" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><StandingsTab league={league} standings={standings} /></SpoilerBlur>}
+        {tab === "contestants" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><ContestantsTab league={league} onUpdate={isCommissioner?onUpdate:null} setModal={isCommissioner?setModal:()=>{}} setEditing={isCommissioner?setEditingItem:()=>{}} readOnly={!isCommissioner} /></SpoilerBlur>}
         {tab === "scoring" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><ScoringTab league={league} onUpdate={isCommissioner ? onUpdate : null} isCommissioner={isCommissioner} /></SpoilerBlur>}
         {tab === "weekly-draft" && isCommissioner && <WeeklyDraftTab league={league} onUpdate={onUpdate} standings={standings} />}
         {tab === "depth-chart" && <DepthChartTab league={league} onUpdate={onUpdate} lockedToTeamId={isCommissioner ? null : loggedInTeamId} defaultTeamId={loggedInTeamId} isCommissioner={isCommissioner} spoilerActive={spoilerActive} myTeamId={loggedInTeamId} />}
@@ -1364,7 +1376,7 @@ function WeeklyBreakdownSection({ league, standings }) {
   );
 }
 
-function StandingsTab({ league, standings, onNavigateToContestant }) {
+function StandingsTab({ league, standings }) {
   const weeks = Object.keys(league.weeklyScores || {}).sort((a,b)=>+a - +b);
   const [expanded, setExpanded] = useState(null);
   // teamModalId: when set, render <TeamProfileModal> for that team. Driven by
@@ -1373,11 +1385,12 @@ function StandingsTab({ league, standings, onNavigateToContestant }) {
   // calls stopPropagation.
   const [teamModalId, setTeamModalId] = useState(null);
   const teamModalTeam = teamModalId ? (league.teams||[]).find(t => t.id === teamModalId) : null;
-  // Click handler for contestant names — navigates to the Cast tab and
-  // auto-expands the contestant's card there (handled by LeagueDashboard's
-  // pendingExpandContestantId state, consumed by ContestantsTab). Replaces the
-  // earlier modal-based approach so the user sees the full Cast tab card.
-  const openContestant = (id) => { if (id && onNavigateToContestant) onNavigateToContestant(id); };
+  // lightboxContestantId: opens the shared ContestantPhotoLightbox (the same
+  // fullscreen photo+bio modal that the Cast tab's contestant avatar uses).
+  // Driven by clicks on contestant names anywhere in this tab.
+  const [lightboxContestantId, setLightboxContestantId] = useState(null);
+  const lightboxContestant = lightboxContestantId ? (league.contestants||[]).find(c => c.id === lightboxContestantId) : null;
+  const openContestant = (id) => { if (id) setLightboxContestantId(id); };
   // Per-team + league-wide records. Single-pass scan of league.weeklyScores,
   // memoized so the records panel and per-team card don't recompute on every
   // expand/collapse toggle. See computeLeagueRecords at module scope.
@@ -1655,6 +1668,9 @@ function StandingsTab({ league, standings, onNavigateToContestant }) {
       {teamModalTeam && (
         <TeamProfileModal team={teamModalTeam} league={league} standings={standings} onClose={()=>setTeamModalId(null)} />
       )}
+      {lightboxContestant && (
+        <ContestantPhotoLightbox contestant={lightboxContestant} league={league} onClose={()=>setLightboxContestantId(null)} />
+      )}
     </div>
   );
 }
@@ -1848,24 +1864,13 @@ function CouplesEditor({ league, onUpdate }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CONTESTANTS TAB
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly, pendingExpandContestantId, clearPendingExpand }) {
+function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
   const [managePhotos, setManagePhotos] = useState(false);
   const [manageMode, setManageMode] = useState("photos");
   const [filter, setFilter] = useState("all");
   const [expandedId, setExpandedId] = useState(null);
   const [sortBy, setSortBy] = useState("total");
   const [selectedForMove, setSelectedForMove] = useState(new Set());
-
-  // When LeagueDashboard sets pendingExpandContestantId (e.g., user clicked a
-  // contestant name on the Standings tab), auto-expand that contestant here on
-  // mount/render, switch the filter so the contestant is guaranteed visible,
-  // and clear the pending state so re-navigating later doesn't re-expand.
-  useEffect(() => {
-    if (!pendingExpandContestantId) return;
-    setExpandedId(pendingExpandContestantId);
-    setFilter("all");
-    if (clearPendingExpand) clearPendingExpand();
-  }, [pendingExpandContestantId, clearPendingExpand]);
 
   const weeks = Object.keys(league.weeklyScores || {}).sort((a,b)=>+a - +b);
   const tribes = league.tribes || {};
