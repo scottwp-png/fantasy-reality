@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.12.0
+**Current Production Version:** v2.4.13.0
 **Last Deploy Date:** 2026-05-15
-**App.jsx Line Count:** ~6,127
+**App.jsx Line Count:** ~6,180
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,34 @@
 ---
 
 ## Version Log
+
+### v2.4.13.0 — 2026-05-15
+Gender-minimum roster constraint for Heroes (Captains) format. New `captainsConfig.genderedRoster` flag with paired `minMale` / `minFemale` numeric inputs at league creation and in SettingsTab. Live roster validation in `DepthChartTab` — chip showing current `2M / 2F` count, Save button disabled when minimums aren't met, gender labels added to the contestant picker dropdown. Designed for the Love Island launch tomorrow where managers field a 4-person Heroes roster requiring exactly 2 boys + 2 girls. All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **Data model — three new fields on `captainsConfig`:**
+  - `genderedRoster: boolean` (default `false`) — activates the constraint.
+  - `minMale: number` (default `0` when not yet set, default `2` in CreateLeagueScreen).
+  - `minFemale: number` (default `0` when not yet set, default `2` in CreateLeagueScreen).
+  - Existing Captains leagues without these fields read as `genderedRoster === undefined` → falsy → constraint never applied. Backward-compat is automatic.
+  - Lives nested under `captainsConfig` (alongside `regularSlots`) because the constraint is format-specific. Standard's `genderedDraft` flag stays at the root of `standardConfig` — symmetric pattern.
+- **CreateLeagueScreen Heroes Config block** at `App.jsx:787-816`. Three new state hooks (`genderedRoster`, `minMale`, `minFemale`) alongside the existing `regularSlots` hook. New checkbox `"Require gender minimums (pairs with contestant gender dropdown)"` styled with the existing `#f5a623` Heroes accent. When checked, reveals two flex-side-by-side numeric `Input`s (Min Male, Min Female) and an inline italic help line. **Create-time validation:** if `minMale + minFemale > regularSlots + 2`, an inline coral error renders below the inputs and `handleSave` blocks creation with an `alert()` until the user adjusts. Matches the user's chosen "warn AND block" model for impossible configurations — keeps a less-savvy commissioner from creating an un-saveable league while still allowing flexibility within achievable configurations.
+- **`handleSave` persistence** at `App.jsx:678-696`. Replaces the prior `captainsConfig: { regularSlots: Number(regularSlots) }` literal with the expanded shape including all three new fields. Pre-save validation guard added at the top of `handleSave` for the captains-only impossible-minimums case.
+- **SettingsTab integration** at `App.jsx:4665-4716`. Added inside the existing Format card (where `regularSlots` is displayed for Captains). Same checkbox + paired number inputs, but wired directly to `onUpdate({...league, captainsConfig: { ...cfg, ... }})` for immediate per-league persistence via `saveLeague` — no intermediate local state. Same inline error rendering when minimums exceed the roster size. Same italic help copy. Existing leagues with `captainsConfig` populated from before this commit work through the spread (defaults applied via `||`).
+- **`DepthChartTab` gender constraint logic** at `App.jsx:2880-2917`. New `useMemo` for `genderCounts` (counts `Male` / `Female` / `unset` across the entire `localChart` — captain + coCaptain + regulars[], slot-agnostic per the locked design). Constants `genderConstraintActive`, `minMaleNeeded`, `minFemaleNeeded`, `genderConstraintMet` derive from the league config. `genderChipLabel` produces the human-readable status string: `"2M / 2F · OK"` when satisfied, `"1M / 3F · Need 1 more M"` when not. Constraint check is `genderCounts.Male >= minMaleNeeded && genderCounts.Female >= minFemaleNeeded` — doesn't require slot completion separately because the minimums force filled slots implicitly.
+- **Live counter chip in DepthChartTab header** at `App.jsx:3144-3151`. New `Badge` rendered next to the existing cadence badge. Color-coded via the existing `Badge` component: `#4ecdc4` (teal) when constraint met, `#e94560` (coral) when not. Hidden entirely when `!genderConstraintActive`. Sits in a flex row with `gap:6` and `flexWrap:"wrap"` so the chip + cadence badge wrap gracefully on narrow screens.
+- **Save button guard** at `App.jsx:3506-3520`. Sticky-bottom save bar's border + glow color now flips with `genderConstraintMet` (teal when valid, coral when invalid). When invalid, a centered coral one-liner appears above the Discard/Save row repeating the chip label so the player can't miss why save is blocked. Save `<Btn>` receives `disabled={!genderConstraintMet}` plus inline opacity/cursor styling for visual clarity. Backup guard inside `saveDepthChart` (`if (!genderConstraintMet) return;`) prevents any programmatic bypass.
+- **Picker dropdown gender labels** at `App.jsx:3091` and `App.jsx:3104`. Each contestant `<option>` in `RosterRow`'s `<select>` now suffixes `(M)` / `(F)` after the contestant name when gender is set — matches the existing pattern that already surfaces tribe and swap status in dropdown options. Contestants with no gender set render without a suffix. Two render sites (tribe-grouped and "no-tribe" optgroups); both updated.
+- **Backward compatibility** — every legacy Captains league has `genderedRoster === undefined`, so:
+  - `genderConstraintActive === false` → chip hidden, save button never disabled by this constraint, dropdown still shows gender labels (a small but harmless UI improvement on every Captains league).
+  - All 10 regression baselines pass byte-identical — none have the flag enabled, so scoring + standings outputs are unchanged.
+- **Pairs with v2.4.12.0** — the contestant gender dropdown shipped in the prior release populates the data this constraint reads. Together they form the complete "2 boys + 2 girls roster" enforcement path for the Love Island launch.
+- **Out of scope (deferred):**
+  - **v2.4.14.0 (planned next):** Captains episodesPerWeek extension. Today's commit doesn't touch the `getDraftWeek` resolver gate (still Standard-only) or `weeklyDepthCharts` keying. In an episode-mode Captains league with `episodesPerWeek > 1`, swap-once-per-week semantics still operate on a per-episode basis. To be fixed before kickoff tomorrow.
+  - Per-slot gender constraints (e.g., "Hero must be Female"). Today's check is roster-wide and slot-agnostic only.
+  - Auto-greying picker dropdown options that would violate the constraint — the live counter + disabled save covers the feedback loop. Could be added later as polish.
+  - Show-wide scoring (Item 3 from the user's morning priority list) and PDF media-pack ingestion (Item 2). Both explicitly deferred.
+- **Browser smoke verified** — checkbox + paired inputs visible in Settings → Format card on existing Love Island Captains league; chip renders in Depth Chart header with correct color coding; Save guard disables when constraint not met; `(M)` / `(F)` suffixes visible in slot picker dropdown; non-Captains leagues unaffected.
+- `src/scoring.js` untouched. `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.66s).
+- **Commit:** `_pending_`
 
 ### v2.4.12.0 — 2026-05-15
 Contestant gender field promoted to an always-visible dropdown in `AddContestantModal`. Previously the field was a free-text `<Input>` gated to Standard format + `genderedDraft` enabled — a typo trap (`"male"` vs `"Male"` vs `"M"` would break gendered-draft matching), and unusable for non-Standard formats that nonetheless want gender as contestant metadata. Now: 2-option `<Select>` (`Male` / `Female`) with an explicit `— Not set —` empty option, rendered for every league regardless of format. Foundational for the upcoming Captains 2M/2F roster validation (v2.4.13.0). All 10 regression baselines pass byte-identical, `npm run build` clean.

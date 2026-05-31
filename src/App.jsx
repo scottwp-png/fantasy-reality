@@ -619,6 +619,9 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
   const [picksPerManager, setPicksPerManager] = useState(2);
   const [genderedDraft, setGenderedDraft] = useState(false);
   const [episodesPerWeek, setEpisodesPerWeek] = useState(1);
+  const [genderedRoster, setGenderedRoster] = useState(false);
+  const [minMale, setMinMale] = useState(2);
+  const [minFemale, setMinFemale] = useState(2);
   const [headToHead, setHeadToHead] = useState(false);
   const [bestBall, setBestBall] = useState(false);
   const [salaryBudget, setSalaryBudget] = useState(100);
@@ -674,6 +677,10 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
 
   function handleSave() {
     if (!name.trim()) return;
+    if (format === "captains" && genderedRoster && (Number(minMale)+Number(minFemale)) > (Number(regularSlots)+2)) {
+      alert(`Gender minimums (${Number(minMale)+Number(minFemale)}) exceed total roster size (${Number(regularSlots)+2}). Reduce Min Male or Min Female before creating the league.`);
+      return;
+    }
     const preset = SHOW_PRESETS[showType];
     let league = {
       id: generateId(),
@@ -682,7 +689,12 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
       showName: showType === "custom" ? showName.trim() : preset.name,
       seasonName: seasonName.trim() || "Season 1",
       format,
-      captainsConfig: format === "captains" ? { regularSlots: Number(regularSlots) } : null,
+      captainsConfig: format === "captains" ? {
+        regularSlots: Number(regularSlots),
+        genderedRoster,
+        minMale: Number(minMale) || 0,
+        minFemale: Number(minFemale) || 0,
+      } : null,
       standardConfig: format === "standard" ? { picksPerManager: Number(picksPerManager), genderedDraft } : null,
       episodesPerWeek: Number(episodesPerWeek) || 1,
       survivorPoolConfig: format === "survivor_pool" ? {} : null,
@@ -785,6 +797,26 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
             <div style={{ padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",marginBottom:16 }}>
               <div style={{ fontSize:12,fontWeight:600,color:"#f5a623",marginBottom:10 }}>HEROES CONFIG</div>
               <Input label="Number of Vigilante Spots" type="number" min="1" max="10" value={regularSlots} onChange={e=>setRegularSlots(e.target.value)} />
+              <label style={{ display:"flex",alignItems:"center",gap:8,cursor:"pointer",color:"#ccc",fontSize:13,marginTop:4 }}>
+                <input type="checkbox" checked={genderedRoster} onChange={e=>setGenderedRoster(e.target.checked)} style={{ accentColor:"#f5a623" }} />
+                Require gender minimums (pairs with contestant gender dropdown)
+              </label>
+              {genderedRoster && (
+                <div style={{ marginTop:10 }}>
+                  <div style={{ display:"flex",gap:10 }}>
+                    <div style={{ flex:1 }}><Input label="Min Male" type="number" min="0" max={Number(regularSlots)+2} value={minMale} onChange={e=>setMinMale(e.target.value)} /></div>
+                    <div style={{ flex:1 }}><Input label="Min Female" type="number" min="0" max={Number(regularSlots)+2} value={minFemale} onChange={e=>setMinFemale(e.target.value)} /></div>
+                  </div>
+                  {(Number(minMale)+Number(minFemale)) > (Number(regularSlots)+2) && (
+                    <div style={{ fontSize:11,color:"#e94560",fontWeight:600,marginTop:2 }}>
+                      Minimums ({Number(minMale)+Number(minFemale)}) exceed roster size ({Number(regularSlots)+2}). Reduce one before saving.
+                    </div>
+                  )}
+                  <div style={{ fontSize:11,color:"#6a6a8a",marginTop:4,fontStyle:"italic",lineHeight:1.4 }}>
+                    Rosters must include at least this many of each gender. Remaining slots can be any gender.
+                  </div>
+                </div>
+              )}
             </div>
           )}
           {format === "standard" && (
@@ -2871,6 +2903,39 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
     return count;
   }, [currentRosterIds, lastWeekRosterIds, lastWeekChart]);
 
+  // Gender constraint — pairs with league.captainsConfig.genderedRoster.
+  // Counts Male / Female / unset across the entire localChart (slot-agnostic).
+  const captainsCfg = league.captainsConfig || {};
+  const genderConstraintActive = !!captainsCfg.genderedRoster;
+  const minMaleNeeded = Number(captainsCfg.minMale) || 0;
+  const minFemaleNeeded = Number(captainsCfg.minFemale) || 0;
+  const genderCounts = useMemo(() => {
+    const counts = { Male: 0, Female: 0, unset: 0 };
+    const contestants = league.contestants || [];
+    const allIds = [localChart.captain, localChart.coCaptain, ...(localChart.regulars||[])].filter(Boolean);
+    allIds.forEach(cid => {
+      const c = contestants.find(x => x.id === cid);
+      const g = c?.gender;
+      if (g === "Male") counts.Male++;
+      else if (g === "Female") counts.Female++;
+      else counts.unset++;
+    });
+    return counts;
+  }, [localChart, league.contestants]);
+  const genderConstraintMet = !genderConstraintActive || (
+    genderCounts.Male >= minMaleNeeded &&
+    genderCounts.Female >= minFemaleNeeded
+  );
+  const genderChipLabel = (() => {
+    if (!genderConstraintActive) return null;
+    const need = [];
+    if (genderCounts.Male < minMaleNeeded) need.push(`${minMaleNeeded - genderCounts.Male} more M`);
+    if (genderCounts.Female < minFemaleNeeded) need.push(`${minFemaleNeeded - genderCounts.Female} more F`);
+    const base = `${genderCounts.Male}M / ${genderCounts.Female}F`;
+    if (need.length === 0) return `${base} · OK`;
+    return `${base} · Need ${need.join(", ")}`;
+  })();
+
   // While Final Lock-In is open (and this team hasn't confirmed yet), waive
   // the weekly 1-swap limit so the player can freely pick their final roster.
   const lockInOpenForTeam =
@@ -2949,6 +3014,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
   }
 
   function saveDepthChart() {
+    if (!genderConstraintMet) return;
     const weekNum = String(effectiveWeek);
     const updatedTeams = league.teams.map(t => t.id !== selectedTeam ? t : {
       ...t,
@@ -3052,7 +3118,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
                       const existingSlot = onRosterSlot(a.id);
                       const isCurrentSlot = a.id === currentId;
                       return <option key={a.id} value={a.id}>
-                        {a.name}{existingSlot && !isCurrentSlot ? ` (swap ${existingSlot==="captain"?"C":existingSlot==="coCaptain"?"CC":"R"+(Number(existingSlot.replace("regular_",""))+1)})` : ""}{isNewPlayer(a.id)&&!currentRosterIds.has(a.id)?" ★":""}
+                        {a.name}{a.gender ? ` (${a.gender.charAt(0)})` : ""}{existingSlot && !isCurrentSlot ? ` (swap ${existingSlot==="captain"?"C":existingSlot==="coCaptain"?"CC":"R"+(Number(existingSlot.replace("regular_",""))+1)})` : ""}{isNewPlayer(a.id)&&!currentRosterIds.has(a.id)?" ★":""}
                       </option>;
                     })}
                   </optgroup>);
@@ -3064,7 +3130,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
                       const existingSlot = onRosterSlot(a.id);
                       const isCurrentSlot = a.id === currentId;
                       return <option key={a.id} value={a.id}>
-                        {a.name}{existingSlot && !isCurrentSlot ? ` (swap ${existingSlot==="captain"?"C":existingSlot==="coCaptain"?"CC":"R"+(Number(existingSlot.replace("regular_",""))+1)})` : ""}{isNewPlayer(a.id)&&!currentRosterIds.has(a.id)?" ★":""}
+                        {a.name}{a.gender ? ` (${a.gender.charAt(0)})` : ""}{existingSlot && !isCurrentSlot ? ` (swap ${existingSlot==="captain"?"C":existingSlot==="coCaptain"?"CC":"R"+(Number(existingSlot.replace("regular_",""))+1)})` : ""}{isNewPlayer(a.id)&&!currentRosterIds.has(a.id)?" ★":""}
                       </option>;
                     })}
                   </optgroup>);
@@ -3108,7 +3174,10 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
         <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>
           {lockedToTeamId ? "My Roster" : "Depth Chart"}
         </h3>
-        <Badge color="#f5a623">{cadenceLabel(league, effectiveWeek)}</Badge>
+        <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
+          {genderChipLabel && <Badge color={genderConstraintMet ? "#4ecdc4" : "#e94560"}>{genderChipLabel}</Badge>}
+          <Badge color="#f5a623">{cadenceLabel(league, effectiveWeek)}</Badge>
+        </div>
       </div>
 
       {/* Week selector for commissioners to edit past weeks */}
@@ -3469,10 +3538,17 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
       )}
 
       {hasChanges && (
-        <div style={{ position:"sticky",bottom:16,marginTop:12,padding:"14px 16px",background:"linear-gradient(135deg,#0a1a18,#12121f)",borderRadius:14,border:"1px solid #4ecdc4",
-          display:"flex",gap:10,justifyContent:"center",alignItems:"center",boxShadow:"0 -4px 24px rgba(78,205,196,0.15)" }}>
-          <Btn small variant="ghost" onClick={discardRosterChanges}>Discard</Btn>
-          <Btn onClick={saveDepthChart}><Icon name="save" size={14}/> Save Roster</Btn>
+        <div style={{ position:"sticky",bottom:16,marginTop:12,padding:"14px 16px",background:"linear-gradient(135deg,#0a1a18,#12121f)",borderRadius:14,border:`1px solid ${genderConstraintMet ? "#4ecdc4" : "#e94560"}`,
+          display:"flex",flexDirection:"column",gap:8,alignItems:"stretch",boxShadow:`0 -4px 24px ${genderConstraintMet ? "rgba(78,205,196,0.15)" : "rgba(233,69,96,0.15)"}` }}>
+          {!genderConstraintMet && (
+            <div style={{ fontSize:12,color:"#e94560",fontWeight:600,textAlign:"center" }}>
+              Roster doesn't meet gender minimums — {genderChipLabel}
+            </div>
+          )}
+          <div style={{ display:"flex",gap:10,justifyContent:"center",alignItems:"center" }}>
+            <Btn small variant="ghost" onClick={discardRosterChanges}>Discard</Btn>
+            <Btn onClick={saveDepthChart} disabled={!genderConstraintMet} style={!genderConstraintMet ? { opacity:0.5,cursor:"not-allowed" } : {}}><Icon name="save" size={14}/> Save Roster</Btn>
+          </div>
         </div>
       )}
     </div>
@@ -4637,6 +4713,45 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
         <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.5 }}>{formatInfo(league)[league.format]?.desc}</div>
         {league.format==="captains" && <div style={{ fontSize:12,color:"#6a6a8a",marginTop:6 }}>Regular slots: {league.captainsConfig?.regularSlots||3}</div>}
         {league.format==="standard" && <div style={{ fontSize:12,color:"#6a6a8a",marginTop:6 }}>Picks/manager: {league.standardConfig?.picksPerManager||2} · Gendered: {league.standardConfig?.genderedDraft?"Yes":"No"}</div>}
+        {league.format === "captains" && (() => {
+          const cfg = league.captainsConfig || {};
+          const totalSlots = (Number(cfg.regularSlots)||3) + 2;
+          const minM = Number(cfg.minMale) || 0;
+          const minF = Number(cfg.minFemale) || 0;
+          const exceeds = (minM + minF) > totalSlots;
+          return (
+            <div style={{ marginTop:12,padding:"10px 12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38" }}>
+              <label style={{ display:"flex",alignItems:"center",gap:8,cursor:"pointer",color:"#ccc",fontSize:13 }}>
+                <input type="checkbox" checked={!!cfg.genderedRoster}
+                  onChange={e=>onUpdate({...league, captainsConfig: { ...cfg, genderedRoster: e.target.checked, minMale: minM, minFemale: minF }})}
+                  style={{ accentColor:"#f5a623",width:16,height:16 }} />
+                Require gender minimums
+              </label>
+              {cfg.genderedRoster && (
+                <div style={{ marginTop:10 }}>
+                  <div style={{ display:"flex",gap:10 }}>
+                    <div style={{ flex:1 }}>
+                      <Input label="Min Male" type="number" min="0" max={totalSlots} value={minM}
+                        onChange={e=>onUpdate({...league, captainsConfig: { ...cfg, minMale: Number(e.target.value) || 0 }})} />
+                    </div>
+                    <div style={{ flex:1 }}>
+                      <Input label="Min Female" type="number" min="0" max={totalSlots} value={minF}
+                        onChange={e=>onUpdate({...league, captainsConfig: { ...cfg, minFemale: Number(e.target.value) || 0 }})} />
+                    </div>
+                  </div>
+                  {exceeds && (
+                    <div style={{ fontSize:11,color:"#e94560",fontWeight:600,marginTop:2 }}>
+                      Minimums ({minM+minF}) exceed roster size ({totalSlots}). Adjust to a valid configuration.
+                    </div>
+                  )}
+                  <div style={{ fontSize:11,color:"#6a6a8a",marginTop:4,fontStyle:"italic",lineHeight:1.4 }}>
+                    Each manager's depth chart must include at least this many of each gender. Remaining slots can be any gender.
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
       </>}
 
