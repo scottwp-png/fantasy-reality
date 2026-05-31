@@ -1656,10 +1656,30 @@ function BulkAddContestants({ league, onUpdate, onClose }) {
     if (!text) return;
 
     const contestants = [];
-
-    // Try Bravo-style format: look for name headers followed by bio paragraphs
-    // Pattern: lines that look like full names (2-4 words, title case, short) followed by longer text
     const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+
+    // Strategy 0: Love Island press-kit format — explicit "Name:" / "Age:" / "Job:" / "From:" labels.
+    // One contestant per "Name:" marker; everything else (Q&A interview body, photo captions) is ignored.
+    const hasNameKey = lines.some(l => /^Name:\s*/i.test(l));
+    if (hasNameKey) {
+      let cur = null;
+      const flush = () => {
+        if (!cur || !cur.name) return;
+        const bio = [cur.age && `Age ${cur.age}`, cur.job, cur.from && `From ${cur.from}`].filter(Boolean).join(" · ");
+        contestants.push({ name: cur.name, bio });
+      };
+      for (const line of lines) {
+        const mName = line.match(/^Name:\s*(.+)$/i);
+        if (mName) { flush(); cur = { name: mName[1].trim(), age:"", job:"", from:"" }; continue; }
+        if (!cur) continue;
+        const mAge  = line.match(/^Age:\s*(.+)$/i);                              if (mAge)  { cur.age  = mAge[1].trim();  continue; }
+        const mJob  = line.match(/^(?:Job|Occupation|Profession):\s*(.+)$/i);    if (mJob)  { cur.job  = mJob[1].trim();  continue; }
+        const mFrom = line.match(/^(?:From|Hometown|Location):\s*(.+)$/i);       if (mFrom) { cur.from = mFrom[1].trim(); continue; }
+      }
+      flush();
+      setParsed(contestants);
+      return;
+    }
 
     // Strategy 1: Look for "Hometown:" pattern (Bravo format)
     const hasBravoFormat = lines.some(l => l.startsWith("Hometown:"));
@@ -1719,11 +1739,15 @@ function BulkAddContestants({ league, onUpdate, onClose }) {
         }
       }
     } else {
-      // Strategy 2: Simple format — one name per line, optionally "Name - Bio" or "Name | Bio"
+      // Strategy 2: Simple format — one name per line, optionally "Name - Bio" or "Name | Bio".
+      // Tightened to reject pasted prose: skip questions, sentences, all-lowercase lines, and
+      // names with more than 5 words (which are almost always bio fragments, not actual names).
+      const separators = [" - ", " – ", " — ", " | ", "\t"];
       for (const line of lines) {
-        const separators = [" - ", " – ", " — ", " | ", "\t"];
-        let name = line;
-        let bio = "";
+        if (line.length > 80) continue;
+        if (/[?]$/.test(line)) continue;
+        if (/^[a-z]/.test(line)) continue;
+        let name = line, bio = "";
         for (const sep of separators) {
           if (line.includes(sep)) {
             const parts = line.split(sep);
@@ -1732,9 +1756,10 @@ function BulkAddContestants({ league, onUpdate, onClose }) {
             break;
           }
         }
-        if (name && name.length > 1 && name.length < 80) {
-          contestants.push({ name, bio });
-        }
+        const nameWords = name.split(/\s+/).filter(Boolean);
+        if (nameWords.length === 0 || nameWords.length > 5) continue;
+        if (name.length < 2 || name.length > 79) continue;
+        contestants.push({ name, bio });
       }
     }
 
@@ -1777,7 +1802,7 @@ function BulkAddContestants({ league, onUpdate, onClose }) {
         </div>
 
         <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:12,lineHeight:1.4 }}>
-          Paste text from a cast page (like Bravo's Top Chef page) or a simple list of names. For a simple list, use one name per line, optionally with " - bio" after each name.
+          Paste text from a press kit or a simple list. Recognized formats: Love Island press kits with <code>Name:</code> / <code>Age:</code> / <code>Job:</code> / <code>From:</code> labels (one record per <code>Name:</code>); Bravo-style cast pages with <code>Hometown:</code> / <code>Occupation:</code>; or a plain list (one name per line, optionally <code>Name - bio</code>).
         </div>
 
         <textarea value={rawText} onChange={e=>setRawText(e.target.value)} placeholder="Paste cast page text or name list here..." rows={8} style={{
@@ -4590,6 +4615,196 @@ function SpoilerProtectionEditor({ league, onUpdate }) {
   );
 }
 
+// Walks weeklyScores and rewrites every entry for `ruleId` using newPts.
+// Stored value is `count * rulePoints` (see setScore in WeeklyScoringTab),
+// so count is recovered by `Math.round(stored / oldPts)` and re-multiplied.
+function recalcWeeklyScoresForRulePointsChange(league, ruleId, oldPts, newPts) {
+  if (oldPts === newPts) return league;
+  const ws = league.weeklyScores || {};
+  const out = {};
+  for (const w in ws) {
+    out[w] = {};
+    for (const cid in ws[w]) {
+      const cs = ws[w][cid] || {};
+      const nextCs = { ...cs };
+      if (ruleId in cs) {
+        const stored = cs[ruleId];
+        const count = (!oldPts || oldPts === 0) ? 0 : Math.round(stored / oldPts);
+        nextCs[ruleId] = count * newPts;
+      }
+      out[w][cid] = nextCs;
+    }
+  }
+  return { ...league, weeklyScores: out };
+}
+
+function recalcWeeklyScoresForRuleRemoval(league, ruleId) {
+  const ws = league.weeklyScores || {};
+  const out = {};
+  for (const w in ws) {
+    out[w] = {};
+    for (const cid in ws[w]) {
+      const cs = ws[w][cid] || {};
+      const nextCs = { ...cs };
+      delete nextCs[ruleId];
+      out[w][cid] = nextCs;
+    }
+  }
+  return { ...league, weeklyScores: out };
+}
+
+function ScoringRulesSection({ league, onUpdate }) {
+  const rules = league.scoringRules || [];
+  const [adding, setAdding] = useState(false);
+  const [newLabel, setNewLabel] = useState("");
+  const [newPoints, setNewPoints] = useState(0);
+  const [newCategory, setNewCategory] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  // Group rules by category, preserving the order they appear in the league array
+  const grouped = useMemo(() => {
+    const g = {};
+    const order = [];
+    rules.forEach(r => {
+      const cat = r.category || "Other";
+      if (!g[cat]) { g[cat] = []; order.push(cat); }
+      g[cat].push(r);
+    });
+    return { g, order };
+  }, [rules]);
+
+  const existingIds = new Set(rules.map(r => r.id));
+  const libraryAvailable = DEFAULT_SCORING_RULES.filter(r => !existingIds.has(r.id));
+
+  function updateRulePoints(ruleId, nextPts) {
+    const rule = rules.find(r => r.id === ruleId);
+    if (!rule) return;
+    const oldPts = Number(rule.points) || 0;
+    const newPts = Number(nextPts);
+    if (Number.isNaN(newPts)) return;
+    const nextRules = rules.map(r => r.id === ruleId ? { ...r, points: newPts } : r);
+    const recalced = recalcWeeklyScoresForRulePointsChange(league, ruleId, oldPts, newPts);
+    onUpdate({ ...recalced, scoringRules: nextRules });
+  }
+
+  function updateRuleLabel(ruleId, label) {
+    onUpdate({ ...league, scoringRules: rules.map(r => r.id === ruleId ? { ...r, label } : r) });
+  }
+
+  function updateRuleCategory(ruleId, category) {
+    onUpdate({ ...league, scoringRules: rules.map(r => r.id === ruleId ? { ...r, category } : r) });
+  }
+
+  function removeRule(ruleId) {
+    const rule = rules.find(r => r.id === ruleId);
+    if (!rule) return;
+    if (!confirm(`Remove "${rule.label}"? Any points already scored for this rule will be erased from past weeks.`)) return;
+    const recalced = recalcWeeklyScoresForRuleRemoval(league, ruleId);
+    onUpdate({ ...recalced, scoringRules: rules.filter(r => r.id !== ruleId) });
+  }
+
+  function addCustomRule() {
+    const label = newLabel.trim();
+    if (!label) return;
+    const baseId = "custom_" + label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/_+$/, "");
+    let id = baseId; let n = 2;
+    while (existingIds.has(id)) { id = `${baseId}_${n++}`; }
+    const rule = { id, label, points: Number(newPoints) || 0, category: newCategory.trim() || "Custom" };
+    onUpdate({ ...league, scoringRules: [...rules, rule] });
+    setNewLabel(""); setNewPoints(0); setNewCategory(""); setAdding(false);
+  }
+
+  function addFromLibrary(rule) {
+    if (existingIds.has(rule.id)) return;
+    onUpdate({ ...league, scoringRules: [...rules, { ...rule }] });
+  }
+
+  return (
+    <div>
+      <div style={{ marginBottom:16,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",fontSize:12,color:"#8888aa",lineHeight:1.5 }}>
+        Edit, add, or remove scoring rules for this league. Changing a rule's points will recompute past weekly scores using the same count. Removing a rule erases its entries from every past week.
+      </div>
+
+      {grouped.order.length === 0 && (
+        <div style={{ padding:"20px",textAlign:"center",color:"#6a6a8a",fontSize:13,background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",marginBottom:16 }}>
+          No scoring rules yet. Add one below or pick from the library.
+        </div>
+      )}
+
+      {grouped.order.map(cat => (
+        <div key={cat} style={{ marginBottom:16,padding:"14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+          <div style={{ fontSize:12,fontWeight:700,color:"#e8e8f0",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.05em" }}>{cat}</div>
+          {grouped.g[cat].map(rule => (
+            <div key={rule.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid #1a1a30" }}>
+              <input value={rule.label} onChange={e=>updateRuleLabel(rule.id, e.target.value)} style={{
+                flex:1,padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",minWidth:0,
+              }} />
+              <input value={rule.category || ""} onChange={e=>updateRuleCategory(rule.id, e.target.value)} placeholder="Category" style={{
+                width:110,padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                color:"#8888aa",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none",
+              }} />
+              <input type="number" value={rule.points} step="0.5" onChange={e=>updateRulePoints(rule.id, e.target.value)} style={{
+                width:70,padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                color:rule.points>=0?"#4ecdc4":"#e94560",fontSize:12,fontWeight:700,fontFamily:"'Outfit',sans-serif",outline:"none",textAlign:"right",
+              }} />
+              <button onClick={()=>removeRule(rule.id)} title="Remove rule" style={{
+                background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#e94560",
+                width:28,height:28,cursor:"pointer",fontSize:14,flexShrink:0,
+              }}>×</button>
+            </div>
+          ))}
+        </div>
+      ))}
+
+      <div style={{ marginBottom:16,padding:"14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:adding?12:0 }}>
+          <div style={{ fontSize:13,fontWeight:700,color:"#e8e8f0" }}>Add Custom Rule</div>
+          <Btn small variant={adding?"ghost":"secondary"} onClick={()=>setAdding(!adding)}>{adding?"Cancel":"+ New"}</Btn>
+        </div>
+        {adding && (
+          <div>
+            <Input label="Label" placeholder="e.g. Kissed by the Bombshell" value={newLabel} onChange={e=>setNewLabel(e.target.value)} />
+            <div style={{ display:"flex",gap:10 }}>
+              <div style={{ flex:1 }}>
+                <Input label="Points" type="number" step="0.5" value={newPoints} onChange={e=>setNewPoints(e.target.value)} />
+              </div>
+              <div style={{ flex:1 }}>
+                <Input label="Category" placeholder="e.g. Moments" value={newCategory} onChange={e=>setNewCategory(e.target.value)} />
+              </div>
+            </div>
+            <Btn small onClick={addCustomRule} disabled={!newLabel.trim()}>Add Rule</Btn>
+          </div>
+        )}
+      </div>
+
+      <div style={{ marginBottom:20,padding:"14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:pickerOpen?12:0 }}>
+          <div style={{ fontSize:13,fontWeight:700,color:"#e8e8f0" }}>Add from Library ({libraryAvailable.length} available)</div>
+          <Btn small variant={pickerOpen?"ghost":"secondary"} onClick={()=>setPickerOpen(!pickerOpen)} disabled={libraryAvailable.length===0}>{pickerOpen?"Close":"Browse"}</Btn>
+        </div>
+        {pickerOpen && libraryAvailable.length > 0 && (
+          <div style={{ maxHeight:300,overflow:"auto",background:"#0d0d18",borderRadius:6,padding:8 }}>
+            {libraryAvailable.map(rule => (
+              <div key={rule.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"6px 4px",borderBottom:"1px solid #1a1a30" }}>
+                <div style={{ flex:1,minWidth:0 }}>
+                  <div style={{ color:"#e8e8f0",fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{rule.label}</div>
+                  <div style={{ color:"#6a6a8a",fontSize:10 }}>{rule.category || "Other"}</div>
+                </div>
+                <div style={{ width:50,textAlign:"right",fontSize:12,fontWeight:700,color:rule.points>=0?"#4ecdc4":"#e94560" }}>{rule.points>=0?"+":""}{rule.points}</div>
+                <button onClick={()=>addFromLibrary(rule)} style={{
+                  background:"#1a1a30",border:"1px solid #2a2a4a",borderRadius:6,color:"#4ecdc4",
+                  padding:"4px 10px",cursor:"pointer",fontSize:11,fontWeight:600,
+                }}>Add</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SettingsTab({ league, onUpdate, allLeagues }) {
   const [editingInfo, setEditingInfo] = useState(false);
   const [leagueInfo, setLeagueInfo] = useState({
@@ -4601,6 +4816,7 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
   const [pendingCommissioner, setPendingCommissioner] = useState(null);
   const sections = [
     { id: "general", label: "General" },
+    { id: "scoring", label: "Scoring Rules" },
     { id: "roster", label: "Roster" },
     { id: "invite", label: "Invite" },
     { id: "spoiler", label: "Spoiler" },
@@ -4755,6 +4971,9 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
       </div>
       </>}
 
+      {/* ─── SCORING RULES SECTION ─── */}
+      {section === "scoring" && <ScoringRulesSection league={league} onUpdate={onUpdate} />}
+
       {/* ─── ROSTER SECTION ─── */}
       {section === "roster" && <>
       <div style={{ marginBottom:20,padding:"16px",background:league.rostersLocked?"#e9456011":"#12121f",borderRadius:10,
@@ -4907,6 +5126,29 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // MODALS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function resizeImageToDataURI(blob, maxDim = 512, quality = 0.8) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Could not read file"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Could not decode image"));
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(blob);
+  });
+}
+
 function AddContestantModal({ open, onClose, league, onUpdate, editing }) {
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
@@ -4914,11 +5156,36 @@ function AddContestantModal({ open, onClose, league, onUpdate, editing }) {
   const [photoUrl, setPhotoUrl] = useState("");
   const [photoCropY, setPhotoCropY] = useState(20);
   const [photoCropZoom, setPhotoCropZoom] = useState(1);
+  const [photoError, setPhotoError] = useState("");
 
   useEffect(() => {
     if (editing) { setName(editing.name||""); setBio(editing.bio||""); setGender(editing.gender||""); setPhotoUrl(editing.photoUrl||""); setPhotoCropY(editing.photoCropY||20); setPhotoCropZoom(editing.photoCropZoom||1); }
     else { setName(""); setBio(""); setGender(""); setPhotoUrl(""); }
+    setPhotoError("");
   }, [editing, open]);
+
+  async function handlePhotoFile(file) {
+    if (!file) return;
+    if (!file.type?.startsWith("image/")) { setPhotoError("File must be an image"); return; }
+    try {
+      setPhotoError("");
+      const dataUri = await resizeImageToDataURI(file, 512, 0.8);
+      setPhotoUrl(dataUri);
+    } catch (err) {
+      setPhotoError("Could not process image — try another file");
+    }
+  }
+  function handlePhotoPaste(e) {
+    const items = e.clipboardData?.items || [];
+    for (const it of items) {
+      if (it.type?.startsWith("image/")) {
+        e.preventDefault();
+        const blob = it.getAsFile();
+        if (blob) handlePhotoFile(blob);
+        return;
+      }
+    }
+  }
 
   function handleSave() {
     if (!name.trim()) return;
@@ -4933,10 +5200,27 @@ function AddContestantModal({ open, onClose, league, onUpdate, editing }) {
     onClose();
   }
 
+  const isDataUri = photoUrl?.startsWith("data:");
+  const displayUrl = isDataUri ? "" : photoUrl;
+
   return (
     <Modal open={open} onClose={onClose} title={editing?"Edit Contestant":"Add Contestant"}>
       <Input label="Name" placeholder="e.g. Buddha Lo" value={name} onChange={e=>setName(e.target.value)} />
-      <Input label="Photo URL" placeholder="https://example.com/headshot.jpg" value={photoUrl} onChange={e=>setPhotoUrl(e.target.value)} />
+      <div style={{ marginBottom:14 }}>
+        <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>Photo</label>
+        <input value={displayUrl} onChange={e=>setPhotoUrl(e.target.value)} onPaste={handlePhotoPaste}
+          placeholder={isDataUri ? "Image attached · type a URL or paste/upload to replace" : "https://example.com/headshot.jpg"}
+          style={{ width:"100%",padding:"10px 14px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:8,color:"#e8e8f0",fontSize:14,outline:"none",boxSizing:"border-box",fontFamily:"'Outfit',sans-serif" }} />
+        <div style={{ display:"flex",alignItems:"center",gap:10,marginTop:6,fontSize:11,color:"#6a6a8a",flexWrap:"wrap" }}>
+          <label style={{ cursor:"pointer",color:"#4ecdc4",textDecoration:"underline" }}>
+            Upload image
+            <input type="file" accept="image/*" onChange={e=>{ handlePhotoFile(e.target.files?.[0]); e.target.value=""; }} style={{ display:"none" }} />
+          </label>
+          <span>or paste with Ctrl+V into the field above</span>
+          {isDataUri && <span style={{ color:"#4ecdc4" }}>✓ Image attached ({Math.round(photoUrl.length/1024)} KB)</span>}
+          {photoError && <span style={{ color:"#e94560" }}>{photoError}</span>}
+        </div>
+      </div>
       <div style={{ marginBottom:14 }}>
         <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>Bio</label>
         <textarea value={bio} onChange={e=>setBio(e.target.value)} placeholder={"Paste the full bio here. Lines like \"Hometown: City\" will auto-format with bold labels."} rows={5} style={{
