@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.25.0
+**Current Production Version:** v2.4.26.0
 **Last Deploy Date:** 2026-05-31
-**App.jsx Line Count:** ~7,280
+**App.jsx Line Count:** ~7,330
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,18 @@
 ---
 
 ## Version Log
+
+### v2.4.26.0 — 2026-05-31
+New **Most Rostered** section in `DepthChartTab` (My Roster), rendering directly below Hot Picks. Shows the top 5 contestants picked by the most managers in the league, with a per-contestant `count / totalTeams · pct%` breakdown and a `MINE` chip when a contestant is also on the current viewer's depth chart. Helps managers see who's a consensus pick vs. a contrarian play — a natural companion to Hot Picks (which surfaces high-scoring contestants the viewer hasn't rostered). All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **Most Rostered tally** at `App.jsx:4202-4221`. IIFE following the Hot Picks block. For each team in `league.teams`, collects the set of contestant ids on the team's current roster (depth chart for Captains, `weeklyRosters[currentWeek]` for Standard) and increments a counter per id. Single pass, O(teams × roster-size). The contestant pool is filtered to `activeContestants` (the same not-eliminated-before-this-week filter Hot Picks already uses) so eliminated contestants who are still on someone's frozen roster don't surface.
+- **Row layout** at `App.jsx:4222-4252`. Same visual chrome as a Hot Picks row — 28px avatar, contestant name, sub-line with the `On N of M rosters · NN%` breakdown, right-aligned `N/M` ratio in the Anybody display font (orange `#f5a623` for the "rostered" framing). When the contestant is also on the viewer's `localChart`, a small teal `MINE` chip renders next to their name so the viewer can see at a glance which popular picks they already hold.
+- **Header parity with Hot Picks.** Hot Picks already uses an emoji prefix (🔥); Most Rostered uses 👥 for symmetry. The visual rhythm — emoji + name + sub-explainer + 5-row list — is identical so the two sections read as siblings, which makes the "Hot Picks I should add vs. Most Rostered I already share" comparison glanceable.
+- **Why a separate section, not an inline stat in Hot Picks.** Considered adding a `rostered by N/M teams` line inside each Hot Picks row. Rejected because Hot Picks is *prescriptive* (these are contestants you should consider adding) while Most Rostered is *descriptive* (this is what the league has converged on). Different framings deserve different sections — a manager looking at Hot Picks shouldn't have to mentally filter by popularity-vs-availability, and a manager looking at Most Rostered shouldn't get told they're missing picks.
+- **Edge cases.** Empty league (no teams) → nothing renders. League with one team → renders with `On 1 of 1 roster · 100%` for everyone on that team (still informative as a "what's the field" view). Eliminated contestants → filtered out via `activeContestants`. Ties broken by id (deterministic) so the rendering is stable across renders.
+- **No data-model change.** Pure read of `league.teams[*].depthChart` and `league.teams[*].weeklyRosters[currentWeek]`. Computed inline on each render (cheap; can be lifted to `useMemo` later if profile shows it matters).
+- **Not yet smoke-tested in browser** — recommended smoke path: (a) verify Most Rostered renders below Hot Picks on the My Roster tab when there are teams + rosters set, (b) verify the `MINE` chip appears on contestants who are also on the viewer's depth chart, (c) verify the counts add up — `count` should equal the number of teams in `league.teams` whose roster includes that contestant.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.97s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.25.0 — 2026-05-31
 **League Legacy records system.** Three additions to the Standings tab: (1) a single-pass `computeLeagueRecords(league, standings)` module helper that emits per-team and league-wide awards in one scan of `weeklyScores`, memoized in `StandingsTab` so the records panel and per-team card don't recompute on each expand/collapse; (2) a **Team Records** section on every expanded team card showing six awards (Star Player / Bench Warmer, Big Hit / Big Miss, Hot Streak / Cold Streak) — contestant-cited awards link through to the new ContestantProfileModal; (3) a **League Legacy** collapsible panel above the standings list with eight league-wide records (Single-Week Ceiling/Floor, MVP/Wooden Spoon, Biggest Comeback/Choke, Most Consistent/Volatile) — contestant-cited entries (MVP, Wooden Spoon) link to the modal. The Cast subsection of `WeeklyBreakdownSection` is removed — the Cast tab already provides a sortable contestant list, so duplicating it on Standings was clutter. All 10 regression baselines pass byte-identical, `npm run build` clean.

@@ -4197,6 +4197,66 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
         );
       })()}
 
+      {/* ─── MOST ROSTERED: Who's on the most depth charts league-wide? ─── */}
+      {(()=> {
+        const teamsArr = league.teams || [];
+        const totalTeams = teamsArr.length;
+        if (totalTeams === 0) return null;
+        // Tally each contestant's appearances across every team's current roster.
+        // Captains uses the current depthChart; Standard uses the current week's
+        // weeklyRosters. Pure read — no scoring math, no per-week aggregation.
+        const counts = {};
+        teamsArr.forEach(t => {
+          const ids = new Set();
+          if (league.format === "captains") {
+            const dc = t.depthChart || {};
+            if (dc.captain) ids.add(dc.captain);
+            if (dc.coCaptain) ids.add(dc.coCaptain);
+            (dc.regulars||[]).forEach(id => ids.add(id));
+          } else {
+            const wr = t.weeklyRosters?.[String(currentWeek)] || [];
+            wr.forEach(id => ids.add(id));
+          }
+          ids.forEach(id => { counts[id] = (counts[id] || 0) + 1; });
+        });
+        const ranked = activeContestants
+          .map(c => ({ ...c, count: counts[c.id] || 0 }))
+          .filter(c => c.count > 0)
+          .sort((a, b) => b.count - a.count || b.id.localeCompare(a.id))
+          .slice(0, 5);
+        if (ranked.length === 0) return null;
+        return (
+          <div style={{ marginTop:20 }}>
+            <div style={{ fontSize:14,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:"#f0f0f5",marginBottom:10,display:"flex",alignItems:"center",gap:6 }}>
+              <span style={{ fontSize:16 }}>👥</span> Most Rostered
+            </div>
+            <div style={{ fontSize:11,color:"#6a6a8a",marginBottom:10 }}>Contestants picked by the most managers</div>
+            <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
+              {ranked.map(c => {
+                const pct = Math.round((c.count / totalTeams) * 100);
+                const onMyRoster = (localChart.captain === c.id) || (localChart.coCaptain === c.id) || (localChart.regulars||[]).includes(c.id);
+                return (
+                  <div key={c.id} style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+                    <ContestantAvatar contestant={c} league={league} size={28} />
+                    <div style={{ flex:1,minWidth:0 }}>
+                      <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"flex",alignItems:"center",gap:6 }}>
+                        {c.name}
+                        {onMyRoster && <span style={{ fontSize:9,fontWeight:700,padding:"1px 5px",borderRadius:3,background:"#4ecdc418",color:"#4ecdc4" }}>MINE</span>}
+                      </div>
+                      <div style={{ fontSize:10,color:"#6a6a8a" }}>On {c.count} of {totalTeams} roster{totalTeams===1?"":"s"} · {pct}%</div>
+                    </div>
+                    <div style={{ textAlign:"right",flexShrink:0 }}>
+                      <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:15,fontWeight:800,color:"#f5a623" }}>{c.count}/{totalTeams}</div>
+                      <div style={{ fontSize:9,color:"#4a4a6a" }}>rostered</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ─── TEAM HISTORY — Per-Week Breakdown ─── */}
       {weeks.length > 0 && team && (
         <div style={{ marginTop:24 }}>
