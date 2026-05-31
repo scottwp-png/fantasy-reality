@@ -49,7 +49,7 @@ Gender-minimum roster constraint for Heroes (Captains) format. New `captainsConf
   - Show-wide scoring (Item 3 from the user's morning priority list) and PDF media-pack ingestion (Item 2). Both explicitly deferred.
 - **Browser smoke verified** — checkbox + paired inputs visible in Settings → Format card on existing Love Island Captains league; chip renders in Depth Chart header with correct color coding; Save guard disables when constraint not met; `(M)` / `(F)` suffixes visible in slot picker dropdown; non-Captains leagues unaffected.
 - `src/scoring.js` untouched. `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.66s).
-- **Commit:** `_pending_`
+- **Commit:** `3e12896`
 
 ### v2.4.12.0 — 2026-05-15
 Contestant gender field promoted to an always-visible dropdown in `AddContestantModal`. Previously the field was a free-text `<Input>` gated to Standard format + `genderedDraft` enabled — a typo trap (`"male"` vs `"Male"` vs `"M"` would break gendered-draft matching), and unusable for non-Standard formats that nonetheless want gender as contestant metadata. Now: 2-option `<Select>` (`Male` / `Female`) with an explicit `— Not set —` empty option, rendered for every league regardless of format. Foundational for the upcoming Captains 2M/2F roster validation (v2.4.13.0). All 10 regression baselines pass byte-identical, `npm run build` clean.
