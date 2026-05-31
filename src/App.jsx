@@ -1372,29 +1372,15 @@ function StandingsTab({ league, standings }) {
                 </div>
                 {isExp && (
                   <div style={{ padding:"0 16px 16px",borderTop:"1px solid #1e1e38" }}>
-                    <div style={{ paddingTop:14,display:"flex",gap:16,flexWrap:"wrap",alignItems:"flex-start" }}>
-                      {/* Left column: enlarged avatar + period header */}
-                      <div style={{ display:"flex",flexDirection:"column",alignItems:"center",gap:8,flexShrink:0,width:120 }}>
-                        {team.teamAvatar ? (
-                          <img src={team.teamAvatar} alt={team.name}
-                            onClick={e=>{ e.stopPropagation(); setTeamModalId(team.id); }}
-                            title="Tap to enlarge"
-                            style={{ width:120,height:120,borderRadius:16,objectFit:"cover",border:"3px solid "+(team.teamColor||"#e94560"),cursor:"pointer" }} />
-                        ) : (
-                          <div onClick={e=>{ e.stopPropagation(); setTeamModalId(team.id); }} title="Tap to enlarge"
-                            style={{ width:120,height:120,borderRadius:16,display:"flex",alignItems:"center",justifyContent:"center",
-                            background:team.teamColor||"#1a1a2e",fontSize:48,fontWeight:900,color:"#fff",
-                            fontFamily:"'Anybody',sans-serif",cursor:"pointer",
-                          }}>{team.name?.[0]}</div>
-                        )}
-                        <div style={{ textAlign:"center" }}>
-                          <div style={{ fontSize:10,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2 }}>{periodLabel}</div>
-                          <div style={{ fontSize:22,fontWeight:900,fontFamily:"'Anybody',sans-serif",color:periodTotal>0?"#4ecdc4":periodTotal<0?"#e94560":"#6a6a8a",letterSpacing:"-0.02em",lineHeight:1 }}>{formatPts(Math.round(periodTotal*10)/10, league)}</div>
-                          <div style={{ fontSize:10,color:"#6a6a8a",marginTop:3 }}>{league.format==="captains"?"Depth Chart":"Roster"} · {roster.length}</div>
-                        </div>
+                    {/* Period header strip — period label, period total, roster count */}
+                    <div style={{ paddingTop:12,paddingBottom:10,display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:10,flexWrap:"wrap" }}>
+                      <div style={{ fontSize:11,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em" }}>
+                        {periodLabel} · {league.format==="captains"?"Depth Chart":"Roster"} ({roster.length})
                       </div>
-                      {/* Right column: roster list */}
-                      <div style={{ flex:1,minWidth:200 }}>
+                      <div style={{ fontSize:20,fontWeight:900,fontFamily:"'Anybody',sans-serif",color:periodTotal>0?"#4ecdc4":periodTotal<0?"#e94560":"#6a6a8a",letterSpacing:"-0.02em",lineHeight:1 }}>
+                        {formatPts(Math.round(periodTotal*10)/10, league)}
+                      </div>
+                    </div>
                     {roster.length === 0 ? <div style={{ color:"#4a4a6a",fontSize:12,fontStyle:"italic",padding:"8px 0" }}>Empty roster</div> :
                       roster.map((c,idx)=>{
                         const basePts = getContestantWeekPts(c.id, viewWeek);
@@ -1438,8 +1424,6 @@ function StandingsTab({ league, standings }) {
                         );
                       })
                     }
-                      </div>
-                    </div>
                   </div>
                 )}
               </div>
@@ -1501,27 +1485,30 @@ function TeamProfileModal({ team, league, standings, onClose }) {
         </div>
         <div style={{ padding:"0 24px 22px",display:"flex",flexDirection:"column",alignItems:"center",gap:10,minHeight:0,flex:1 }}>
           {team.teamAvatar ? (
-            <img src={team.teamAvatar} alt={team.name} style={{ width:"min(220px, 28vh)",height:"min(220px, 28vh)",borderRadius:18,objectFit:"cover",border:"3px solid "+(team.teamColor||"#e94560"),flexShrink:0 }} />
+            <img src={team.teamAvatar} alt={team.name} style={{ width:"min(360px, 42vh)",height:"min(360px, 42vh)",borderRadius:20,objectFit:"cover",border:"4px solid "+(team.teamColor||"#e94560"),flexShrink:0 }} />
           ) : (
-            <div style={{ width:"min(220px, 28vh)",height:"min(220px, 28vh)",borderRadius:18,display:"flex",alignItems:"center",justifyContent:"center",
-              background:team.teamColor||"#1a1a2e",fontFamily:"'Anybody',sans-serif",fontSize:84,fontWeight:900,color:"#fff",border:"3px solid "+(team.teamColor||"#e94560"),flexShrink:0 }}>
+            <div style={{ width:"min(360px, 42vh)",height:"min(360px, 42vh)",borderRadius:20,display:"flex",alignItems:"center",justifyContent:"center",
+              background:team.teamColor||"#1a1a2e",fontFamily:"'Anybody',sans-serif",fontSize:130,fontWeight:900,color:"#fff",border:"4px solid "+(team.teamColor||"#e94560"),flexShrink:0 }}>
               {team.name?.[0]}
             </div>
           )}
           <div style={{ textAlign:"center",flexShrink:0 }}>
             <div style={{ fontSize:22,fontWeight:900,fontFamily:"'Anybody',sans-serif",color:"#e8e8f0",letterSpacing:"-0.01em",lineHeight:1.1 }}>{team.name}</div>
-            <div style={{ fontSize:12,color:"#8888aa",marginTop:3 }}>Manager: {team.owner || "—"}</div>
-            {rank && (
-              <div style={{ marginTop:8,display:"inline-flex",alignItems:"center",gap:6,padding:"5px 12px",background:rankColor+"18",border:"1px solid "+rankColor+"44",borderRadius:99,fontSize:12,fontWeight:700,color:rankColor }}>
-                {rankMedal && <span style={{ fontSize:14 }}>{rankMedal}</span>}
-                <span>#{rank} of {standings.length}</span>
-                {standingTeam && standingTeam.h2hRecord ? (
-                  <span style={{ color:"#8888aa",fontWeight:500 }}>· {standingTeam.h2hRecord}</span>
-                ) : standingTeam ? (
-                  <span style={{ color:"#8888aa",fontWeight:500 }}>· {formatPts(standingTeam.total, league)} pts</span>
-                ) : null}
-              </div>
-            )}
+            <div style={{ marginTop:4,fontSize:12,color:"#8888aa",display:"flex",alignItems:"center",justifyContent:"center",gap:6,flexWrap:"wrap" }}>
+              <span>Manager: <span style={{ color:"#ccc",fontWeight:600 }}>{team.owner || "—"}</span></span>
+              {rank && <>
+                <span style={{ color:"#3a3a5a" }}>·</span>
+                <span style={{ display:"inline-flex",alignItems:"center",gap:3,color:rankColor,fontWeight:700 }}>
+                  {rankMedal && <span style={{ fontSize:13 }}>{rankMedal}</span>}
+                  #{rank} of {standings.length}
+                </span>
+                {standingTeam && (standingTeam.h2hRecord ? (
+                  <><span style={{ color:"#3a3a5a" }}>·</span><span>{standingTeam.h2hRecord}</span></>
+                ) : (
+                  <><span style={{ color:"#3a3a5a" }}>·</span><span>{formatPts(standingTeam.total, league)} pts</span></>
+                ))}
+              </>}
+            </div>
           </div>
           <div style={{ width:"100%",flexShrink:0,marginTop:4 }}>
             <div style={{ fontSize:10,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6,textAlign:"center" }}>
