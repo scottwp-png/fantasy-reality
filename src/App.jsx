@@ -1381,6 +1381,34 @@ function StandingsTab({ league, standings }) {
                         {formatPts(Math.round(periodTotal*10)/10, league)}
                       </div>
                     </div>
+                    {/* Team Stats Summary — 4-cell grid mirroring the contestant-card stats block */}
+                    {weeks.length > 0 && (() => {
+                      const lastWkNum = weeks[weeks.length-1];
+                      const lastWkVal = team.weeklyTotals?.[lastWkNum] || 0;
+                      let best = { wk:null, pts:-Infinity }, worst = { wk:null, pts:Infinity };
+                      weeks.forEach(w => {
+                        const p = team.weeklyTotals?.[w] || 0;
+                        if (p > best.pts) best = { wk:w, pts:p };
+                        if (p < worst.pts) worst = { wk:w, pts:p };
+                      });
+                      const cells = [
+                        { label:`Last ${cadenceShort(league)}`, val:lastWkVal,                        sub:`${cadenceShort(league)} ${lastWkNum}`, color:lastWkVal>0?"#4ecdc4":lastWkVal<0?"#e94560":"#6a6a8a" },
+                        { label:"Best",                          val:best.pts===-Infinity?0:best.pts,  sub:best.wk?`${cadenceShort(league)} ${best.wk}`:"—", color:"#f5a623" },
+                        { label:"Worst",                         val:worst.pts===Infinity?0:worst.pts, sub:worst.wk?`${cadenceShort(league)} ${worst.wk}`:"—", color:"#e94560" },
+                        { label:"Season",                        val:team.total,                       sub:`${weeks.length} ${cadenceShort(league).toLowerCase()}${weeks.length===1?"":"s"}`, color:team.total>0?"#4ecdc4":team.total<0?"#e94560":"#6a6a8a" },
+                      ];
+                      return (
+                        <div style={{ display:"flex",gap:0,marginBottom:14,borderRadius:8,overflow:"hidden",border:"1px solid #1e1e38" }}>
+                          {cells.map((s,i) => (
+                            <div key={s.label} style={{ flex:1,padding:"8px 6px",textAlign:"center",background:"#0d0d18",borderRight:i<cells.length-1?"1px solid #1e1e38":"none" }}>
+                              <div style={{ fontSize:9,color:"#6a6a8a",textTransform:"uppercase",fontWeight:600,marginBottom:2 }}>{s.label}</div>
+                              <div style={{ fontSize:16,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:s.color }}>{s.val>0?"+":""}{formatPts(Math.round(s.val*10)/10, league)}</div>
+                              <div style={{ fontSize:9,color:"#4a4a6a" }}>{s.sub}</div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
                     {roster.length === 0 ? <div style={{ color:"#4a4a6a",fontSize:12,fontStyle:"italic",padding:"8px 0" }}>Empty roster</div> :
                       roster.map((c,idx)=>{
                         const basePts = getContestantWeekPts(c.id, viewWeek);
@@ -1424,6 +1452,46 @@ function StandingsTab({ league, standings }) {
                         );
                       })
                     }
+                    {/* Team Game Log — per-week breakdown with contestant contribution chips */}
+                    {weeks.length > 0 && (
+                      <div style={{ marginTop:14 }}>
+                        <div style={{ fontSize:11,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",marginBottom:6,letterSpacing:"0.05em" }}>Team Game Log</div>
+                        <div style={{ borderRadius:8,border:"1px solid #1e1e38",overflow:"hidden" }}>
+                          <div style={{ display:"flex",padding:"6px 10px",background:"#0d0d18",borderBottom:"1px solid #1e1e38" }}>
+                            <div style={{ width:50,fontSize:10,fontWeight:600,color:"#6a6a8a" }}>{cadenceWord(league)}</div>
+                            <div style={{ flex:1,fontSize:10,fontWeight:600,color:"#6a6a8a" }}>Contributions</div>
+                            <div style={{ width:50,textAlign:"right",fontSize:10,fontWeight:600,color:"#6a6a8a" }}>Pts</div>
+                          </div>
+                          {weeks.map(w => {
+                            const wPts = team.weeklyTotals?.[w] || 0;
+                            const wkRoster = getTeamRosterForWeek(team, w);
+                            const contribs = wkRoster.map(c => {
+                              const base = calcContestantWeekPoints(league.weeklyScores?.[w]||{}, c.id);
+                              const mp = Math.round(base * (c.multiplier||1) * 100) / 100;
+                              return { name:c.name, pts:mp };
+                            }).filter(c => c.pts !== 0);
+                            if (wPts === 0 && contribs.length === 0) return null;
+                            return (
+                              <div key={w} style={{ display:"flex",alignItems:"flex-start",padding:"8px 10px",borderBottom:"1px solid #1a1a30" }}>
+                                <div style={{ width:50,fontSize:12,fontWeight:600,color:"#8888aa" }}>{cadenceShort(league)} {w}</div>
+                                <div style={{ flex:1,display:"flex",flexWrap:"wrap",gap:3 }}>
+                                  {contribs.length === 0 ? (
+                                    <span style={{ fontSize:9,color:"#4a4a6a",fontStyle:"italic" }}>(no scored contributions)</span>
+                                  ) : contribs.map((c,i) => (
+                                    <span key={i} style={{ fontSize:9,padding:"2px 5px",borderRadius:3,background:c.pts>=0?"#4ecdc418":"#e9456018",color:c.pts>=0?"#4ecdc4":"#e94560",whiteSpace:"nowrap" }}>
+                                      {c.name} {c.pts>0?"+":""}{formatPts(c.pts, league)}
+                                    </span>
+                                  ))}
+                                </div>
+                                <div style={{ width:50,textAlign:"right",fontWeight:700,fontSize:13,fontFamily:"'Anybody',sans-serif",color:wPts>0?"#4ecdc4":wPts<0?"#e94560":"#6a6a8a" }}>
+                                  {wPts>0?"+":""}{formatPts(wPts, league)}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
