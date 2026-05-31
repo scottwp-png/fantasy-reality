@@ -3006,10 +3006,151 @@ function WeeklyDraftTab({ league, onUpdate, standings }) {
   );
 }
 
+// Finale-week couple picker — replaces the normal depth chart UI for one week
+// when league.finaleWeek === league.currentWeek. Each manager picks a Hero
+// couple (both members × 2) and a Sidekick couple (both members × 1.5). The
+// saved chart shape is { mode: "couples", heroCouple: [id, id], sidekickCouple: [id, id] }
+// which the scoring engine in src/scoring.js has a dedicated branch for.
+function FinaleCouplePickerScreen({ league, onUpdate, lockedToTeamId, defaultTeamId, isCommissioner, myTeamId }) {
+  const [selectedTeam, setSelectedTeam] = useState(lockedToTeamId || defaultTeamId || myTeamId || (league.teams||[])[0]?.id || "");
+  const team = (league.teams||[]).find(t => t.id === selectedTeam);
+  const finaleWeek = Number(league.finaleWeek || 0);
+  const couples = league.couples || [];
+  const contestants = league.contestants || [];
+  const byId = Object.fromEntries(contestants.map(c => [c.id, c]));
+
+  const savedChart = team?.weeklyDepthCharts?.[String(finaleWeek)];
+  const savedHero = savedChart?.mode === "couples" ? (savedChart.heroCouple || []) : [];
+  const savedSidekick = savedChart?.mode === "couples" ? (savedChart.sidekickCouple || []) : [];
+  const savedHeroId = couples.find(c => arraysEqualUnordered(c.members, savedHero))?.id || "";
+  const savedSidekickId = couples.find(c => arraysEqualUnordered(c.members, savedSidekick))?.id || "";
+
+  const [heroId, setHeroId] = useState(savedHeroId);
+  const [sidekickId, setSidekickId] = useState(savedSidekickId);
+
+  useEffect(() => { setHeroId(savedHeroId); setSidekickId(savedSidekickId); }, [selectedTeam, savedHeroId, savedSidekickId]);
+
+  const dirty = heroId !== savedHeroId || sidekickId !== savedSidekickId;
+  const canSave = !!heroId && !!sidekickId && heroId !== sidekickId && dirty;
+  const readOnly = !!lockedToTeamId && lockedToTeamId !== myTeamId;
+
+  function save() {
+    if (!canSave || !team) return;
+    const hero = couples.find(c => c.id === heroId);
+    const side = couples.find(c => c.id === sidekickId);
+    if (!hero || !side) return;
+    const newChart = { mode: "couples", heroCouple: hero.members || [], sidekickCouple: side.members || [] };
+    onUpdate({
+      ...league,
+      teams: league.teams.map(t => t.id === team.id ? {
+        ...t,
+        weeklyDepthCharts: { ...(t.weeklyDepthCharts||{}), [String(finaleWeek)]: newChart },
+      } : t),
+    });
+  }
+
+  function renderCoupleLabel(c) {
+    if (!c) return "—";
+    const [aId, bId] = c.members || [];
+    const a = byId[aId]; const b = byId[bId];
+    if (!a || !b) return "(missing member)";
+    return `${a.name} ♥ ${b.name}`;
+  }
+
+  return (
+    <div>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8 }}>
+        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Finale Couple Pick</h3>
+        <Badge color="#e94560">{cadenceWord(league)} {finaleWeek} · Final</Badge>
+      </div>
+
+      <div style={{ padding:"12px 14px",background:"#e9456011",borderRadius:10,border:"1px solid #e9456033",marginBottom:14,fontSize:12,color:"#e94560",lineHeight:1.5 }}>
+        ♥ Finale week — pick a Hero couple (both members ×2) and a Sidekick couple (both members ×1.5). The depth chart is paused for this {cadenceWord(league).toLowerCase()} only.
+      </div>
+
+      {(league.teams||[]).length > 1 && !lockedToTeamId && (
+        <Select label="Team" value={selectedTeam} onChange={e=>setSelectedTeam(e.target.value)} options={(league.teams||[]).map(t => ({ value: t.id, label: `${t.name} (${t.owner})` }))} />
+      )}
+
+      {!team && <EmptyState message="No team selected." />}
+      {team && couples.length < 2 && (
+        <EmptyState message={`Need at least 2 couples configured to pick. ${couples.length} couple${couples.length===1?"":"s"} set so far — add more on the Cast tab → Manage → Couples.`} />
+      )}
+
+      {team && couples.length >= 2 && (
+        <>
+          <div style={{ marginBottom:14,padding:"14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+            <div style={{ fontSize:11,fontWeight:700,color:"#f5a623",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.05em" }}>Hero Couple · ×2</div>
+            {readOnly ? (
+              <div style={{ fontSize:14,color:"#e8e8f0",fontWeight:600 }}>{renderCoupleLabel(couples.find(c => c.id === savedHeroId))}</div>
+            ) : (
+              <select value={heroId} onChange={e=>setHeroId(e.target.value)} style={{
+                width:"100%",padding:"10px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                color:heroId?"#e8e8f0":"#6a6a8a",fontSize:14,fontFamily:"'Outfit',sans-serif",outline:"none",
+              }}>
+                <option value="">— Pick a couple —</option>
+                {couples.filter(c => c.id !== sidekickId).map(c => (
+                  <option key={c.id} value={c.id}>{renderCoupleLabel(c)}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <div style={{ marginBottom:14,padding:"14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+            <div style={{ fontSize:11,fontWeight:700,color:"#4ecdc4",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.05em" }}>Sidekick Couple · ×1.5</div>
+            {readOnly ? (
+              <div style={{ fontSize:14,color:"#e8e8f0",fontWeight:600 }}>{renderCoupleLabel(couples.find(c => c.id === savedSidekickId))}</div>
+            ) : (
+              <select value={sidekickId} onChange={e=>setSidekickId(e.target.value)} style={{
+                width:"100%",padding:"10px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                color:sidekickId?"#e8e8f0":"#6a6a8a",fontSize:14,fontFamily:"'Outfit',sans-serif",outline:"none",
+              }}>
+                <option value="">— Pick a couple —</option>
+                {couples.filter(c => c.id !== heroId).map(c => (
+                  <option key={c.id} value={c.id}>{renderCoupleLabel(c)}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {!readOnly && (
+            <div style={{ display:"flex",gap:8,justifyContent:"flex-end" }}>
+              {dirty && (
+                <Btn variant="ghost" onClick={()=>{ setHeroId(savedHeroId); setSidekickId(savedSidekickId); }}>Discard</Btn>
+              )}
+              <Btn onClick={save} disabled={!canSave}>{savedChart?.mode === "couples" ? "Update Pick" : "Save Pick"}</Btn>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function arraysEqualUnordered(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+  const sa = [...a].sort(); const sb = [...b].sort();
+  return sa.every((v, i) => v === sb[i]);
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // DEPTH CHART TAB (Captains format)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isCommissioner, spoilerActive, myTeamId }) {
+  // Finale-week swap: when the league has a finaleWeek set and we're on that week,
+  // render the couple picker instead of the depth chart. Early-return BEFORE any
+  // hooks so React doesn't see a different hook order across renders — the picker
+  // declares its own hooks inside its own component body. See FinaleCouplePickerScreen.
+  if (league.finaleWeek && Number(league.currentWeek || 1) === Number(league.finaleWeek)) {
+    return <FinaleCouplePickerScreen
+      league={league}
+      onUpdate={onUpdate}
+      lockedToTeamId={lockedToTeamId}
+      defaultTeamId={defaultTeamId}
+      isCommissioner={isCommissioner}
+      myTeamId={myTeamId}
+    />;
+  }
   const [selectedTeam, setSelectedTeam] = useState(lockedToTeamId || defaultTeamId || (league.teams||[])[0]?.id || "");
   const [localChart, setLocalChart] = useState({});
   const [editingName, setEditingName] = useState(false);
@@ -5086,6 +5227,24 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
           You can change this later. Switching mid-season may change weekly rollup behavior — recommended for new leagues.
         </div>
       </div>
+
+      {league.format === "captains" && (
+        <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+          <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>Finale Week (Couple Pick)</div>
+          <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.5,marginBottom:10 }}>
+            When the league's <strong>current {cadenceWord(league)}</strong> matches the finale {cadenceWord(league).toLowerCase()} below, managers swap their depth chart for a couple picker — Hero couple (both members ×2) and Sidekick couple (both members ×1.5). Set to 0 or leave blank to disable.
+          </div>
+          <Input label={`Finale ${cadenceWord(league)}`} type="number" min="0" max="99"
+            value={league.finaleWeek || ""}
+            onChange={e=>{
+              const v = Number(e.target.value);
+              onUpdate({...league, finaleWeek: v > 0 ? v : null});
+            }} />
+          <div style={{ fontSize:11,color:"#6a6a8a",marginTop:4,fontStyle:"italic",lineHeight:1.4 }}>
+            Requires couples to be configured on the Manage Contestants → Couples tab.
+          </div>
+        </div>
+      )}
 
       <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
         <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>

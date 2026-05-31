@@ -32,6 +32,17 @@ export function calcTeamWeekPoints(league, team, weekNum) {
     if (!savedChart) return 0;
     const chart = savedChart;
 
+    // Finale-week couples mode (League's finaleWeek === weekNum, manager picked
+    // 2 couples instead of a depth chart). Hero couple = both members × 2,
+    // Sidekick couple = both members × 1.5. Existing leagues have no `mode`
+    // field on their charts, so this branch never fires for them.
+    if (chart.mode === "couples") {
+      let total = 0;
+      (chart.heroCouple || []).forEach(cid => { total += calcContestantWeekPoints(weekScores, cid) * 2; });
+      (chart.sidekickCouple || []).forEach(cid => { total += calcContestantWeekPoints(weekScores, cid) * 1.5; });
+      return Math.round(total * 100) / 100;
+    }
+
     // Best Ball: auto-optimize lineup from all rostered contestants
     if (league.bestBall) {
       const allRostered = [chart.captain, chart.coCaptain, ...(chart.regulars||[])].filter(Boolean);
