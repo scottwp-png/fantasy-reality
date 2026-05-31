@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.26.0
+**Current Production Version:** v2.4.27.0
 **Last Deploy Date:** 2026-05-31
-**App.jsx Line Count:** ~7,330
+**App.jsx Line Count:** ~7,300
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,15 @@
 ---
 
 ## Version Log
+
+### v2.4.27.0 — 2026-05-31
+The 4-cell Team Stats Summary block on the expanded team card (added in v2.4.23.0) is removed. With the v2.4.25.0 Team Records section sitting right below it, the two blocks were doing overlapping work — Stats Summary's `Best` / `Worst` are the team's best / worst single-week totals, which conceptually duplicates the Records section's `Big Hit` / `Big Miss` framing (single best/worst single-contestant week). Stats Summary's `Last` is already shown in the period header strip at the top of the expand; `Season` is the same total already displayed in the collapsed-row score column on the right. Records section + period header strip + roster list + game log now flow cleanly without the duplicate stats grid. All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **Deleted** at `App.jsx:1384-1413`. The IIFE that computed `lastWkVal` / `best` / `worst` from `team.weeklyTotals` and rendered the 4-cell `display:"flex"` grid is gone. About 30 lines removed.
+- **What remains** on the expanded card, top to bottom: period header strip (period label + roster count, period total) → Team Records (6 cells in responsive grid) → roster list (per-contestant with multiplied pts for the selected period) → Team Game Log (week-by-week contributions). Vertical reduction: roughly 80px (4-cell grid height + the 14px margin-bottom). On a 4-team league at finale week, the expanded card now ends around 600-700px tall vs. ~780px before.
+- **Design choice not made:** collapsible Game Log. The Game Log gets longer with each scored week (30+ weeks of data would push the card past 1000px). Holding off on adding a collapse toggle until the user actually feels the long-season pain — premature accordion'ing would add UI complexity that's not needed for current 6-8 week Love Island runs.
+- **Not yet smoke-tested in browser** — recommended smoke: expand a standings row, verify the layout is records → roster → game log with no 4-cell stats grid between records and the period header.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.78s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.26.0 — 2026-05-31
 New **Most Rostered** section in `DepthChartTab` (My Roster), rendering directly below Hot Picks. Shows the top 5 contestants picked by the most managers in the league, with a per-contestant `count / totalTeams · pct%` breakdown and a `MINE` chip when a contestant is also on the current viewer's depth chart. Helps managers see who's a consensus pick vs. a contrarian play — a natural companion to Hot Picks (which surfaces high-scoring contestants the viewer hasn't rostered). All 10 regression baselines pass byte-identical, `npm run build` clean.

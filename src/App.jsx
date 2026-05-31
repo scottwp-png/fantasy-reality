@@ -1523,34 +1523,6 @@ function StandingsTab({ league, standings }) {
                         {formatPts(Math.round(periodTotal*10)/10, league)}
                       </div>
                     </div>
-                    {/* Team Stats Summary — 4-cell grid mirroring the contestant-card stats block */}
-                    {weeks.length > 0 && (() => {
-                      const lastWkNum = weeks[weeks.length-1];
-                      const lastWkVal = team.weeklyTotals?.[lastWkNum] || 0;
-                      let best = { wk:null, pts:-Infinity }, worst = { wk:null, pts:Infinity };
-                      weeks.forEach(w => {
-                        const p = team.weeklyTotals?.[w] || 0;
-                        if (p > best.pts) best = { wk:w, pts:p };
-                        if (p < worst.pts) worst = { wk:w, pts:p };
-                      });
-                      const cells = [
-                        { label:`Last ${cadenceShort(league)}`, val:lastWkVal,                        sub:`${cadenceShort(league)} ${lastWkNum}`, color:lastWkVal>0?"#4ecdc4":lastWkVal<0?"#e94560":"#6a6a8a" },
-                        { label:"Best",                          val:best.pts===-Infinity?0:best.pts,  sub:best.wk?`${cadenceShort(league)} ${best.wk}`:"—", color:"#f5a623" },
-                        { label:"Worst",                         val:worst.pts===Infinity?0:worst.pts, sub:worst.wk?`${cadenceShort(league)} ${worst.wk}`:"—", color:"#e94560" },
-                        { label:"Season",                        val:team.total,                       sub:`${weeks.length} ${cadenceShort(league).toLowerCase()}${weeks.length===1?"":"s"}`, color:team.total>0?"#4ecdc4":team.total<0?"#e94560":"#6a6a8a" },
-                      ];
-                      return (
-                        <div style={{ display:"flex",gap:0,marginBottom:14,borderRadius:8,overflow:"hidden",border:"1px solid #1e1e38" }}>
-                          {cells.map((s,i) => (
-                            <div key={s.label} style={{ flex:1,padding:"8px 6px",textAlign:"center",background:"#0d0d18",borderRight:i<cells.length-1?"1px solid #1e1e38":"none" }}>
-                              <div style={{ fontSize:9,color:"#6a6a8a",textTransform:"uppercase",fontWeight:600,marginBottom:2 }}>{s.label}</div>
-                              <div style={{ fontSize:16,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:s.color }}>{s.val>0?"+":""}{formatPts(Math.round(s.val*10)/10, league)}</div>
-                              <div style={{ fontSize:9,color:"#4a4a6a" }}>{s.sub}</div>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })()}
                     {/* Team Records — per-team awards. Reads from the precomputed `records.perTeam[team.id]` */}
                     {(() => {
                       const tr = records.perTeam[team.id];
