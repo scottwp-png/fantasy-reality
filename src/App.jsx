@@ -454,6 +454,138 @@ function getTribeColor(league, contestant) {
   return "#e94560"; // default
 }
 
+// Returns [{ id, base, multiplier, pts }] for every contestant that was on
+// `team`'s roster in `weekNum`. `pts` is the multiplied value (the actual
+// contribution to the team's week total). Used by the records computation and
+// by per-week game log displays.
+function getTeamWeekContributions(league, team, weekNum) {
+  let parts = [];
+  if (league.format === "captains") {
+    const dc = team.weeklyDepthCharts?.[String(weekNum)] || team.depthChart || {};
+    if (dc.captain)   parts.push({ id: dc.captain,   multiplier: 2 });
+    if (dc.coCaptain) parts.push({ id: dc.coCaptain, multiplier: 1.5 });
+    (dc.regulars||[]).forEach(rid => parts.push({ id: rid, multiplier: 1 }));
+  } else {
+    const wr = team.weeklyRosters?.[String(weekNum)] || [];
+    parts = wr.map(id => ({ id, multiplier: 1 }));
+  }
+  return parts.filter(p => p.id).map(p => {
+    const base = calcContestantWeekPoints(league.weeklyScores?.[String(weekNum)]||{}, p.id);
+    return { ...p, base, pts: Math.round(base * p.multiplier * 100) / 100 };
+  });
+}
+
+// One-pass computation of per-team + league-wide records. Called once per
+// StandingsTab render via useMemo. Returns:
+//   { perTeam: { [teamId]: { bestW, worstW, starPlayer, benchWarmer,
+//                            bigHit, bigMiss, hotStreak, coldStreak } },
+//     league:  { weekCeiling, weekFloor, mvp, woodenSpoon,
+//                comeback, choke, mostConsistent, mostVolatile } }
+// Each leaf record carries `{ pts, wk?, teamId?, contestantId? }` so the
+// display layer can resolve names + render context without re-querying.
+function computeLeagueRecords(league, standings) {
+  const weeks = Object.keys(league.weeklyScores || {}).sort((a,b) => +a - +b);
+  const teams = (standings && standings.length > 0) ? standings : (league.teams || []);
+  const contestants = league.contestants || [];
+
+  const perTeam = {};
+  teams.forEach(team => {
+    const weeklyTotals = weeks.map(w => team.weeklyTotals?.[w] ?? calcTeamWeekPoints(league, team, w));
+
+    let bestW = { wk:null, pts:-Infinity }, worstW = { wk:null, pts:Infinity };
+    weeks.forEach((w,i) => {
+      const p = weeklyTotals[i];
+      if (p > bestW.pts) bestW = { wk:w, pts:p };
+      if (p < worstW.pts) worstW = { wk:w, pts:p };
+    });
+
+    const contribTotals = {};
+    let bigHit = { id:null, wk:null, pts:-Infinity }, bigMiss = { id:null, wk:null, pts:Infinity };
+    weeks.forEach(w => {
+      getTeamWeekContributions(league, team, w).forEach(c => {
+        contribTotals[c.id] = (contribTotals[c.id] || 0) + c.pts;
+        if (c.pts > bigHit.pts) bigHit = { id:c.id, wk:w, pts:c.pts };
+        if (c.pts < bigMiss.pts) bigMiss = { id:c.id, wk:w, pts:c.pts };
+      });
+    });
+    let starPlayer = null, benchWarmer = null;
+    Object.entries(contribTotals).forEach(([id, pts]) => {
+      if (!starPlayer || pts > starPlayer.pts) starPlayer = { id, pts };
+      if (!benchWarmer || pts < benchWarmer.pts) benchWarmer = { id, pts };
+    });
+
+    let hotStreak = 0, coldStreak = 0, curHot = 0, curCold = 0;
+    weeklyTotals.forEach(p => {
+      if (p > 0) { curHot++; curCold = 0; }
+      else if (p < 0) { curCold++; curHot = 0; }
+      else { curHot = 0; curCold = 0; }
+      if (curHot > hotStreak) hotStreak = curHot;
+      if (curCold > coldStreak) coldStreak = curCold;
+    });
+
+    perTeam[team.id] = {
+      bestW: bestW.pts === -Infinity ? null : bestW,
+      worstW: worstW.pts === Infinity ? null : worstW,
+      starPlayer, benchWarmer,
+      bigHit: bigHit.pts === -Infinity ? null : bigHit,
+      bigMiss: bigMiss.pts === Infinity ? null : bigMiss,
+      hotStreak, coldStreak,
+    };
+  });
+
+  let weekCeiling = { teamId:null, wk:null, pts:-Infinity }, weekFloor = { teamId:null, wk:null, pts:Infinity };
+  teams.forEach(team => {
+    weeks.forEach(w => {
+      const p = team.weeklyTotals?.[w] ?? calcTeamWeekPoints(league, team, w);
+      if (p > weekCeiling.pts) weekCeiling = { teamId:team.id, wk:w, pts:p };
+      if (p < weekFloor.pts) weekFloor = { teamId:team.id, wk:w, pts:p };
+    });
+  });
+
+  let mvp = { id:null, pts:-Infinity }, woodenSpoon = { id:null, pts:Infinity };
+  contestants.forEach(c => {
+    const t = Math.round(weeks.reduce((s,w) => s + calcContestantWeekPoints(league.weeklyScores?.[w]||{}, c.id), 0) * 100) / 100;
+    if (t > mvp.pts) mvp = { id:c.id, pts:t };
+    if (t < woodenSpoon.pts) woodenSpoon = { id:c.id, pts:t };
+  });
+
+  let comeback = { teamId:null, wk:null, swing:-Infinity }, choke = { teamId:null, wk:null, swing:Infinity };
+  teams.forEach(team => {
+    const totals = weeks.map(w => team.weeklyTotals?.[w] ?? calcTeamWeekPoints(league, team, w));
+    for (let i = 1; i < totals.length; i++) {
+      const sw = Math.round((totals[i] - totals[i-1]) * 100) / 100;
+      if (sw > comeback.swing) comeback = { teamId:team.id, wk:weeks[i], swing:sw };
+      if (sw < choke.swing) choke = { teamId:team.id, wk:weeks[i], swing:sw };
+    }
+  });
+
+  let mostConsistent = { teamId:null, sd:Infinity }, mostVolatile = { teamId:null, sd:-Infinity };
+  if (weeks.length >= 2) {
+    teams.forEach(team => {
+      const totals = weeks.map(w => team.weeklyTotals?.[w] ?? calcTeamWeekPoints(league, team, w));
+      const mean = totals.reduce((s,x) => s + x, 0) / totals.length;
+      const variance = totals.reduce((s,x) => s + (x - mean)**2, 0) / totals.length;
+      const sd = Math.sqrt(variance);
+      if (sd < mostConsistent.sd) mostConsistent = { teamId:team.id, sd };
+      if (sd > mostVolatile.sd) mostVolatile = { teamId:team.id, sd };
+    });
+  }
+
+  return {
+    perTeam,
+    league: {
+      weekCeiling: weekCeiling.pts === -Infinity ? null : weekCeiling,
+      weekFloor: weekFloor.pts === Infinity ? null : weekFloor,
+      mvp: mvp.id ? mvp : null,
+      woodenSpoon: woodenSpoon.id ? woodenSpoon : null,
+      comeback: comeback.teamId ? comeback : null,
+      choke: choke.teamId ? choke : null,
+      mostConsistent: mostConsistent.teamId ? mostConsistent : null,
+      mostVolatile: mostVolatile.teamId ? mostVolatile : null,
+    },
+  };
+}
+
 // ─── Icons ───
 function Icon({ name, size = 18 }) {
   const d = {
@@ -1174,6 +1306,10 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // STANDINGS TAB
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Weekly breakdown sub-panel that lives at the bottom of the Standings tab.
+// Used to also include a Cast subsection (contestant leaderboard); that's been
+// removed since the Cast tab already provides a sortable contestant list. Now
+// just shows per-team scores with a week selector.
 function WeeklyBreakdownSection({ league, standings }) {
   const weeks = Object.keys(league.weeklyScores || {}).sort((a,b)=>+a - +b);
   const [selectedView, setSelectedView] = useState("overall");
@@ -1184,17 +1320,6 @@ function WeeklyBreakdownSection({ league, standings }) {
     { value: "overall", label: "Overall" },
     ...weeks.map(w => ({ value: w, label: cadenceLabel(league, w) }))
   ];
-
-  const contestantStats = (league.contestants || []).map(c => {
-    let pts;
-    if (selectedView === "overall") {
-      pts = weeks.reduce((s, w) => s + calcContestantWeekPoints(league.weeklyScores?.[w] || {}, c.id), 0);
-    } else {
-      pts = calcContestantWeekPoints(league.weeklyScores?.[selectedView] || {}, c.id);
-    }
-    return { ...c, pts: Math.round(pts * 100) / 100 };
-  }).filter(c => c.pts !== 0 || c.status !== "eliminated")
-    .sort((a, b) => b.pts - a.pts);
 
   return (
     <div style={{ marginTop:24 }}>
@@ -1210,7 +1335,7 @@ function WeeklyBreakdownSection({ league, standings }) {
         </select>
       </div>
 
-      <div style={{ marginBottom:16 }}>
+      <div>
         <div style={{ fontSize:11,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",marginBottom:8 }}>Teams</div>
         {standings.map((team, i) => {
           const pts = selectedView === "overall" ? team.total : (team.weeklyTotals?.[selectedView] || 0);
@@ -1228,31 +1353,6 @@ function WeeklyBreakdownSection({ league, standings }) {
           );
         })}
       </div>
-
-      {contestantStats.length > 0 && (
-        <div>
-          <div style={{ fontSize:11,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",marginBottom:8 }}>Cast</div>
-          {contestantStats.slice(0, 15).map((c, i) => (
-            <div key={c.id} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid #1a1a30" }}>
-              <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-                <span style={{ fontSize:11,fontWeight:600,color:"#4a4a6a",width:20 }}>{i+1}</span>
-                {c.photoUrl && <img src={c.photoUrl} alt="" style={{ width:24,height:24,borderRadius:6,objectFit:"cover",objectPosition:`center ${c.photoCropY||20}%` }} onError={e=>{e.target.style.display="none"}} />}
-                <span style={{ color:c.status==="eliminated"?"#6a6a8a":"#e8e8f0",fontSize:13,
-                  textDecoration:c.status==="eliminated"?"line-through":"none" }}>{c.name}</span>
-              </div>
-              <span style={{ fontFamily:"'Anybody',sans-serif",fontWeight:700,fontSize:13,
-                color:c.pts>0?"#4ecdc4":c.pts<0?"#e94560":"#6a6a8a" }}>
-                {c.pts>0?"+":""}{formatPts(c.pts, league)}
-              </span>
-            </div>
-          ))}
-          {contestantStats.length > 15 && (
-            <div style={{ textAlign:"center",padding:"8px 0",color:"#4a4a6a",fontSize:11 }}>
-              +{contestantStats.length - 15} more
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -1271,6 +1371,10 @@ function StandingsTab({ league, standings }) {
   // or game-log contribution chips.
   const [contestantModalId, setContestantModalId] = useState(null);
   const contestantModalContestant = contestantModalId ? (league.contestants||[]).find(c => c.id === contestantModalId) : null;
+  // Per-team + league-wide records. Single-pass scan of league.weeklyScores,
+  // memoized so the records panel and per-team card don't recompute on every
+  // expand/collapse toggle. See computeLeagueRecords at module scope.
+  const records = useMemo(() => computeLeagueRecords(league, standings), [league, standings]);
   // Global week selector — controls what week the expanded roster breakdown shows.
   // Includes a "season" option that sums all weeks. Standings rankings themselves
   // continue to use season totals (unchanged); the selector only affects expanded
@@ -1307,6 +1411,39 @@ function StandingsTab({ league, standings }) {
         <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Leaderboard</h3>
         <Badge color="#f5a623">{cadenceLabel(league, league.currentWeek)}</Badge>
       </div>
+      {standings.length > 0 && weeks.length > 0 && (() => {
+        const lr = records.league;
+        const teamNameOf = id => (league.teams||[]).find(t => t.id === id)?.name || "—";
+        const contestantNameOf = id => (league.contestants||[]).find(c => c.id === id)?.name || "—";
+        const items = [
+          { label:"Single-Week Ceiling", val: lr.weekCeiling ? `+${formatPts(Math.round(lr.weekCeiling.pts*10)/10, league)}` : "—", sub: lr.weekCeiling ? `${teamNameOf(lr.weekCeiling.teamId)} · ${cadenceShort(league)} ${lr.weekCeiling.wk}` : "—", color:"#4ecdc4" },
+          { label:"Single-Week Floor",   val: lr.weekFloor   ? formatPts(Math.round(lr.weekFloor.pts*10)/10, league) : "—",       sub: lr.weekFloor   ? `${teamNameOf(lr.weekFloor.teamId)} · ${cadenceShort(league)} ${lr.weekFloor.wk}` : "—",     color:"#e94560" },
+          { label:"League MVP",          val: lr.mvp         ? `+${formatPts(Math.round(lr.mvp.pts*10)/10, league)}`         : "—", sub: lr.mvp ? contestantNameOf(lr.mvp.id) : "—", color:"#f5a623", cid: lr.mvp?.id },
+          { label:"Wooden Spoon",        val: lr.woodenSpoon ? formatPts(Math.round(lr.woodenSpoon.pts*10)/10, league)        : "—", sub: lr.woodenSpoon ? contestantNameOf(lr.woodenSpoon.id) : "—", color:"#e94560", cid: lr.woodenSpoon?.id },
+          { label:"Biggest Comeback",    val: lr.comeback    ? `+${formatPts(Math.round(lr.comeback.swing*10)/10, league)}`   : "—", sub: lr.comeback    ? `${teamNameOf(lr.comeback.teamId)} · ${cadenceShort(league)} ${lr.comeback.wk}` : "—", color:"#4ecdc4" },
+          { label:"Biggest Choke",       val: lr.choke       ? formatPts(Math.round(lr.choke.swing*10)/10, league)            : "—", sub: lr.choke       ? `${teamNameOf(lr.choke.teamId)} · ${cadenceShort(league)} ${lr.choke.wk}` : "—",       color:"#e94560" },
+          { label:"Most Consistent",     val: lr.mostConsistent ? `±${formatPts(Math.round(lr.mostConsistent.sd*10)/10, league)}` : "—", sub: lr.mostConsistent ? teamNameOf(lr.mostConsistent.teamId) : "—", color:"#9d5dff" },
+          { label:"Most Volatile",       val: lr.mostVolatile   ? `±${formatPts(Math.round(lr.mostVolatile.sd*10)/10, league)}`   : "—", sub: lr.mostVolatile   ? teamNameOf(lr.mostVolatile.teamId) : "—",   color:"#ff8a3d" },
+        ];
+        return (
+          <details style={{ marginBottom:16 }}>
+            <summary style={{ cursor:"pointer",padding:"10px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",fontSize:13,fontWeight:700,color:"#e8e8f0",display:"flex",alignItems:"center",justifyContent:"space-between",listStyle:"none" }}>
+              <span>League Legacy</span>
+              <span style={{ fontSize:11,fontWeight:500,color:"#6a6a8a" }}>{items.length} records · tap to {/* CSS-only: arrow flips via summary marker would need pseudo */}expand</span>
+            </summary>
+            <div style={{ marginTop:6,display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(170px, 1fr))",gap:6 }}>
+              {items.map(it => (
+                <div key={it.label} onClick={it.cid ? ()=>setContestantModalId(it.cid) : undefined}
+                  style={{ padding:"10px 12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38",cursor:it.cid?"pointer":"default" }}>
+                  <div style={{ fontSize:9,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:3 }}>{it.label}</div>
+                  <div style={{ fontSize:16,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:it.color,lineHeight:1 }}>{it.val}</div>
+                  <div style={{ fontSize:10,color:"#8888aa",marginTop:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{it.sub}</div>
+                </div>
+              ))}
+            </div>
+          </details>
+        );
+      })()}
       {standings.length > 0 && (
         <div style={{ marginBottom:12 }}>
           <Select label="Roster Breakdown Period" value={viewWeek} onChange={e=>setViewWeek(e.target.value)} options={weekOpts} />
@@ -1411,6 +1548,36 @@ function StandingsTab({ league, standings }) {
                               <div style={{ fontSize:9,color:"#4a4a6a" }}>{s.sub}</div>
                             </div>
                           ))}
+                        </div>
+                      );
+                    })()}
+                    {/* Team Records — per-team awards. Reads from the precomputed `records.perTeam[team.id]` */}
+                    {(() => {
+                      const tr = records.perTeam[team.id];
+                      if (!tr || weeks.length === 0) return null;
+                      const byId = id => (league.contestants||[]).find(c => c.id === id);
+                      const nameOf = id => byId(id)?.name || "—";
+                      const cells = [
+                        { label:"Star Player", val:tr.starPlayer ? formatPts(Math.round(tr.starPlayer.pts*10)/10, league) : "—", sub:tr.starPlayer ? nameOf(tr.starPlayer.id) : "no contributions", color:"#4ecdc4", cid: tr.starPlayer?.id },
+                        { label:"Bench Warmer", val:tr.benchWarmer ? formatPts(Math.round(tr.benchWarmer.pts*10)/10, league) : "—", sub:tr.benchWarmer ? nameOf(tr.benchWarmer.id) : "—", color:"#e94560", cid: tr.benchWarmer?.id },
+                        { label:"Big Hit", val:tr.bigHit ? `+${formatPts(Math.round(tr.bigHit.pts*10)/10, league)}` : "—", sub:tr.bigHit ? `${nameOf(tr.bigHit.id)} · ${cadenceShort(league)} ${tr.bigHit.wk}` : "—", color:"#f5a623", cid: tr.bigHit?.id },
+                        { label:"Big Miss", val:tr.bigMiss ? formatPts(Math.round(tr.bigMiss.pts*10)/10, league) : "—", sub:tr.bigMiss ? `${nameOf(tr.bigMiss.id)} · ${cadenceShort(league)} ${tr.bigMiss.wk}` : "—", color:"#e94560", cid: tr.bigMiss?.id },
+                        { label:"Hot Streak", val:tr.hotStreak > 0 ? `${tr.hotStreak} ${cadenceShort(league).toLowerCase()}${tr.hotStreak===1?"":"s"}` : "—", sub:"positive run", color:"#ff8a3d" },
+                        { label:"Cold Streak", val:tr.coldStreak > 0 ? `${tr.coldStreak} ${cadenceShort(league).toLowerCase()}${tr.coldStreak===1?"":"s"}` : "—", sub:"negative run", color:"#4d8aff" },
+                      ];
+                      return (
+                        <div style={{ marginBottom:14 }}>
+                          <div style={{ fontSize:11,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6 }}>Team Records</div>
+                          <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))",gap:6 }}>
+                            {cells.map(c => (
+                              <div key={c.label} onClick={c.cid ? ()=>setContestantModalId(c.cid) : undefined}
+                                style={{ padding:"8px 10px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38",cursor:c.cid?"pointer":"default" }}>
+                                <div style={{ fontSize:9,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:3 }}>{c.label}</div>
+                                <div style={{ fontSize:14,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:c.color,lineHeight:1 }}>{c.val}</div>
+                                <div style={{ fontSize:10,color:"#8888aa",marginTop:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{c.sub}</div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       );
                     })()}

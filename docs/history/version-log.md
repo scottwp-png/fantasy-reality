@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.24.0
+**Current Production Version:** v2.4.25.0
 **Last Deploy Date:** 2026-05-31
-**App.jsx Line Count:** ~7,090
+**App.jsx Line Count:** ~7,280
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,27 @@
 ---
 
 ## Version Log
+
+### v2.4.25.0 — 2026-05-31
+**League Legacy records system.** Three additions to the Standings tab: (1) a single-pass `computeLeagueRecords(league, standings)` module helper that emits per-team and league-wide awards in one scan of `weeklyScores`, memoized in `StandingsTab` so the records panel and per-team card don't recompute on each expand/collapse; (2) a **Team Records** section on every expanded team card showing six awards (Star Player / Bench Warmer, Big Hit / Big Miss, Hot Streak / Cold Streak) — contestant-cited awards link through to the new ContestantProfileModal; (3) a **League Legacy** collapsible panel above the standings list with eight league-wide records (Single-Week Ceiling/Floor, MVP/Wooden Spoon, Biggest Comeback/Choke, Most Consistent/Volatile) — contestant-cited entries (MVP, Wooden Spoon) link to the modal. The Cast subsection of `WeeklyBreakdownSection` is removed — the Cast tab already provides a sortable contestant list, so duplicating it on Standings was clutter. All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **`getTeamWeekContributions(league, team, weekNum)` helper** at `App.jsx:458-475`. Returns `[{ id, base, multiplier, pts }]` for every contestant rostered on `team` in `weekNum`. Reads the historical depth chart (`team.weeklyDepthCharts[weekNum]`) for Captains-format so contributions correctly reflect *who was rostered at the time*, not the current depth chart. Also used by the existing team game log code (which had an inline equivalent that's left intact — could be deduped later, low priority).
+- **`computeLeagueRecords(league, standings)` helper** at `App.jsx:478-588`. Single pass, returns `{ perTeam: {…}, league: {…} }`. Per-team: bestW, worstW, starPlayer, benchWarmer, bigHit, bigMiss, hotStreak, coldStreak. League: weekCeiling, weekFloor, mvp, woodenSpoon, comeback, choke, mostConsistent, mostVolatile. All leaf records use the same `{ pts/swing/sd, wk?, teamId?, contestantId? }` shape so the display layer can resolve names + render context generically. Empty / no-data records return `null` (gracefully renders as `"—"`).
+  - **Star Player / Bench Warmer** are computed from cumulative **multiplied** contributions across all weeks a contestant was rostered on the team — so a Captains hero at 2× counts double versus a regular at 1×. Reflects what they actually delivered for the team, not their raw scoring.
+  - **Hot Streak / Cold Streak** are the longest consecutive runs of weeks with positive / negative team total. A zero-pt week breaks both streaks (intentional — represents "no movement" rather than continuing momentum).
+  - **Comeback / Choke** are computed from `weeklyTotals[i] - weeklyTotals[i-1]` across all teams — the biggest single-week jump up or drop down. Captures dramatic team swings irrespective of which team experienced them.
+  - **Most Consistent / Volatile** are population standard deviations of weekly totals. Requires ≥2 weeks of data (returns null otherwise — single-data-point variance is meaningless).
+- **Per-team Team Records section** at `App.jsx:1485-1525` (inside the expanded team card, between Stats Summary and roster list). 6-cell responsive grid (`grid-template-columns: repeat(auto-fit, minmax(150px, 1fr))`). Each cell: small uppercase label, big colored value, sub-line with the contestant name or context. Star Player + Big Hit cells colored teal/orange (positive flavor); Bench Warmer + Big Miss colored coral (negative). Hot Streak orange, Cold Streak blue. Contestant-cited cells (Star Player, Bench Warmer, Big Hit, Big Miss) are clickable — opens `ContestantProfileModal` for the cited contestant.
+- **League Legacy panel** at `App.jsx:1289-1325` (above the global week selector at the top of `StandingsTab`). Renders as a `<details>` element (HTML-native collapsible) — summary row reads `League Legacy · 8 records`, expanding shows an 8-cell responsive grid styled like Team Records. Contestant-cited cells (MVP, Wooden Spoon) are clickable. Collapsed by default to keep the standings list above the fold; users opt-in to view the records.
+- **`WeeklyBreakdownSection` Cast subsection removed** at `App.jsx:1177-1230`. The bottom contestant-leaderboard list (top 15 by total) is gone — the Cast tab already provides a sortable contestant list, so duplicating it on Standings was clutter. The week-selector + Teams subsection remain. Roughly 30 lines net deletion.
+- **State sharing.** Both the Team Records cells and the Hall of Fame cells reuse `StandingsTab`'s existing `setContestantModalId` setter (added in v2.4.24.0) — clicking any contestant-cited record opens the same `ContestantProfileModal`. Zero new state hooks; records are derived via `useMemo([league, standings])` so they recompute only when scoring data changes, not when expanded-row state toggles.
+- **Visual choices.**
+  - **Records labels use plain text, no emoji** — matches CLAUDE.md preference. Color does the visual flavor.
+  - **Per-team and league-wide use identical card chrome** so the eye reads them as the same primitive at different scales. Difference is the panel header.
+  - **Collapsible league panel, always-on team-card records.** League records are seen rarely (they don't change often); team records are part of the team's identity and should always be visible when their card is expanded.
+- **What this commit does NOT do.** No "first to hold" / "longest holder" history of league records — just current holders. No animated transitions when a record changes hands. No notification when you take a record. No per-record drill-down view. The contestant link from records is one-way (modal); no breadcrumb back to "what other records does this contestant hold".
+- **Not yet smoke-tested in browser** — recommended smoke path: (a) verify the League Legacy panel renders above the standings list, expands on click, all 8 record cells show with valid data; (b) expand a team row and verify the Team Records section renders between stats summary and roster list with 6 cells; (c) click the Star Player or MVP cell → ContestantProfileModal opens; (d) verify the Cast subsection no longer appears in the Season/Week Breakdown panel at the bottom of Standings.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.81s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.24.0 — 2026-05-31
 ContestantProfileModal added — parallel to TeamProfileModal but for contestants. Contestant thumbnails are stripped from the expanded team card's roster list (the small 30px avatars next to each name are gone) and the contestant name itself is now the clickable surface — clicking opens the fullscreen profile modal with the contestant's photo, bio, tribe/couple/elimination chips, the same 4-cell stats summary used everywhere else, and a per-week scored-event log. Game-log contribution chips inside the expanded card are also clickable now — clicking a contestant chip opens the same modal. All 10 regression baselines pass byte-identical, `npm run build` clean.
