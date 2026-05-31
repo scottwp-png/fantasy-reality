@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.14.0
+**Current Production Version:** v2.4.15.0
 **Last Deploy Date:** 2026-05-31
-**App.jsx Line Count:** ~6,510
+**App.jsx Line Count:** ~6,570
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,22 @@
 ---
 
 ## Version Log
+
+### v2.4.15.0 — 2026-05-31
+Cast tab's "Manage Photos" inline panel is renamed "Manage" and expanded into a two-tab **Manage Contestants** workspace covering **Photos** and **Gender**, replacing the one-attribute-per-panel pattern. Bulk-edit gender is the headline new capability — previously the only way to set gender for many contestants in a row was to open `AddContestantModal` per contestant, which is unworkable for a freshly bulk-added 20-person Love Island cast. The Photos tab keeps every prior control (URL field + position/zoom sliders + thumbnail preview) and adds two new inputs alongside: a per-row **Upload** button that resizes to a data URI via the existing `resizeImageToDataURI` helper, and a clipboard-paste handler on the URL field. Pairs with v2.4.14.0's commissioner-tools bundle. All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **Panel rename** at `App.jsx:1494` and `App.jsx:1513`. Header button label `"Manage Photos"` → `"Manage"`. Panel header inside the dropdown `"Manage Photos"` → `"Manage Contestants"`. State hook `managePhotos`/`setManagePhotos` kept (just an open/close flag — renaming risks unrelated regressions in conditional branches that depend on it). New companion state `manageMode` defaulting to `"photos"` controls which sub-tab renders.
+- **Sub-tab bar** at `App.jsx:1514-1521`. Two pill buttons (`Photos`, `Gender`) styled with the existing `#e94560` coral accent for the active state — same pattern used for the contestant `filter` pills above and for the SettingsTab section pills. `manageMode` persists across panel close/reopen for the lifetime of the component instance (which is the tab lifetime; not persisted to RTDB).
+- **Photos tab** at `App.jsx:1522-1593`. Existing row layout (avatar + name + URL field + position/zoom sliders + thumbnail preview) preserved unchanged. Three new pieces per row:
+  - `uploadPhoto(file)` async closure: gates on `file.type` starting with `image/`, calls `resizeImageToDataURI(file, 512, 0.8)`, persists via `onUpdate` with `photoCropY`/`photoCropZoom` defaulted only when not already set so existing crop tuning isn't lost.
+  - **Upload** label-wrapped hidden file input: teal accent matches the modal's upload affordance from v2.4.14.0. Resets the file input's value to `""` after change so re-uploading the same file fires `onChange` again.
+  - `onPaste` handler on the URL input: intercepts image clipboard items via `clipboardData.items` (the same pattern used in `AddContestantModal.handlePhotoPaste`), calls `uploadPhoto(blob)`, and `preventDefault`s only on image items so a normal URL paste still works.
+- **URL field handling for data URIs.** The URL `<input>` now shows an empty `defaultValue` with an `"Uploaded image · paste URL to replace"` placeholder when the stored `photoUrl` is a data URI — matches `AddContestantModal`'s approach from v2.4.14.0. `key={c.photoUrl}` forces React to remount the input when `photoUrl` changes (e.g., after an upload), so the `defaultValue` reflects the new state. Same key pattern applied to the position/zoom sliders (`"y"+photoUrl`, `"z"+photoUrl`) so their stored values re-hydrate correctly after an upload that resets `photoCropY` to 20.
+- **Gender tab** at `App.jsx:1595-1614`. Per-row layout: avatar + name (flex-grown, ellipsis-truncated on overflow) + 140px-wide `<select>` with three options (`— Not set —` / `Male` / `Female`) — the same controlled vocabulary established in v2.4.12.0's `AddContestantModal` dropdown. Persists immediately on change (no Save button, no edits buffer) via the same atomic `onUpdate` pattern the photo position/zoom sliders use. Eliminated contestants render with the existing dimmed color treatment so commissioners can still set gender on them (useful when fixing a half-eliminated cast retroactively).
+- **No data-model change.** `c.gender` continues to be the same free-form string field promoted to a dropdown in v2.4.12.0; this commit just adds a new editing surface that writes the same shape. Existing leagues whose gender field was populated via `AddContestantModal` round-trip identically through the new Gender tab. Leagues with legacy values (`"male"`, `"M"`, `"non-binary"`) render as `— Not set —` and will overwrite to a controlled value if the commissioner picks an option — same behavior as the modal.
+- **What this commit does NOT add.** No bulk "set all to" affordance — gender per contestant is unique by design, so the bulk verb is "edit many in a row," not "apply one to many." No tribe-editing tab (tribes already have their own dedicated `tribeMode` button at the top of Cast Scoring). No status-editing tab (Settings → Roster has `EliminateRow` for that and stays the single source of truth for status). No filter/sort within the Manage panel — the contestant list order matches the league array order for predictable scanning.
+- **Browser smoke verified** — Opened Manage on the Love Island Captains league, switched between Photos and Gender tabs, set gender for three contestants in a row without closing the panel and watched the dropdown labels update; uploaded a JPEG via the Upload button on a row, verified the data URI persisted and the thumbnail preview re-rendered; pasted an image into the URL field of a different row, verified it converted to a data URI the same way.
+- `src/scoring.js` untouched. `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (3.11s, no new warnings).
+- **Commit:** `_pending_`
 
 ### v2.4.14.0 — 2026-05-31
 Three commissioner-tools improvements bundled into one release in response to the Love Island launch the day before. (1) Contestant photos can now be uploaded from disk or pasted from the clipboard — auto-resized to 512px JPEG data URIs and stored inline in `contestant.photoUrl` so press-kit images (which are PDF embeds, not URLs) work without a third-party image host. (2) Bulk Add Contestants now recognises the Love Island press-kit format (`Name:` / `Age:` / `Job:` / `From:` labels) and the simple-list fallback is tightened so that pasting a Q&A interview body no longer produces 100+ phantom contestants. (3) SettingsTab gains a new **Scoring Rules** section with full add / remove / edit-points-and-label, plus past-week recalculation of `weeklyScores` when a rule's points change or the rule is removed. All 10 regression baselines pass byte-identical, `npm run build` clean.

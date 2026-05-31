@@ -1323,6 +1323,7 @@ function StandingsTab({ league, standings }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
   const [managePhotos, setManagePhotos] = useState(false);
+  const [manageMode, setManageMode] = useState("photos");
   const [filter, setFilter] = useState("all");
   const [expandedId, setExpandedId] = useState(null);
   const [sortBy, setSortBy] = useState("total");
@@ -1491,7 +1492,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
           {!readOnly&&<Btn small variant="ghost" onClick={()=>setBulkAddOpen(true)}>Bulk Add</Btn>}
           {!readOnly&&<div style={{display:"flex",gap:6}}>
             <Btn small onClick={()=>{setEditing(null);setModal("add-contestant")}}><Icon name="plus" size={14}/> Add</Btn>
-            <Btn small variant="ghost" onClick={()=>setManagePhotos(!managePhotos)}>Manage Photos</Btn>
+            <Btn small variant="ghost" onClick={()=>setManagePhotos(!managePhotos)}>Manage</Btn>
           </div>}
         </div>
       </div>
@@ -1506,48 +1507,106 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
           {[{id:"total",label:"Season"},{id:"lastWeek",label:"Last Wk"},{id:"best",label:"Best"},{id:"worst",label:"Worst"},{id:"name",label:"A-Z"}].map(s=>(<button key={s.id} onClick={()=>setSortBy(s.id)} style={{padding:"5px 10px",borderRadius:99,border:sortBy===s.id?"1px solid #e9456044":"1px solid transparent",cursor:"pointer",fontSize:11,fontWeight:600,background:sortBy===s.id?"#e9456018":"transparent",color:sortBy===s.id?"#e94560":"#6a6a8a",fontFamily:"'Outfit',sans-serif",transition:"all .15s"}}>{s.label}</button>))}
         </div>
       </div>
-      {/* Manage Photos panel */}
+      {/* Manage Contestants panel */}
       {managePhotos && !readOnly && (
         <div style={{ marginBottom:16,padding:"14px 16px",background:"#0d0d18",borderRadius:12,border:"1px solid #1e1e38" }}>
           <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
-            <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>Manage Photos</div>
+            <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>Manage Contestants</div>
             <button onClick={()=>setManagePhotos(false)} style={{ background:"none",border:"none",color:"#6a6a8a",cursor:"pointer" }}>Done</button>
           </div>
-          <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
-            {(league.contestants||[]).map(c => (
-              <div key={c.id} style={{ display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"#12121f",borderRadius:8,border:"1px solid #1e1e38" }}>
-                <ContestantAvatar contestant={c} league={league} size={32} />
-                <div style={{ width:100,fontSize:12,fontWeight:600,color:c.status==="eliminated"?"#6a6a8a":"#e8e8f0",flexShrink:0 }}>{c.name}</div>
-                <input
-                  placeholder="Photo URL"
-                  defaultValue={c.photoUrl||""}
-                  onBlur={e=>{
-                    const url = e.target.value.trim();
-                    if (url !== (c.photoUrl||"")) {
-                      onUpdate({...league, contestants: league.contestants.map(x=>x.id===c.id?{...x,photoUrl:url}:x)});
-                    }
-                  }}
-                  style={{ flex:1,padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
-                    color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",minWidth:0 }}
-                />
-                {c.photoUrl && <>
-                  <input type="range" min="0" max="100" defaultValue={c.photoCropY||20}
-                    onChange={e=>{
-                      onUpdate({...league, contestants: league.contestants.map(x=>x.id===c.id?{...x,photoCropY:Number(e.target.value)}:x)});
-                    }}
-                    style={{ width:50,accentColor:"#e94560",flexShrink:0 }} title="Position" />
-                  <input type="range" min="1" max="3" step="0.1" defaultValue={c.photoCropZoom||1}
-                    onChange={e=>{
-                      onUpdate({...league, contestants: league.contestants.map(x=>x.id===c.id?{...x,photoCropZoom:Number(e.target.value)}:x)});
-                    }}
-                    style={{ width:40,accentColor:"#4ecdc4",flexShrink:0 }} title="Zoom" />
-                  <div style={{ width:28,height:28,borderRadius:6,overflow:"hidden",flexShrink:0 }}>
-                    <img src={c.photoUrl} style={{ width:"100%",height:"100%",objectFit:"cover",objectPosition:`center ${c.photoCropY||20}%`,transform:`scale(${c.photoCropZoom||1})`,transformOrigin:`center ${c.photoCropY||20}%` }} onError={e=>{e.target.style.display="none"}} />
-                  </div>
-                </>}
-              </div>
+          <div style={{ display:"flex",gap:6,marginBottom:12 }}>
+            {[{id:"photos",label:"Photos"},{id:"gender",label:"Gender"}].map(m => (
+              <button key={m.id} onClick={()=>setManageMode(m.id)} style={{
+                padding:"6px 14px",borderRadius:99,border:manageMode===m.id?"1px solid #e9456044":"1px solid #1e1e38",
+                background:manageMode===m.id?"#e9456018":"transparent",color:manageMode===m.id?"#e94560":"#7a7a9a",
+                fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"'Outfit',sans-serif",transition:"all .15s",
+              }}>{m.label}</button>
             ))}
           </div>
+          {manageMode === "photos" && (
+            <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
+              {(league.contestants||[]).map(c => {
+                const isDataUri = (c.photoUrl||"").startsWith("data:");
+                async function uploadPhoto(file) {
+                  if (!file || !file.type?.startsWith("image/")) return;
+                  try {
+                    const dataUri = await resizeImageToDataURI(file, 512, 0.8);
+                    onUpdate({...league, contestants: league.contestants.map(x=>x.id===c.id?{...x,photoUrl:dataUri,photoCropY:x.photoCropY||20,photoCropZoom:x.photoCropZoom||1}:x)});
+                  } catch { /* swallow */ }
+                }
+                return (
+                  <div key={c.id} style={{ display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"#12121f",borderRadius:8,border:"1px solid #1e1e38" }}>
+                    <ContestantAvatar contestant={c} league={league} size={32} />
+                    <div style={{ width:100,fontSize:12,fontWeight:600,color:c.status==="eliminated"?"#6a6a8a":"#e8e8f0",flexShrink:0 }}>{c.name}</div>
+                    <input
+                      placeholder={isDataUri ? "Uploaded image · paste URL to replace" : "Photo URL"}
+                      defaultValue={isDataUri ? "" : (c.photoUrl||"")}
+                      key={c.photoUrl}
+                      onBlur={e=>{
+                        const url = e.target.value.trim();
+                        if (url && url !== (c.photoUrl||"")) {
+                          onUpdate({...league, contestants: league.contestants.map(x=>x.id===c.id?{...x,photoUrl:url}:x)});
+                        }
+                      }}
+                      onPaste={e=>{
+                        const items = e.clipboardData?.items || [];
+                        for (const it of items) {
+                          if (it.type?.startsWith("image/")) {
+                            e.preventDefault();
+                            const blob = it.getAsFile();
+                            if (blob) uploadPhoto(blob);
+                            return;
+                          }
+                        }
+                      }}
+                      style={{ flex:1,padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                        color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",minWidth:0 }}
+                    />
+                    <label title="Upload image" style={{ cursor:"pointer",padding:"5px 9px",background:"#1a1a30",border:"1px solid #2a2a4a",borderRadius:6,color:"#4ecdc4",fontSize:11,fontWeight:600,flexShrink:0 }}>
+                      Upload
+                      <input type="file" accept="image/*" onChange={e=>{ uploadPhoto(e.target.files?.[0]); e.target.value=""; }} style={{ display:"none" }} />
+                    </label>
+                    {c.photoUrl && <>
+                      <input type="range" min="0" max="100" defaultValue={c.photoCropY||20} key={"y"+c.photoUrl}
+                        onChange={e=>{
+                          onUpdate({...league, contestants: league.contestants.map(x=>x.id===c.id?{...x,photoCropY:Number(e.target.value)}:x)});
+                        }}
+                        style={{ width:50,accentColor:"#e94560",flexShrink:0 }} title="Position" />
+                      <input type="range" min="1" max="3" step="0.1" defaultValue={c.photoCropZoom||1} key={"z"+c.photoUrl}
+                        onChange={e=>{
+                          onUpdate({...league, contestants: league.contestants.map(x=>x.id===c.id?{...x,photoCropZoom:Number(e.target.value)}:x)});
+                        }}
+                        style={{ width:40,accentColor:"#4ecdc4",flexShrink:0 }} title="Zoom" />
+                      <div style={{ width:28,height:28,borderRadius:6,overflow:"hidden",flexShrink:0 }}>
+                        <img src={c.photoUrl} style={{ width:"100%",height:"100%",objectFit:"cover",objectPosition:`center ${c.photoCropY||20}%`,transform:`scale(${c.photoCropZoom||1})`,transformOrigin:`center ${c.photoCropY||20}%` }} onError={e=>{e.target.style.display="none"}} />
+                      </div>
+                    </>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {manageMode === "gender" && (
+            <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
+              {(league.contestants||[]).map(c => (
+                <div key={c.id} style={{ display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"#12121f",borderRadius:8,border:"1px solid #1e1e38" }}>
+                  <ContestantAvatar contestant={c} league={league} size={32} />
+                  <div style={{ flex:1,fontSize:12,fontWeight:600,color:c.status==="eliminated"?"#6a6a8a":"#e8e8f0",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{c.name}</div>
+                  <select value={c.gender||""} onChange={e=>{
+                    const g = e.target.value;
+                    onUpdate({...league, contestants: league.contestants.map(x=>x.id===c.id?{...x,gender:g}:x)});
+                  }} style={{
+                    width:140,padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                    color:c.gender?"#e8e8f0":"#6a6a8a",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",
+                  }}>
+                    <option value="">— Not set —</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                  </select>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
