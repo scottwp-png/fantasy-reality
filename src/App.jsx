@@ -1260,6 +1260,12 @@ function WeeklyBreakdownSection({ league, standings }) {
 function StandingsTab({ league, standings }) {
   const weeks = Object.keys(league.weeklyScores || {}).sort((a,b)=>+a - +b);
   const [expanded, setExpanded] = useState(null);
+  // teamModalId: when set, render <TeamProfileModal> for that team. Driven by
+  // clicks on the team avatar (in either the collapsed row or the expanded
+  // header). The row-expand toggle is unaffected because the avatar's onClick
+  // calls stopPropagation.
+  const [teamModalId, setTeamModalId] = useState(null);
+  const teamModalTeam = teamModalId ? (league.teams||[]).find(t => t.id === teamModalId) : null;
   // Global week selector — controls what week the expanded roster breakdown shows.
   // Includes a "season" option that sums all weeks. Standings rankings themselves
   // continue to use season totals (unchanged); the selector only affects expanded
@@ -1328,11 +1334,15 @@ function StandingsTab({ league, standings }) {
                     {i===0?"🥇":i===1?"🥈":i===2?"🥉":(i+1)}
                   </div>
                   {team.teamAvatar ? (
-                    <img src={team.teamAvatar} alt={team.name} style={{ width:40,height:40,borderRadius:12,objectFit:"cover",border:"2px solid "+(team.teamColor||"#e94560"),flexShrink:0 }} />
+                    <img src={team.teamAvatar} alt={team.name}
+                      onClick={e=>{ e.stopPropagation(); setTeamModalId(team.id); }}
+                      title="View team profile"
+                      style={{ width:40,height:40,borderRadius:12,objectFit:"cover",border:"2px solid "+(team.teamColor||"#e94560"),flexShrink:0,cursor:"pointer" }} />
                   ) : (
-                    <div style={{ width:40,height:40,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",
+                    <div onClick={e=>{ e.stopPropagation(); setTeamModalId(team.id); }} title="View team profile"
+                      style={{ width:40,height:40,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",
                       background:team.teamColor||"#1a1a2e",fontSize:16,fontWeight:800,color:"#fff",
-                      fontFamily:"'Anybody',sans-serif",flexShrink:0,
+                      fontFamily:"'Anybody',sans-serif",flexShrink:0,cursor:"pointer",
                     }}>{team.name?.[0]}</div>
                   )}
                 </div>
@@ -1362,21 +1372,29 @@ function StandingsTab({ league, standings }) {
                 </div>
                 {isExp && (
                   <div style={{ padding:"0 16px 16px",borderTop:"1px solid #1e1e38" }}>
-                    <div style={{ paddingTop:14,display:"flex",alignItems:"center",gap:14,marginBottom:12 }}>
-                      {team.teamAvatar ? (
-                        <img src={team.teamAvatar} alt={team.name} style={{ width:120,height:120,borderRadius:16,objectFit:"cover",border:"3px solid "+(team.teamColor||"#e94560"),flexShrink:0 }} />
-                      ) : (
-                        <div style={{ width:120,height:120,borderRadius:16,display:"flex",alignItems:"center",justifyContent:"center",
-                          background:team.teamColor||"#1a1a2e",fontSize:48,fontWeight:900,color:"#fff",
-                          fontFamily:"'Anybody',sans-serif",flexShrink:0,
-                        }}>{team.name?.[0]}</div>
-                      )}
-                      <div style={{ flex:1,minWidth:0 }}>
-                        <div style={{ fontSize:11,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>{periodLabel}</div>
-                        <div style={{ fontSize:28,fontWeight:900,fontFamily:"'Anybody',sans-serif",color:periodTotal>0?"#4ecdc4":periodTotal<0?"#e94560":"#6a6a8a",letterSpacing:"-0.02em" }}>{formatPts(Math.round(periodTotal*10)/10, league)}</div>
-                        <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>{league.format==="captains"?"Depth Chart":"Roster"} · {roster.length} player{roster.length===1?"":"s"}</div>
+                    <div style={{ paddingTop:14,display:"flex",gap:16,flexWrap:"wrap",alignItems:"flex-start" }}>
+                      {/* Left column: enlarged avatar + period header */}
+                      <div style={{ display:"flex",flexDirection:"column",alignItems:"center",gap:8,flexShrink:0,width:120 }}>
+                        {team.teamAvatar ? (
+                          <img src={team.teamAvatar} alt={team.name}
+                            onClick={e=>{ e.stopPropagation(); setTeamModalId(team.id); }}
+                            title="Tap to enlarge"
+                            style={{ width:120,height:120,borderRadius:16,objectFit:"cover",border:"3px solid "+(team.teamColor||"#e94560"),cursor:"pointer" }} />
+                        ) : (
+                          <div onClick={e=>{ e.stopPropagation(); setTeamModalId(team.id); }} title="Tap to enlarge"
+                            style={{ width:120,height:120,borderRadius:16,display:"flex",alignItems:"center",justifyContent:"center",
+                            background:team.teamColor||"#1a1a2e",fontSize:48,fontWeight:900,color:"#fff",
+                            fontFamily:"'Anybody',sans-serif",cursor:"pointer",
+                          }}>{team.name?.[0]}</div>
+                        )}
+                        <div style={{ textAlign:"center" }}>
+                          <div style={{ fontSize:10,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2 }}>{periodLabel}</div>
+                          <div style={{ fontSize:22,fontWeight:900,fontFamily:"'Anybody',sans-serif",color:periodTotal>0?"#4ecdc4":periodTotal<0?"#e94560":"#6a6a8a",letterSpacing:"-0.02em",lineHeight:1 }}>{formatPts(Math.round(periodTotal*10)/10, league)}</div>
+                          <div style={{ fontSize:10,color:"#6a6a8a",marginTop:3 }}>{league.format==="captains"?"Depth Chart":"Roster"} · {roster.length}</div>
+                        </div>
                       </div>
-                    </div>
+                      {/* Right column: roster list */}
+                      <div style={{ flex:1,minWidth:200 }}>
                     {roster.length === 0 ? <div style={{ color:"#4a4a6a",fontSize:12,fontStyle:"italic",padding:"8px 0" }}>Empty roster</div> :
                       roster.map((c,idx)=>{
                         const basePts = getContestantWeekPts(c.id, viewWeek);
@@ -1420,6 +1438,8 @@ function StandingsTab({ league, standings }) {
                         );
                       })
                     }
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1430,6 +1450,79 @@ function StandingsTab({ league, standings }) {
       {standings.length > 0 && (
         <WeeklyBreakdownSection league={league} standings={standings} />
       )}
+      {teamModalTeam && (
+        <TeamProfileModal team={teamModalTeam} league={league} onClose={()=>setTeamModalId(null)} />
+      )}
+    </div>
+  );
+}
+
+// Full-page modal showing a team's profile: enlarged avatar, name, owner, and
+// current roster composition (depth chart for Captains, current-week picks for
+// other formats). No scoring details — that's what the inline expand on the
+// standings row is for. This modal is read-only viewing.
+function TeamProfileModal({ team, league, onClose }) {
+  const contestants = league.contestants || [];
+  let roster = [];
+  if (league.format === "captains") {
+    const dc = team.depthChart || {};
+    if (dc.captain)   { const c = contestants.find(x=>x.id===dc.captain);   if(c) roster.push({ ...c, role:"captain",   multiplier:2 }); }
+    if (dc.coCaptain) { const c = contestants.find(x=>x.id===dc.coCaptain); if(c) roster.push({ ...c, role:"coCaptain", multiplier:1.5 }); }
+    (dc.regulars||[]).forEach(rid => { const c = contestants.find(x=>x.id===rid); if(c) roster.push({ ...c, role:"regular", multiplier:1 }); });
+  } else {
+    const wk = String(league.currentWeek || 1);
+    const ids = team.weeklyRosters?.[wk] || [];
+    roster = ids.map(id => contestants.find(c=>c.id===id)).filter(Boolean).map(c=>({...c,role:"regular",multiplier:1}));
+  }
+  return (
+    <div style={{ position:"fixed",inset:0,zIndex:1100,display:"flex",alignItems:"center",justifyContent:"center",
+      background:"rgba(0,0,0,0.85)",backdropFilter:"blur(6px)",animation:"fadeIn 0.15s ease",padding:20 }} onClick={onClose}>
+      <div style={{ background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:18,
+        width:560,maxWidth:"96vw",maxHeight:"94vh",overflowY:"auto",
+        boxShadow:"0 32px 100px rgba(0,0,0,0.6)",animation:"slideUp 0.2s ease" }} onClick={e=>e.stopPropagation()}>
+        <div style={{ position:"sticky",top:0,display:"flex",justifyContent:"flex-end",padding:"10px 10px 0",background:"linear-gradient(180deg,#0d0d18,transparent)",zIndex:1 }}>
+          <button onClick={onClose} style={{ background:"#1a1a2e",border:"1px solid #2a2a4a",borderRadius:8,color:"#888",cursor:"pointer",padding:6,display:"flex",alignItems:"center",justifyContent:"center" }}><Icon name="x" size={18}/></button>
+        </div>
+        <div style={{ padding:"0 28px 28px",display:"flex",flexDirection:"column",alignItems:"center",gap:14 }}>
+          {team.teamAvatar ? (
+            <img src={team.teamAvatar} alt={team.name} style={{ width:"100%",maxWidth:380,aspectRatio:"1/1",borderRadius:20,objectFit:"cover",border:"4px solid "+(team.teamColor||"#e94560") }} />
+          ) : (
+            <div style={{ width:"100%",maxWidth:380,aspectRatio:"1/1",borderRadius:20,display:"flex",alignItems:"center",justifyContent:"center",
+              background:team.teamColor||"#1a1a2e",fontFamily:"'Anybody',sans-serif",fontSize:140,fontWeight:900,color:"#fff",border:"4px solid "+(team.teamColor||"#e94560") }}>
+              {team.name?.[0]}
+            </div>
+          )}
+          <div style={{ textAlign:"center" }}>
+            <div style={{ fontSize:24,fontWeight:900,fontFamily:"'Anybody',sans-serif",color:"#e8e8f0",letterSpacing:"-0.01em" }}>{team.name}</div>
+            <div style={{ fontSize:14,color:"#8888aa",marginTop:4 }}>Manager: {team.owner || "—"}</div>
+          </div>
+          <div style={{ width:"100%",marginTop:6 }}>
+            <div style={{ fontSize:11,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8,textAlign:"center" }}>
+              {league.format === "captains" ? "Depth Chart" : `Current ${cadenceWord(league)} Roster`}
+            </div>
+            {roster.length === 0 ? (
+              <div style={{ padding:"14px",textAlign:"center",color:"#6a6a8a",fontSize:13,background:"#12121f",borderRadius:10,border:"1px dashed #2a2a4a" }}>
+                Empty roster
+              </div>
+            ) : (
+              <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
+                {roster.map((c,idx) => (
+                  <div key={c.id+"_"+idx} style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+                    <ContestantAvatar contestant={c} league={league} size={32} />
+                    <div style={{ flex:1,minWidth:0 }}>
+                      <div style={{ display:"flex",alignItems:"center",gap:6,flexWrap:"wrap" }}>
+                        <span style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>{c.name}</span>
+                        <MultiplierBadge role={c.role}/>
+                        {c.status==="eliminated" && <span style={{ color:"#e94560",fontSize:9 }}>ELIM</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
