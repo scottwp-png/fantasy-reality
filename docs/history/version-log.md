@@ -1,7 +1,7 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.31.0
+**Current Production Version:** v2.4.32.0
 **Last Deploy Date:** 2026-05-31
 **App.jsx Line Count:** ~7,220
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
@@ -22,6 +22,18 @@
 ---
 
 ## Version Log
+
+### v2.4.32.0 — 2026-05-31
+Inline explanations under every record cell. User flagged that they didn't know what "Wooden Spoon" meant — short italic descriptions are now baked into both the Recordbook panel (league-wide records) and the per-team Team Records section so each cell is self-documenting. No collapse/show toggle — descriptions are always visible because the cost of one extra italic line is small and the value is permanent self-documentation. All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **Recordbook descriptions** at `App.jsx:1432-1441`. Each of the 8 items in the Recordbook `items` array gains a `desc:` field with a 6-12 word explanation. Render path at `App.jsx:1467` adds `{it.desc && <div style={{ fontSize:9,color:"#4a4a6a",marginTop:4,fontStyle:"italic",lineHeight:1.3 }}>{it.desc}</div>}` below the existing `sub` (holder) line. The italic gray styling makes the description visually subordinate to the value and holder while keeping it legible.
+- **Per-team Team Records descriptions** at `App.jsx:1550-1557` and `App.jsx:1574`. Same pattern — each of the 6 cell descriptors gets a `desc:` field, rendered as the same italic gray line below the sub. Both surfaces use identical chrome so the visual language is consistent (any user who learns "italic gray = what this record means" on one surface transfers the knowledge to the other).
+- **Descriptions written:**
+  - Recordbook: Single-Week Ceiling/Floor (highest/lowest team week), League MVP/Wooden Spoon (highest/lowest contestant overall, with the "last-place award" hint for Wooden Spoon), Biggest Comeback/Choke (week-to-week swing), Most Consistent/Volatile (smallest/biggest stddev).
+  - Team Records: Star Player/Bench Warmer (most/fewest team contributions, multiplier applied), Big Hit/Big Miss (highest/lowest single-week roster score), Hot Streak/Cold Streak (longest consecutive positive/negative weeks).
+- **Why always-visible rather than tap-to-reveal.** Considered an "explain" toggle or a `?` icon per cell. Both add UI chrome and require user action. The cells are already low-density (value + holder + now description = three lines); the cost of one extra italic line vs the cost of a discovery problem is asymmetric in favor of always-on. Once users learn the records, they'll scan past the descriptions easily.
+- **Not yet smoke-tested in browser** — recommended smoke: expand the Recordbook panel on Standings and verify every cell shows a small italic gray description; expand a team row on Standings and verify the Team Records section also shows descriptions.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.72s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.31.0 — 2026-05-31
 One-line rename: the collapsible records panel on the Standings tab is renamed from **League Legacy** to **Recordbook** at the user's request. No structural change — same 8 records, same collapsible `<details>`, same record-cell layout. Only the summary text changes. All 10 regression baselines pass byte-identical, `npm run build` clean.

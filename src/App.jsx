@@ -1436,14 +1436,14 @@ function StandingsTab({ league, standings }) {
         const teamNameOf = id => (league.teams||[]).find(t => t.id === id)?.name || "—";
         const contestantNameOf = id => (league.contestants||[]).find(c => c.id === id)?.name || "—";
         const items = [
-          { label:"Single-Week Ceiling", val: lr.weekCeiling ? `+${formatPts(Math.round(lr.weekCeiling.pts*10)/10, league)}` : "—", sub: lr.weekCeiling ? `${teamNameOf(lr.weekCeiling.teamId)} · ${cadenceShort(league)} ${lr.weekCeiling.wk}` : "—", color:"#4ecdc4" },
-          { label:"Single-Week Floor",   val: lr.weekFloor   ? formatPts(Math.round(lr.weekFloor.pts*10)/10, league) : "—",       sub: lr.weekFloor   ? `${teamNameOf(lr.weekFloor.teamId)} · ${cadenceShort(league)} ${lr.weekFloor.wk}` : "—",     color:"#e94560" },
-          { label:"League MVP",          val: lr.mvp         ? `+${formatPts(Math.round(lr.mvp.pts*10)/10, league)}`         : "—", sub: lr.mvp ? contestantNameOf(lr.mvp.id) : "—", color:"#f5a623", cid: lr.mvp?.id },
-          { label:"Wooden Spoon",        val: lr.woodenSpoon ? formatPts(Math.round(lr.woodenSpoon.pts*10)/10, league)        : "—", sub: lr.woodenSpoon ? contestantNameOf(lr.woodenSpoon.id) : "—", color:"#e94560", cid: lr.woodenSpoon?.id },
-          { label:"Biggest Comeback",    val: lr.comeback    ? `+${formatPts(Math.round(lr.comeback.swing*10)/10, league)}`   : "—", sub: lr.comeback    ? `${teamNameOf(lr.comeback.teamId)} · ${cadenceShort(league)} ${lr.comeback.wk}` : "—", color:"#4ecdc4" },
-          { label:"Biggest Choke",       val: lr.choke       ? formatPts(Math.round(lr.choke.swing*10)/10, league)            : "—", sub: lr.choke       ? `${teamNameOf(lr.choke.teamId)} · ${cadenceShort(league)} ${lr.choke.wk}` : "—",       color:"#e94560" },
-          { label:"Most Consistent",     val: lr.mostConsistent ? `±${formatPts(Math.round(lr.mostConsistent.sd*10)/10, league)}` : "—", sub: lr.mostConsistent ? teamNameOf(lr.mostConsistent.teamId) : "—", color:"#9d5dff" },
-          { label:"Most Volatile",       val: lr.mostVolatile   ? `±${formatPts(Math.round(lr.mostVolatile.sd*10)/10, league)}`   : "—", sub: lr.mostVolatile   ? teamNameOf(lr.mostVolatile.teamId) : "—",   color:"#ff8a3d" },
+          { label:"Single-Week Ceiling", val: lr.weekCeiling ? `+${formatPts(Math.round(lr.weekCeiling.pts*10)/10, league)}` : "—", sub: lr.weekCeiling ? `${teamNameOf(lr.weekCeiling.teamId)} · ${cadenceShort(league)} ${lr.weekCeiling.wk}` : "—", color:"#4ecdc4", desc:"Highest single-week team total in the league" },
+          { label:"Single-Week Floor",   val: lr.weekFloor   ? formatPts(Math.round(lr.weekFloor.pts*10)/10, league) : "—",       sub: lr.weekFloor   ? `${teamNameOf(lr.weekFloor.teamId)} · ${cadenceShort(league)} ${lr.weekFloor.wk}` : "—",     color:"#e94560", desc:"Lowest single-week team total in the league" },
+          { label:"League MVP",          val: lr.mvp         ? `+${formatPts(Math.round(lr.mvp.pts*10)/10, league)}`         : "—", sub: lr.mvp ? contestantNameOf(lr.mvp.id) : "—", color:"#f5a623", cid: lr.mvp?.id, desc:"Highest-scoring contestant overall, league-wide" },
+          { label:"Wooden Spoon",        val: lr.woodenSpoon ? formatPts(Math.round(lr.woodenSpoon.pts*10)/10, league)        : "—", sub: lr.woodenSpoon ? contestantNameOf(lr.woodenSpoon.id) : "—", color:"#e94560", cid: lr.woodenSpoon?.id, desc:"Lowest-scoring contestant overall (last-place award)" },
+          { label:"Biggest Comeback",    val: lr.comeback    ? `+${formatPts(Math.round(lr.comeback.swing*10)/10, league)}`   : "—", sub: lr.comeback    ? `${teamNameOf(lr.comeback.teamId)} · ${cadenceShort(league)} ${lr.comeback.wk}` : "—", color:"#4ecdc4", desc:"Largest single-week jump up vs the prior week" },
+          { label:"Biggest Choke",       val: lr.choke       ? formatPts(Math.round(lr.choke.swing*10)/10, league)            : "—", sub: lr.choke       ? `${teamNameOf(lr.choke.teamId)} · ${cadenceShort(league)} ${lr.choke.wk}` : "—",       color:"#e94560", desc:"Largest single-week drop vs the prior week" },
+          { label:"Most Consistent",     val: lr.mostConsistent ? `±${formatPts(Math.round(lr.mostConsistent.sd*10)/10, league)}` : "—", sub: lr.mostConsistent ? teamNameOf(lr.mostConsistent.teamId) : "—", color:"#9d5dff", desc:"Team with the smallest week-to-week swing (lowest stddev)" },
+          { label:"Most Volatile",       val: lr.mostVolatile   ? `±${formatPts(Math.round(lr.mostVolatile.sd*10)/10, league)}`   : "—", sub: lr.mostVolatile   ? teamNameOf(lr.mostVolatile.teamId) : "—",   color:"#ff8a3d", desc:"Team with the biggest week-to-week swings (highest stddev)" },
         ];
         return (
           <details style={{ marginBottom:16 }}>
@@ -1458,6 +1458,7 @@ function StandingsTab({ league, standings }) {
                   <div style={{ fontSize:9,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:3 }}>{it.label}</div>
                   <div style={{ fontSize:16,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:it.color,lineHeight:1 }}>{it.val}</div>
                   <div style={{ fontSize:10,color:"#8888aa",marginTop:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{it.sub}</div>
+                  {it.desc && <div style={{ fontSize:9,color:"#4a4a6a",marginTop:4,fontStyle:"italic",lineHeight:1.3 }}>{it.desc}</div>}
                 </div>
               ))}
             </div>
@@ -1550,12 +1551,12 @@ function StandingsTab({ league, standings }) {
                       const byId = id => (league.contestants||[]).find(c => c.id === id);
                       const nameOf = id => byId(id)?.name || "—";
                       const cells = [
-                        { label:"Star Player", val:tr.starPlayer ? formatPts(Math.round(tr.starPlayer.pts*10)/10, league) : "—", sub:tr.starPlayer ? nameOf(tr.starPlayer.id) : "no contributions", color:"#4ecdc4", cid: tr.starPlayer?.id },
-                        { label:"Bench Warmer", val:tr.benchWarmer ? formatPts(Math.round(tr.benchWarmer.pts*10)/10, league) : "—", sub:tr.benchWarmer ? nameOf(tr.benchWarmer.id) : "—", color:"#e94560", cid: tr.benchWarmer?.id },
-                        { label:"Big Hit", val:tr.bigHit ? `+${formatPts(Math.round(tr.bigHit.pts*10)/10, league)}` : "—", sub:tr.bigHit ? `${nameOf(tr.bigHit.id)} · ${cadenceShort(league)} ${tr.bigHit.wk}` : "—", color:"#f5a623", cid: tr.bigHit?.id },
-                        { label:"Big Miss", val:tr.bigMiss ? formatPts(Math.round(tr.bigMiss.pts*10)/10, league) : "—", sub:tr.bigMiss ? `${nameOf(tr.bigMiss.id)} · ${cadenceShort(league)} ${tr.bigMiss.wk}` : "—", color:"#e94560", cid: tr.bigMiss?.id },
-                        { label:"Hot Streak", val:tr.hotStreak > 0 ? `${tr.hotStreak} ${cadenceShort(league).toLowerCase()}${tr.hotStreak===1?"":"s"}` : "—", sub:"positive run", color:"#ff8a3d" },
-                        { label:"Cold Streak", val:tr.coldStreak > 0 ? `${tr.coldStreak} ${cadenceShort(league).toLowerCase()}${tr.coldStreak===1?"":"s"}` : "—", sub:"negative run", color:"#4d8aff" },
+                        { label:"Star Player", val:tr.starPlayer ? formatPts(Math.round(tr.starPlayer.pts*10)/10, league) : "—", sub:tr.starPlayer ? nameOf(tr.starPlayer.id) : "no contributions", color:"#4ecdc4", cid: tr.starPlayer?.id, desc:"Most points contributed to this team (multiplier applied)" },
+                        { label:"Bench Warmer", val:tr.benchWarmer ? formatPts(Math.round(tr.benchWarmer.pts*10)/10, league) : "—", sub:tr.benchWarmer ? nameOf(tr.benchWarmer.id) : "—", color:"#e94560", cid: tr.benchWarmer?.id, desc:"Fewest points contributed (least valuable pick)" },
+                        { label:"Big Hit", val:tr.bigHit ? `+${formatPts(Math.round(tr.bigHit.pts*10)/10, league)}` : "—", sub:tr.bigHit ? `${nameOf(tr.bigHit.id)} · ${cadenceShort(league)} ${tr.bigHit.wk}` : "—", color:"#f5a623", cid: tr.bigHit?.id, desc:"Highest single-week score from any rostered contestant" },
+                        { label:"Big Miss", val:tr.bigMiss ? formatPts(Math.round(tr.bigMiss.pts*10)/10, league) : "—", sub:tr.bigMiss ? `${nameOf(tr.bigMiss.id)} · ${cadenceShort(league)} ${tr.bigMiss.wk}` : "—", color:"#e94560", cid: tr.bigMiss?.id, desc:"Lowest single-week score from any rostered contestant" },
+                        { label:"Hot Streak", val:tr.hotStreak > 0 ? `${tr.hotStreak} ${cadenceShort(league).toLowerCase()}${tr.hotStreak===1?"":"s"}` : "—", sub:"positive run", color:"#ff8a3d", desc:"Longest consecutive run of positive-scoring weeks" },
+                        { label:"Cold Streak", val:tr.coldStreak > 0 ? `${tr.coldStreak} ${cadenceShort(league).toLowerCase()}${tr.coldStreak===1?"":"s"}` : "—", sub:"negative run", color:"#4d8aff", desc:"Longest consecutive run of negative-scoring weeks" },
                       ];
                       return (
                         <div style={{ marginBottom:14 }}>
@@ -1567,6 +1568,7 @@ function StandingsTab({ league, standings }) {
                                 <div style={{ fontSize:9,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:3 }}>{c.label}</div>
                                 <div style={{ fontSize:14,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:c.color,lineHeight:1 }}>{c.val}</div>
                                 <div style={{ fontSize:10,color:"#8888aa",marginTop:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{c.sub}</div>
+                                {c.desc && <div style={{ fontSize:9,color:"#4a4a6a",marginTop:4,fontStyle:"italic",lineHeight:1.3 }}>{c.desc}</div>}
                               </div>
                             ))}
                           </div>
