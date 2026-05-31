@@ -421,6 +421,19 @@ function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
+// Lookup the current couple-partner for a contestant. Returns the other contestant's
+// id or null. Couples are stored at league.couples = [{ id, members: [id1, id2] }];
+// a contestant should appear in at most one couple at a time (the Manage > Couples
+// editor enforces this by auto-dissolving any prior couple for either member on add).
+function getCouplePartner(league, contestantId) {
+  const couples = league?.couples || [];
+  for (const c of couples) {
+    const m = c.members || [];
+    if (m.includes(contestantId)) return m.find(x => x !== contestantId) || null;
+  }
+  return null;
+}
+
 // All invite codes (league-level and per-team) are 6 chars, no ambiguous characters
 function generateInviteCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -1318,6 +1331,95 @@ function StandingsTab({ league, standings }) {
   );
 }
 
+// Editor for league.couples. A contestant can appear in at most one couple at a
+// time — when a new couple is added, any prior couple containing either member is
+// dissolved automatically (matches Love Island recoupling semantics).
+function CouplesEditor({ league, onUpdate }) {
+  const [m1, setM1] = useState("");
+  const [m2, setM2] = useState("");
+  const contestants = league.contestants || [];
+  const couples = league.couples || [];
+  const byId = Object.fromEntries(contestants.map(c => [c.id, c]));
+
+  function addCouple() {
+    if (!m1 || !m2 || m1 === m2) return;
+    // Dissolve any existing couples that contain either member
+    const filtered = couples.filter(c => {
+      const mem = c.members || [];
+      return !mem.includes(m1) && !mem.includes(m2);
+    });
+    const newCouple = { id: generateId(), members: [m1, m2] };
+    onUpdate({ ...league, couples: [...filtered, newCouple] });
+    setM1(""); setM2("");
+  }
+
+  function dissolveCouple(coupleId) {
+    onUpdate({ ...league, couples: couples.filter(c => c.id !== coupleId) });
+  }
+
+  const inACoupleIds = new Set(couples.flatMap(c => c.members || []));
+  const pickable = contestants.filter(c => c.status !== "eliminated");
+
+  return (
+    <div>
+      <div style={{ fontSize:11,color:"#6a6a8a",marginBottom:10,lineHeight:1.4 }}>
+        Couples are informational during the regular season (a heart badge appears next to each contestant on the Cast tab). In the final week, managers will pick a Hero couple and a Sidekick couple instead of a depth chart. A contestant can be in only one couple — adding a new couple auto-dissolves any prior one for either member.
+      </div>
+
+      {couples.length === 0 && (
+        <div style={{ padding:"14px",textAlign:"center",color:"#6a6a8a",fontSize:12,background:"#12121f",borderRadius:8,border:"1px solid #1e1e38",marginBottom:12 }}>
+          No couples yet. Add one below.
+        </div>
+      )}
+
+      {couples.map(c => {
+        const [aId, bId] = c.members || [];
+        const a = byId[aId]; const b = byId[bId];
+        if (!a || !b) return null;
+        return (
+          <div key={c.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:"#12121f",borderRadius:8,border:"1px solid #1e1e38",marginBottom:6 }}>
+            <ContestantAvatar contestant={a} league={league} size={28} />
+            <div style={{ fontSize:12,fontWeight:600,color:"#e8e8f0",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{a.name}</div>
+            <span style={{ color:"#e94560",fontSize:14 }}>♥</span>
+            <ContestantAvatar contestant={b} league={league} size={28} />
+            <div style={{ fontSize:12,fontWeight:600,color:"#e8e8f0",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{b.name}</div>
+            <button onClick={()=>dissolveCouple(c.id)} title="Dissolve couple" style={{
+              background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#e94560",
+              width:26,height:26,cursor:"pointer",fontSize:14,flexShrink:0,
+            }}>×</button>
+          </div>
+        );
+      })}
+
+      <div style={{ marginTop:12,padding:"10px 12px",background:"#12121f",borderRadius:8,border:"1px solid #1e1e38" }}>
+        <div style={{ fontSize:11,fontWeight:600,color:"#8888aa",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em" }}>Add Couple</div>
+        <div style={{ display:"flex",gap:6,alignItems:"center" }}>
+          <select value={m1} onChange={e=>setM1(e.target.value)} style={{
+            flex:1,padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+            color:m1?"#e8e8f0":"#6a6a8a",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",minWidth:0,
+          }}>
+            <option value="">— Pick contestant —</option>
+            {pickable.map(c => (
+              <option key={c.id} value={c.id}>{c.name}{inACoupleIds.has(c.id)?" (currently coupled)":""}</option>
+            ))}
+          </select>
+          <span style={{ color:"#e94560",fontSize:14 }}>♥</span>
+          <select value={m2} onChange={e=>setM2(e.target.value)} style={{
+            flex:1,padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+            color:m2?"#e8e8f0":"#6a6a8a",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",minWidth:0,
+          }}>
+            <option value="">— Pick contestant —</option>
+            {pickable.filter(c => c.id !== m1).map(c => (
+              <option key={c.id} value={c.id}>{c.name}{inACoupleIds.has(c.id)?" (currently coupled)":""}</option>
+            ))}
+          </select>
+          <Btn small onClick={addCouple} disabled={!m1 || !m2 || m1 === m2}>Add</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CONTESTANTS TAB
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1515,7 +1617,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
             <button onClick={()=>setManagePhotos(false)} style={{ background:"none",border:"none",color:"#6a6a8a",cursor:"pointer" }}>Done</button>
           </div>
           <div style={{ display:"flex",gap:6,marginBottom:12 }}>
-            {[{id:"photos",label:"Photos"},{id:"gender",label:"Gender"}].map(m => (
+            {[{id:"photos",label:"Photos"},{id:"gender",label:"Gender"},{id:"couples",label:"Couples"}].map(m => (
               <button key={m.id} onClick={()=>setManageMode(m.id)} style={{
                 padding:"6px 14px",borderRadius:99,border:manageMode===m.id?"1px solid #e9456044":"1px solid #1e1e38",
                 background:manageMode===m.id?"#e9456018":"transparent",color:manageMode===m.id?"#e94560":"#7a7a9a",
@@ -1607,6 +1709,9 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
               ))}
             </div>
           )}
+          {manageMode === "couples" && (
+            <CouplesEditor league={league} onUpdate={onUpdate} />
+          )}
         </div>
       )}
 
@@ -1628,6 +1733,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{color:"#e8e8f0",fontWeight:600,fontSize:13,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
                     {c.name}
+                    {(() => { const pid = getCouplePartner(league, c.id); const p = pid && (league.contestants||[]).find(x=>x.id===pid); return p && <span style={{color:"#e94560",fontSize:10,marginLeft:6}}>♥ {p.name}</span>; })()}
                     {!isMerged&&c.tribe&&<span style={{color:"#4a4a6a",fontSize:10,marginLeft:6}}>{c.tribe}</span>}
                     {c.status==="eliminated"&&<span style={{marginLeft:6,fontSize:10,color:"#e94560"}}>ELIM{c.eliminatedWeek?` ${cadenceShort(league)} ${c.eliminatedWeek}`:""}</span>}
                   </div>

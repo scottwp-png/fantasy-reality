@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.15.0
+**Current Production Version:** v2.4.16.0
 **Last Deploy Date:** 2026-05-31
-**App.jsx Line Count:** ~6,570
+**App.jsx Line Count:** ~6,680
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,22 @@
 ---
 
 ## Version Log
+
+### v2.4.16.0 — 2026-05-31
+Couples data layer for Love Island — informational only in this commit; the endgame couple-pick scoring lands in v2.4.17.0 (paired commit shipping the same session). Couples are stored at `league.couples = [{ id, members: [contestantId, contestantId] }]` and edited via a new **Couples** sub-tab on the Manage Contestants panel (alongside Photos and Gender from v2.4.15.0). A small coral heart badge with the partner's name appears inline next to each contestant on the Cast tab so managers can see current pairings at a glance during regular-season scoring. A contestant can only be in one couple at a time — adding a new couple automatically dissolves any prior couple containing either member, matching Love Island recoupling semantics. All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **`getCouplePartner(league, contestantId)` helper** at `App.jsx:425-437`. Pure lookup function, module-scope, next to `generateId`. Iterates `league.couples` and returns the other member's id if the contestant is in a couple, otherwise `null`. The single-couple invariant lets the helper return on the first match — no need to handle "multiple partners" edge cases because the editor below enforces uniqueness on write. Documented inline so a future reader knows the invariant is editor-side, not data-shape-side.
+- **`CouplesEditor` component** at `App.jsx:1335-1411` (just above `ContestantsTab`, matching the placement pattern used by `ScoringRulesSection` in v2.4.14.0). Renders existing couples as paired avatar+name rows with a coral ♥ between them and a `×` to dissolve, plus an "Add Couple" form with two contestant dropdowns. Contestants already in a couple show with a `(currently coupled)` suffix in the dropdown so the commissioner knows adding will trigger a re-couple. The `addCouple` handler dissolves any couples containing either member before appending the new one — single atomic `onUpdate` write through the existing per-league `saveLeague` path. Eliminated contestants are filtered out of the pickable list.
+- **Manage panel sub-tab addition** at `App.jsx:1521`. The pill bar that lists Photos/Gender (from v2.4.15.0) now includes Couples. Selecting Couples renders `<CouplesEditor>` at `App.jsx:1612-1614`. The panel header (Manage Contestants) and Done button stay the same — sub-tab is purely additive.
+- **Inline heart badge on contestant cards** at `App.jsx:1639`. Inside the contestant card name row (between `{c.name}` and the existing tribe/elim badges), an IIFE looks up the partner via `getCouplePartner` and renders `♥ <PartnerName>` in coral when the contestant is coupled. Single Unicode heart character (♥, U+2665) rather than the emoji (❤️) — renders identically across browsers without pulling in the emoji-font fallback, and matches the visual weight of the existing small badges on the row. Hidden entirely when the contestant has no partner, so leagues without any couples set are visually unchanged.
+- **No scoring impact.** `src/scoring.js` is untouched in this commit. `league.couples` is a pure data field with no engine reads — the endgame couple-pick scoring (where Hero couple = 2× both members, Sidekick couple = 1.5× both members) lands in v2.4.17.0. The two commits are intentionally split so the couples data layer can ship and be populated for the current Love Island season independently of the finale-week format change.
+- **Data model decisions.**
+  - **Array of pairs, not graph.** `couples` is a flat array of `{id, members}` objects. Considered a more flexible shape (e.g., each contestant gets a `coupleId` field), but the array form mirrors how `tribes` already works in this codebase and is trivially scannable by the helper. The pair-uniqueness invariant lives in the editor, not the data shape.
+  - **`members` as a 2-element array, not `member1Id`/`member2Id`.** Slightly more flexible if poly-couples ever became a thing (they won't), but more importantly: lets `getCouplePartner` use `Array.includes` and `Array.find` without branching on which slot the queried id occupies. Reads cleaner.
+  - **No history/versioning.** Couples represent the *current* pairing only. Re-couples overwrite. Considered storing a history of pairings keyed by week, but: (a) the only consumer in the planned arc is the finale-week picker, which only needs the current state; (b) commissioners can already use the version-log audit trail or RTDB exports if they want a history snapshot.
+- **What this commit does NOT yet enable.** No finale-week couple picker (v2.4.17.0). No scoring engine change (v2.4.17.0). No bulk couple import from spreadsheet — couples must be added one at a time through the UI. No drag-to-reorder. No filter/sort within the Couples editor — list renders in array order.
+- **Browser smoke verified** — Opened Manage > Couples on the Love Island Captains league, added Robyn ♥ Aidan and Ellie ♥ Sean, verified both couples appear in the list and a coral ♥ + partner-name badge renders next to each of the four contestants on the Cast tab. Re-pairing Robyn with Sean auto-dissolved the prior Robyn-Aidan couple and the prior Ellie-Sean couple (both members of the new pairing came from existing couples). Dissolved couple's badges disappear from the Cast tab on next render.
+- `src/scoring.js` untouched. `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.66s, no new warnings).
+- **Commit:** `_pending_`
 
 ### v2.4.15.0 — 2026-05-31
 Cast tab's "Manage Photos" inline panel is renamed "Manage" and expanded into a two-tab **Manage Contestants** workspace covering **Photos** and **Gender**, replacing the one-attribute-per-panel pattern. Bulk-edit gender is the headline new capability — previously the only way to set gender for many contestants in a row was to open `AddContestantModal` per contestant, which is unworkable for a freshly bulk-added 20-person Love Island cast. The Photos tab keeps every prior control (URL field + position/zoom sliders + thumbnail preview) and adds two new inputs alongside: a per-row **Upload** button that resizes to a data URI via the existing `resizeImageToDataURI` helper, and a clipboard-paste handler on the URL field. Pairs with v2.4.14.0's commissioner-tools bundle. All 10 regression baselines pass byte-identical, `npm run build` clean.
