@@ -1429,9 +1429,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
   const [filter, setFilter] = useState("all");
   const [expandedId, setExpandedId] = useState(null);
   const [sortBy, setSortBy] = useState("total");
-  const [tribeMode, setTribeMode] = useState(false);
   const [selectedForMove, setSelectedForMove] = useState(new Set());
-  const [bulkAddOpen, setBulkAddOpen] = useState(false);
 
   const weeks = Object.keys(league.weeklyScores || {}).sort((a,b)=>+a - +b);
   const tribes = league.tribes || {};
@@ -1518,71 +1516,6 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
     onUpdate({...league,tribes:nt,contestants:uc});
   }
 
-  // ─── TRIBE MODE ───
-  if (tribeMode && !readOnly && onUpdate) {
-    const ac = (league.contestants||[]).filter(c=>c.status!=="eliminated");
-    const unassigned = ac.filter(c=>!tribeNames.some(t=>(tribes[t]||[]).includes(c.id)));
-    return (
-      <div>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
-          <h3 style={{margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em"}}>Manage Tribes</h3>
-          <Btn small variant="ghost" onClick={()=>{setTribeMode(false);setSelectedForMove(new Set())}}>← Back to Cast</Btn>
-        </div>
-        <div style={{padding:"12px 16px",borderRadius:10,marginBottom:16,background:isMerged?"#f5a62311":"#12121f",border:isMerged?"1px solid #f5a62333":"1px solid #1e1e38",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div>
-            <div style={{color:"#e8e8f0",fontWeight:700,fontSize:14}}>{isMerged?`\ud83c\udff4 Merged: ${league.mergedTribeName||"Merged"}`:"Tribes Active"}</div>
-            <div style={{color:"#6a6a8a",fontSize:11,marginTop:2}}>{isMerged?"All contestants one group. Original tribes kept for reference.":"Contestants grouped by tribe."}</div>
-          </div>
-          <Btn small variant={isMerged?"danger":"success"} onClick={toggleMerge}>{isMerged?"Unmerge":"Merge Tribes"}</Btn>
-        </div>
-        {selectedForMove.size>0&&(<div style={{padding:"10px 14px",borderRadius:8,marginBottom:14,background:"#e9456011",border:"1px solid #e9456033"}}>
-          <div style={{fontSize:12,fontWeight:600,color:"#e94560",marginBottom:8}}>{selectedForMove.size} selected \u2014 move to:</div>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{tribeNames.map(t=><Btn key={t} small variant="secondary" onClick={()=>moveSelectedToTribe(t)}>{t}</Btn>)}<Btn small variant="ghost" onClick={()=>setSelectedForMove(new Set())}>Cancel</Btn></div>
-        </div>)}
-        {tribeNames.map(tribe=>{
-          const mids=(tribes[tribe]||[]).filter(id=>ac.some(c=>c.id===id));
-          const tribeCol = (league.tribeColors||{})[tribe] || "#888";
-          const members=mids.map(id=>ac.find(c=>c.id===id)).filter(Boolean);
-          return (<div key={tribe} style={{marginBottom:16}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <input type="color" value={tribeCol} onChange={e=>onUpdate({...league,tribeColors:{...(league.tribeColors||{}),[tribe]:e.target.value}})}
-                  style={{width:32,height:32,border:"none",borderRadius:4,cursor:"pointer",padding:0,background:"transparent"}} title="Change tribe color" />
-                <div style={{fontSize:13,fontWeight:700,color:tribeCol}}>{tribe}</div>
-                <span style={{fontSize:11,color:"#6a6a8a"}}>({members.length})</span>
-                <button onClick={()=>selectTribe(tribe)} style={{background:"none",border:"1px solid #2a2a4a",borderRadius:4,padding:"6px 12px",fontSize:12,color:"#8888aa",cursor:"pointer",fontFamily:"'Outfit',sans-serif"}}>Select All</button>
-              </div>
-              <button onClick={()=>removeTribe(tribe)} style={{background:"none",border:"none",color:"#4a4a6a",cursor:"pointer",padding:2}}><Icon name="trash" size={12}/></button>
-            </div>
-            <div style={{display:"flex",flexDirection:"column",gap:3}}>
-              {members.map(c=>{const sel=selectedForMove.has(c.id);return(
-                <div key={c.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,background:sel?"#e9456018":"#12121f",border:sel?"1px solid #e9456033":"1px solid #1e1e38"}}>
-                  <button onClick={()=>toggleSelect(c.id)} style={{width:32,height:32,borderRadius:4,border:sel?"none":"2px solid #3a3a5a",cursor:"pointer",background:sel?"#e94560":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{sel&&<Icon name="check" size={12}/>}</button>
-                  <span style={{flex:1,color:"#e8e8f0",fontSize:13,fontWeight:500}}>{c.name}</span>
-                  <select value={c.tribe||""} onChange={e=>reassignSingle(c.id,e.target.value)} style={{padding:"3px 8px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:4,color:"#8888aa",fontSize:11,fontFamily:"'Outfit',sans-serif"}}>
-                    {tribeNames.map(t=><option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-              )})}
-              {members.length===0&&<div style={{color:"#4a4a6a",fontSize:11,fontStyle:"italic",padding:"6px 12px"}}>No active members</div>}
-            </div>
-          </div>);
-        })}
-        {unassigned.length>0&&(<div style={{marginBottom:16}}>
-          <div style={{fontSize:13,fontWeight:700,color:"#f5a623",marginBottom:6}}>Unassigned ({unassigned.length})</div>
-          <div style={{display:"flex",flexDirection:"column",gap:3}}>
-            {unassigned.map(c=>{const sel=selectedForMove.has(c.id);return(
-              <div key={c.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,background:sel?"#e9456018":"#12121f",border:sel?"1px solid #e9456033":"1px solid #1e1e38"}}>
-                <button onClick={()=>toggleSelect(c.id)} style={{width:32,height:32,borderRadius:4,border:sel?"none":"2px solid #3a3a5a",cursor:"pointer",background:sel?"#e94560":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{sel&&<Icon name="check" size={12}/>}</button>
-                <span style={{flex:1,color:"#e8e8f0",fontSize:13}}>{c.name}</span>
-              </div>
-            )})}
-          </div>
-        </div>)}
-        <Btn small variant="ghost" onClick={addNewTribe} style={{marginTop:8}}><Icon name="plus" size={12}/> Add New Tribe</Btn>
-      </div>
-    );
-  }
 
   // ─── NORMAL VIEW ───
   return (
@@ -1590,8 +1523,6 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
         <h3 style={{margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em"}}>Cast Scoring</h3>
         <div style={{display:"flex",gap:6}}>
-          {!readOnly&&onUpdate&&<Btn small variant="ghost" onClick={()=>setTribeMode(true)}>Tribes</Btn>}
-          {!readOnly&&<Btn small variant="ghost" onClick={()=>setBulkAddOpen(true)}>Bulk Add</Btn>}
           {!readOnly&&<div style={{display:"flex",gap:6}}>
             <Btn small onClick={()=>{setEditing(null);setModal("add-contestant")}}><Icon name="plus" size={14}/> Add</Btn>
             <Btn small variant="ghost" onClick={()=>setManagePhotos(!managePhotos)}>Manage</Btn>
@@ -1617,7 +1548,12 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
             <button onClick={()=>setManagePhotos(false)} style={{ background:"none",border:"none",color:"#6a6a8a",cursor:"pointer" }}>Done</button>
           </div>
           <div style={{ display:"flex",gap:6,marginBottom:12 }}>
-            {[{id:"photos",label:"Photos"},{id:"gender",label:"Gender"},{id:"couples",label:"Couples"}].map(m => (
+            {[
+              {id:"photos",label:"Photos"},
+              {id:"gender",label:"Gender"},
+              {id:"couples",label:"Couples"},
+              ...(league.showType === "survivor" ? [{id:"tribes",label:"Tribes"}] : []),
+            ].map(m => (
               <button key={m.id} onClick={()=>setManageMode(m.id)} style={{
                 padding:"6px 14px",borderRadius:99,border:manageMode===m.id?"1px solid #e9456044":"1px solid #1e1e38",
                 background:manageMode===m.id?"#e9456018":"transparent",color:manageMode===m.id?"#e94560":"#7a7a9a",
@@ -1712,6 +1648,66 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
           {manageMode === "couples" && (
             <CouplesEditor league={league} onUpdate={onUpdate} />
           )}
+          {manageMode === "tribes" && league.showType === "survivor" && (() => {
+            const ac = (league.contestants||[]).filter(c=>c.status!=="eliminated");
+            const unassigned = ac.filter(c=>!tribeNames.some(t=>(tribes[t]||[]).includes(c.id)));
+            return (
+              <div>
+                <div style={{padding:"12px 14px",borderRadius:10,marginBottom:14,background:isMerged?"#f5a62311":"#0d0d18",border:isMerged?"1px solid #f5a62333":"1px solid #1e1e38",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <div>
+                    <div style={{color:"#e8e8f0",fontWeight:700,fontSize:13}}>{isMerged?`🏴 Merged: ${league.mergedTribeName||"Merged"}`:"Tribes Active"}</div>
+                    <div style={{color:"#6a6a8a",fontSize:11,marginTop:2}}>{isMerged?"All contestants one group. Original tribes kept for reference.":"Contestants grouped by tribe."}</div>
+                  </div>
+                  <Btn small variant={isMerged?"danger":"success"} onClick={toggleMerge}>{isMerged?"Unmerge":"Merge Tribes"}</Btn>
+                </div>
+                {selectedForMove.size>0&&(<div style={{padding:"10px 14px",borderRadius:8,marginBottom:14,background:"#e9456011",border:"1px solid #e9456033"}}>
+                  <div style={{fontSize:12,fontWeight:600,color:"#e94560",marginBottom:8}}>{selectedForMove.size} selected — move to:</div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{tribeNames.map(t=><Btn key={t} small variant="secondary" onClick={()=>moveSelectedToTribe(t)}>{t}</Btn>)}<Btn small variant="ghost" onClick={()=>setSelectedForMove(new Set())}>Cancel</Btn></div>
+                </div>)}
+                {tribeNames.map(tribe=>{
+                  const mids=(tribes[tribe]||[]).filter(id=>ac.some(c=>c.id===id));
+                  const tribeCol = (league.tribeColors||{})[tribe] || "#888";
+                  const members=mids.map(id=>ac.find(c=>c.id===id)).filter(Boolean);
+                  return (<div key={tribe} style={{marginBottom:14}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                        <input type="color" value={tribeCol} onChange={e=>onUpdate({...league,tribeColors:{...(league.tribeColors||{}),[tribe]:e.target.value}})}
+                          style={{width:28,height:28,border:"none",borderRadius:4,cursor:"pointer",padding:0,background:"transparent"}} title="Change tribe color" />
+                        <div style={{fontSize:13,fontWeight:700,color:tribeCol}}>{tribe}</div>
+                        <span style={{fontSize:11,color:"#6a6a8a"}}>({members.length})</span>
+                        <button onClick={()=>selectTribe(tribe)} style={{background:"none",border:"1px solid #2a2a4a",borderRadius:4,padding:"4px 10px",fontSize:11,color:"#8888aa",cursor:"pointer",fontFamily:"'Outfit',sans-serif"}}>Select All</button>
+                      </div>
+                      <button onClick={()=>removeTribe(tribe)} style={{background:"none",border:"none",color:"#4a4a6a",cursor:"pointer",padding:2}}><Icon name="trash" size={12}/></button>
+                    </div>
+                    <div style={{display:"flex",flexDirection:"column",gap:3}}>
+                      {members.map(c=>{const sel=selectedForMove.has(c.id);return(
+                        <div key={c.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:sel?"#e9456018":"#12121f",border:sel?"1px solid #e9456033":"1px solid #1e1e38"}}>
+                          <button onClick={()=>toggleSelect(c.id)} style={{width:24,height:24,borderRadius:4,border:sel?"none":"2px solid #3a3a5a",cursor:"pointer",background:sel?"#e94560":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{sel&&<Icon name="check" size={10}/>}</button>
+                          <span style={{flex:1,color:"#e8e8f0",fontSize:12,fontWeight:500}}>{c.name}</span>
+                          <select value={c.tribe||""} onChange={e=>reassignSingle(c.id,e.target.value)} style={{padding:"3px 8px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:4,color:"#8888aa",fontSize:11,fontFamily:"'Outfit',sans-serif"}}>
+                            {tribeNames.map(t=><option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </div>
+                      )})}
+                      {members.length===0&&<div style={{color:"#4a4a6a",fontSize:11,fontStyle:"italic",padding:"6px 12px"}}>No active members</div>}
+                    </div>
+                  </div>);
+                })}
+                {unassigned.length>0&&(<div style={{marginBottom:14}}>
+                  <div style={{fontSize:13,fontWeight:700,color:"#f5a623",marginBottom:6}}>Unassigned ({unassigned.length})</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:3}}>
+                    {unassigned.map(c=>{const sel=selectedForMove.has(c.id);return(
+                      <div key={c.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:sel?"#e9456018":"#12121f",border:sel?"1px solid #e9456033":"1px solid #1e1e38"}}>
+                        <button onClick={()=>toggleSelect(c.id)} style={{width:24,height:24,borderRadius:4,border:sel?"none":"2px solid #3a3a5a",cursor:"pointer",background:sel?"#e94560":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{sel&&<Icon name="check" size={10}/>}</button>
+                        <span style={{flex:1,color:"#e8e8f0",fontSize:12}}>{c.name}</span>
+                      </div>
+                    )})}
+                  </div>
+                </div>)}
+                <Btn small variant="ghost" onClick={addNewTribe}><Icon name="plus" size={12}/> Add New Tribe</Btn>
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -1807,176 +1803,151 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
           })}
         </div>
       )}
-      {bulkAddOpen && <BulkAddContestants league={league} onUpdate={onUpdate} onClose={()=>setBulkAddOpen(false)} />}
     </div>
   );
 }
 
-function BulkAddContestants({ league, onUpdate, onClose }) {
+// Parse pasted text into a list of {name, bio} records. Three strategies, in order:
+//   0. Love Island press-kit: lines tagged Name:/Age:/Job:/From: — one record per Name:.
+//   1. Bravo cast-page: blocks bounded by Hometown:/Occupation:.
+//   2. Simple list: one name per line, optionally "Name - bio". Tightened to reject prose
+//      (lines >80 chars, lines ending with ?, all-lowercase starts, >5-word "names").
+// Returns an array of { name, bio }. Pure function — no React, no Firebase.
+function parseContestantsFromText(rawText) {
+  const text = (rawText || "").trim();
+  if (!text) return [];
+  const contestants = [];
+  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+
+  const hasNameKey = lines.some(l => /^Name:\s*/i.test(l));
+  if (hasNameKey) {
+    let cur = null;
+    const flush = () => {
+      if (!cur || !cur.name) return;
+      const bio = [cur.age && `Age ${cur.age}`, cur.job, cur.from && `From ${cur.from}`].filter(Boolean).join(" · ");
+      contestants.push({ name: cur.name, bio });
+    };
+    for (const line of lines) {
+      const mName = line.match(/^Name:\s*(.+)$/i);
+      if (mName) { flush(); cur = { name: mName[1].trim(), age:"", job:"", from:"" }; continue; }
+      if (!cur) continue;
+      const mAge  = line.match(/^Age:\s*(.+)$/i);                              if (mAge)  { cur.age  = mAge[1].trim();  continue; }
+      const mJob  = line.match(/^(?:Job|Occupation|Profession):\s*(.+)$/i);    if (mJob)  { cur.job  = mJob[1].trim();  continue; }
+      const mFrom = line.match(/^(?:From|Hometown|Location):\s*(.+)$/i);       if (mFrom) { cur.from = mFrom[1].trim(); continue; }
+    }
+    flush();
+    return contestants;
+  }
+
+  const hasBravoFormat = lines.some(l => l.startsWith("Hometown:"));
+  if (hasBravoFormat) {
+    let currentName = null;
+    let hometown = ""; let city = ""; let occupation = "";
+    for (const line of lines) {
+      if (line.startsWith("Photo:") || line.startsWith("RELATED:") || line.startsWith("How to Watch")) continue;
+      if (line.startsWith("Hometown:")) {
+        hometown = line.replace("Hometown:", "").trim();
+      } else if (line.startsWith("Current City of Residence:") || line.startsWith("Current city of residence:") || line.startsWith("Current Residence:")) {
+        city = line.replace(/Current.*?:/i, "").trim();
+      } else if (line.startsWith("Occupation/Profession:") || line.startsWith("Occupation:")) {
+        occupation = line.replace(/Occupation.*?:/i, "").trim();
+        if (currentName) {
+          const bio = [city || hometown, occupation].filter(Boolean).join(" · ");
+          contestants.push({ name: currentName, bio });
+        }
+        currentName = null;
+        hometown = ""; city = ""; occupation = "";
+      } else if (
+        line.length < 60 && line.length > 3 &&
+        !line.startsWith("Born") && !line.startsWith("After") && !line.startsWith("A ") &&
+        !line.startsWith("Every") && !line.startsWith("For ") && !line.startsWith("Food") &&
+        !line.startsWith("Known") && !line.startsWith("Get ") && !line.startsWith("Want ") &&
+        !line.startsWith("Fans ") && !line.includes("Season") && !line.includes("cheftestant") &&
+        !line.includes("competing") && !line.includes("restaurant") &&
+        /^[A-Z]/.test(line) && (line.split(" ").length <= 5) &&
+        !hometown && !city && !occupation
+      ) {
+        currentName = line.replace(/[""]/g, '"');
+        hometown = ""; city = ""; occupation = "";
+      }
+    }
+    return contestants;
+  }
+
+  const separators = [" - ", " – ", " — ", " | ", "\t"];
+  for (const line of lines) {
+    if (line.length > 80) continue;
+    if (/[?]$/.test(line)) continue;
+    if (/^[a-z]/.test(line)) continue;
+    let name = line, bio = "";
+    for (const sep of separators) {
+      if (line.includes(sep)) {
+        const parts = line.split(sep);
+        name = parts[0].trim();
+        bio = parts.slice(1).join(sep).trim();
+        break;
+      }
+    }
+    const nameWords = name.split(/\s+/).filter(Boolean);
+    if (nameWords.length === 0 || nameWords.length > 5) continue;
+    if (name.length < 2 || name.length > 79) continue;
+    contestants.push({ name, bio });
+  }
+  return contestants;
+}
+
+// Merge parsed { name, bio } records into league.contestants. Skips records
+// whose generated id collides with an existing contestant (idempotent re-runs).
+// Returns the updated league object; caller persists via onUpdate.
+function mergeParsedContestants(league, parsed) {
+  if (!parsed || parsed.length === 0) return league;
+  const existing = league.contestants || [];
+  const next = [...existing];
+  for (const p of parsed) {
+    const id = p.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/_+$/, "");
+    if (!next.find(c => c.id === id)) {
+      const parts = p.name.split(" ");
+      const shortName = parts.length > 1
+        ? parts[0] + " " + parts[parts.length - 1][0] + "."
+        : parts[0];
+      next.push({
+        id,
+        name: shortName,
+        bio: (p.name !== shortName ? p.name + " · " : "") + p.bio,
+        gender: "",
+        status: "active",
+      });
+    }
+  }
+  return { ...league, contestants: next };
+}
+
+// Bulk-add UI body — embedded inside AddContestantModal when its mode === "bulk".
+// Returns just the body markup (no modal wrapper) so it composes inside the
+// shared modal shell. Closes the modal once Add is committed.
+function BulkAddBody({ league, onUpdate, onClose }) {
   const [rawText, setRawText] = useState("");
   const [parsed, setParsed] = useState(null);
 
   function parseText() {
-    const text = rawText.trim();
-    if (!text) return;
-
-    const contestants = [];
-    const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
-
-    // Strategy 0: Love Island press-kit format — explicit "Name:" / "Age:" / "Job:" / "From:" labels.
-    // One contestant per "Name:" marker; everything else (Q&A interview body, photo captions) is ignored.
-    const hasNameKey = lines.some(l => /^Name:\s*/i.test(l));
-    if (hasNameKey) {
-      let cur = null;
-      const flush = () => {
-        if (!cur || !cur.name) return;
-        const bio = [cur.age && `Age ${cur.age}`, cur.job, cur.from && `From ${cur.from}`].filter(Boolean).join(" · ");
-        contestants.push({ name: cur.name, bio });
-      };
-      for (const line of lines) {
-        const mName = line.match(/^Name:\s*(.+)$/i);
-        if (mName) { flush(); cur = { name: mName[1].trim(), age:"", job:"", from:"" }; continue; }
-        if (!cur) continue;
-        const mAge  = line.match(/^Age:\s*(.+)$/i);                              if (mAge)  { cur.age  = mAge[1].trim();  continue; }
-        const mJob  = line.match(/^(?:Job|Occupation|Profession):\s*(.+)$/i);    if (mJob)  { cur.job  = mJob[1].trim();  continue; }
-        const mFrom = line.match(/^(?:From|Hometown|Location):\s*(.+)$/i);       if (mFrom) { cur.from = mFrom[1].trim(); continue; }
-      }
-      flush();
-      setParsed(contestants);
-      return;
-    }
-
-    // Strategy 1: Look for "Hometown:" pattern (Bravo format)
-    const hasBravoFormat = lines.some(l => l.startsWith("Hometown:"));
-
-    if (hasBravoFormat) {
-      let currentName = null;
-      let currentBio = [];
-      let hometown = "";
-      let city = "";
-      let occupation = "";
-
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-
-        // Skip photo credits, "Photo: Bravo", section headers
-        if (line.startsWith("Photo:") || line.startsWith("RELATED:") || line.startsWith("How to Watch")) continue;
-
-        if (line.startsWith("Hometown:")) {
-          hometown = line.replace("Hometown:", "").trim();
-        } else if (line.startsWith("Current City of Residence:") || line.startsWith("Current city of residence:") || line.startsWith("Current Residence:")) {
-          city = line.replace(/Current.*?:/i, "").trim();
-        } else if (line.startsWith("Occupation/Profession:") || line.startsWith("Occupation:")) {
-          occupation = line.replace(/Occupation.*?:/i, "").trim();
-          // We have enough to save this contestant
-          if (currentName) {
-            const bio = [city || hometown, occupation].filter(Boolean).join(" · ");
-            contestants.push({ name: currentName, bio });
-          }
-          currentName = null;
-          hometown = ""; city = ""; occupation = "";
-        } else if (
-          // Detect a name line: relatively short, title case, no common bio words
-          line.length < 60 &&
-          line.length > 3 &&
-          !line.startsWith("Born") &&
-          !line.startsWith("After") &&
-          !line.startsWith("A ") &&
-          !line.startsWith("Every") &&
-          !line.startsWith("For ") &&
-          !line.startsWith("Food") &&
-          !line.startsWith("Known") &&
-          !line.startsWith("Get ") &&
-          !line.startsWith("Want ") &&
-          !line.startsWith("Fans ") &&
-          !line.includes("Season") &&
-          !line.includes("cheftestant") &&
-          !line.includes("competing") &&
-          !line.includes("restaurant") &&
-          /^[A-Z]/.test(line) &&
-          (line.split(" ").length <= 5) &&
-          !hometown && !city && !occupation
-        ) {
-          // This might be a new contestant name
-          // Save previous if exists
-          currentName = line.replace(/[""]/g, '"');
-          hometown = ""; city = ""; occupation = "";
-        }
-      }
-    } else {
-      // Strategy 2: Simple format — one name per line, optionally "Name - Bio" or "Name | Bio".
-      // Tightened to reject pasted prose: skip questions, sentences, all-lowercase lines, and
-      // names with more than 5 words (which are almost always bio fragments, not actual names).
-      const separators = [" - ", " – ", " — ", " | ", "\t"];
-      for (const line of lines) {
-        if (line.length > 80) continue;
-        if (/[?]$/.test(line)) continue;
-        if (/^[a-z]/.test(line)) continue;
-        let name = line, bio = "";
-        for (const sep of separators) {
-          if (line.includes(sep)) {
-            const parts = line.split(sep);
-            name = parts[0].trim();
-            bio = parts.slice(1).join(sep).trim();
-            break;
-          }
-        }
-        const nameWords = name.split(/\s+/).filter(Boolean);
-        if (nameWords.length === 0 || nameWords.length > 5) continue;
-        if (name.length < 2 || name.length > 79) continue;
-        contestants.push({ name, bio });
-      }
-    }
-
-    setParsed(contestants);
+    setParsed(parseContestantsFromText(rawText));
   }
-
   function applyBulk() {
     if (!parsed || parsed.length === 0) return;
-    const existing = league.contestants || [];
-    const newContestants = [...existing];
-
-    for (const p of parsed) {
-      const id = p.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/_+$/, "");
-      if (!newContestants.find(c => c.id === id)) {
-        // Generate short name: "First L." format
-        const parts = p.name.split(" ");
-        const shortName = parts.length > 1
-          ? parts[0] + " " + parts[parts.length - 1][0] + "."
-          : parts[0];
-        newContestants.push({
-          id,
-          name: shortName,
-          bio: (p.name !== shortName ? p.name + " · " : "") + p.bio,
-          gender: "",
-          status: "active",
-        });
-      }
-    }
-
-    onUpdate({ ...league, contestants: newContestants });
+    onUpdate(mergeParsedContestants(league, parsed));
     onClose();
   }
 
   return (
-    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20 }}>
-      <div style={{ background:"#12121f",borderRadius:14,border:"1px solid #2a2a4a",maxWidth:500,width:"100%",maxHeight:"90vh",overflow:"auto",padding:20 }}>
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
-          <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:16,color:"#e8e8f0" }}>Bulk Add Contestants</h3>
-          <button onClick={onClose} style={{ background:"none",border:"none",color:"#6a6a8a",cursor:"pointer",fontSize:18 }}>✕</button>
-        </div>
-
-        <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:12,lineHeight:1.4 }}>
-          Paste text from a press kit or a simple list. Recognized formats: Love Island press kits with <code>Name:</code> / <code>Age:</code> / <code>Job:</code> / <code>From:</code> labels (one record per <code>Name:</code>); Bravo-style cast pages with <code>Hometown:</code> / <code>Occupation:</code>; or a plain list (one name per line, optionally <code>Name - bio</code>).
-        </div>
-
-        <textarea value={rawText} onChange={e=>setRawText(e.target.value)} placeholder="Paste cast page text or name list here..." rows={8} style={{
-          width:"100%",padding:"10px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:8,
-          color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",resize:"vertical",marginBottom:10,
-        }} />
-
-        <Btn small onClick={parseText} disabled={!rawText.trim()} style={{ marginBottom:12 }}>Parse</Btn>
-
+    <div>
+      <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:12,lineHeight:1.4 }}>
+        Paste text from a press kit or a simple list. Recognized formats: Love Island press kits with <code>Name:</code> / <code>Age:</code> / <code>Job:</code> / <code>From:</code> labels (one record per <code>Name:</code>); Bravo-style cast pages with <code>Hometown:</code> / <code>Occupation:</code>; or a plain list (one name per line, optionally <code>Name - bio</code>).
+      </div>
+      <textarea value={rawText} onChange={e=>setRawText(e.target.value)} placeholder="Paste cast page text or name list here..." rows={8} style={{
+        width:"100%",padding:"10px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:8,
+        color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",resize:"vertical",marginBottom:10,boxSizing:"border-box",
+      }} />
+      <Btn small onClick={parseText} disabled={!rawText.trim()} style={{ marginBottom:12 }}>Parse</Btn>
         {parsed && (
           <div>
             <div style={{ fontSize:12,fontWeight:600,color:parsed.length>0?"#4ecdc4":"#e94560",marginBottom:8 }}>
@@ -1998,7 +1969,6 @@ function BulkAddContestants({ league, onUpdate, onClose }) {
             </div>
           </div>
         )}
-      </div>
     </div>
   );
 }
@@ -3014,7 +2984,9 @@ function WeeklyDraftTab({ league, onUpdate, standings }) {
 function FinaleCouplePickerScreen({ league, onUpdate, lockedToTeamId, defaultTeamId, isCommissioner, myTeamId }) {
   const [selectedTeam, setSelectedTeam] = useState(lockedToTeamId || defaultTeamId || myTeamId || (league.teams||[])[0]?.id || "");
   const team = (league.teams||[]).find(t => t.id === selectedTeam);
-  const finaleWeek = Number(league.finaleWeek || 0);
+  // Finale couple-pick targets the current week — the commissioner flips finaleActive
+  // when the actual finale episode airs, and we write the pick to that week's chart.
+  const finaleWeek = Number(league.currentWeek || 1);
   const couples = league.couples || [];
   const contestants = league.contestants || [];
   const byId = Object.fromEntries(contestants.map(c => [c.id, c]));
@@ -3137,11 +3109,13 @@ function arraysEqualUnordered(a, b) {
 // DEPTH CHART TAB (Captains format)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isCommissioner, spoilerActive, myTeamId }) {
-  // Finale-week swap: when the league has a finaleWeek set and we're on that week,
-  // render the couple picker instead of the depth chart. Early-return BEFORE any
-  // hooks so React doesn't see a different hook order across renders — the picker
-  // declares its own hooks inside its own component body. See FinaleCouplePickerScreen.
-  if (league.finaleWeek && Number(league.currentWeek || 1) === Number(league.finaleWeek)) {
+  // Finale-week swap: when the commissioner has flipped on finale mode, render
+  // the couple picker instead of the depth chart for the current week. Early-return
+  // BEFORE any hooks so React doesn't see a different hook order across renders —
+  // the picker declares its own hooks inside its own component body. See
+  // FinaleCouplePickerScreen. Commissioner flips finaleActive off after the finale
+  // to return everyone to a normal depth chart on the following week.
+  if (league.finaleActive) {
     return <FinaleCouplePickerScreen
       league={league}
       onUpdate={onUpdate}
@@ -5229,19 +5203,19 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
       </div>
 
       {league.format === "captains" && (
-        <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-          <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>Finale Week (Couple Pick)</div>
-          <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.5,marginBottom:10 }}>
-            When the league's <strong>current {cadenceWord(league)}</strong> matches the finale {cadenceWord(league).toLowerCase()} below, managers swap their depth chart for a couple picker — Hero couple (both members ×2) and Sidekick couple (both members ×1.5). Set to 0 or leave blank to disable.
-          </div>
-          <Input label={`Finale ${cadenceWord(league)}`} type="number" min="0" max="99"
-            value={league.finaleWeek || ""}
-            onChange={e=>{
-              const v = Number(e.target.value);
-              onUpdate({...league, finaleWeek: v > 0 ? v : null});
-            }} />
-          <div style={{ fontSize:11,color:"#6a6a8a",marginTop:4,fontStyle:"italic",lineHeight:1.4 }}>
-            Requires couples to be configured on the Manage Contestants → Couples tab.
+        <div style={{ marginBottom:20,padding:"16px",background:league.finaleActive?"#e9456011":"#12121f",borderRadius:10,border:league.finaleActive?"1px solid #e9456033":"1px solid #1e1e38",transition:"all 0.2s ease" }}>
+          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12 }}>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:4,display:"flex",alignItems:"center",gap:6 }}>
+                {league.finaleActive ? "♥" : "○"} Finale Mode {league.finaleActive && <Badge color="#e94560">ACTIVE</Badge>}
+              </div>
+              <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.5 }}>
+                Flip this on for the finale {cadenceWord(league).toLowerCase()} only — managers' depth charts swap to a couple picker (Hero couple ×2, Sidekick couple ×1.5). Affects the current {cadenceWord(league).toLowerCase()}; turn off after the finale to return to the normal depth chart. Requires couples on the Manage Contestants → Couples tab.
+              </div>
+            </div>
+            <Btn small variant={league.finaleActive?"danger":"secondary"} onClick={()=>onUpdate({...league, finaleActive: !league.finaleActive})}>
+              {league.finaleActive ? "Turn Off" : "Turn On"}
+            </Btn>
           </div>
         </div>
       )}
@@ -5481,11 +5455,15 @@ function AddContestantModal({ open, onClose, league, onUpdate, editing }) {
   const [photoCropY, setPhotoCropY] = useState(20);
   const [photoCropZoom, setPhotoCropZoom] = useState(1);
   const [photoError, setPhotoError] = useState("");
+  // Mode: "single" = the per-contestant form, "bulk" = paste-many. Editing forces
+  // single (you can't bulk-edit an existing contestant through this modal).
+  const [mode, setMode] = useState("single");
 
   useEffect(() => {
     if (editing) { setName(editing.name||""); setBio(editing.bio||""); setGender(editing.gender||""); setPhotoUrl(editing.photoUrl||""); setPhotoCropY(editing.photoCropY||20); setPhotoCropZoom(editing.photoCropZoom||1); }
     else { setName(""); setBio(""); setGender(""); setPhotoUrl(""); }
     setPhotoError("");
+    setMode("single");
   }, [editing, open]);
 
   async function handlePhotoFile(file) {
@@ -5529,6 +5507,20 @@ function AddContestantModal({ open, onClose, league, onUpdate, editing }) {
 
   return (
     <Modal open={open} onClose={onClose} title={editing?"Edit Contestant":"Add Contestant"}>
+      {!editing && (
+        <div style={{ display:"flex",gap:6,marginBottom:14 }}>
+          {[{id:"single",label:"Single"},{id:"bulk",label:"Bulk paste"}].map(m => (
+            <button key={m.id} onClick={()=>setMode(m.id)} style={{
+              padding:"6px 14px",borderRadius:99,border:mode===m.id?"1px solid #e9456044":"1px solid #1e1e38",
+              background:mode===m.id?"#e9456018":"transparent",color:mode===m.id?"#e94560":"#7a7a9a",
+              fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"'Outfit',sans-serif",transition:"all .15s",
+            }}>{m.label}</button>
+          ))}
+        </div>
+      )}
+      {mode === "bulk" && !editing ? (
+        <BulkAddBody league={league} onUpdate={onUpdate} onClose={onClose} />
+      ) : (<>
       <Input label="Name" placeholder="e.g. Buddha Lo" value={name} onChange={e=>setName(e.target.value)} />
       <div style={{ marginBottom:14 }}>
         <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>Photo</label>
@@ -5588,6 +5580,7 @@ function AddContestantModal({ open, onClose, league, onUpdate, editing }) {
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
         <Btn onClick={handleSave} disabled={!name.trim()}>{editing?"Save":"Add"}</Btn>
       </div>
+      </>)}
     </Modal>
   );
 }

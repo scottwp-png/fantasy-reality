@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.17.0
+**Current Production Version:** v2.4.18.0
 **Last Deploy Date:** 2026-05-31
-**App.jsx Line Count:** ~6,830
+**App.jsx Line Count:** ~6,820
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,23 @@
 ---
 
 ## Version Log
+
+### v2.4.18.0 — 2026-05-31
+Three Cast-tab UX changes bundled. (1) The finale week is now a **commissioner toggle** (`league.finaleActive`) instead of a numeric `finaleWeek` input — easier to flip when the actual finale episode airs without knowing the week number in advance. (2) The **Tribes** editor moves from a top-of-Cast button into the Manage Contestants panel as a new sub-tab, and is now **Survivor-only**. (3) **Bulk Add** is collapsed into the **Add** button — opening AddContestantModal now shows a Single / Bulk paste tab bar at the top, so there's one entry point for adding contestants. The standalone `BulkAddContestants` component is deleted; its parser and merge logic were extracted into module-level helpers (`parseContestantsFromText`, `mergeParsedContestants`) that the new `BulkAddBody` embeds inside the modal. All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **`league.finaleWeek` (number) → `league.finaleActive` (boolean)** in three sites:
+  - **SettingsTab General card** at `App.jsx:5089-5104`. Replaced the numeric `Input` with a one-line description and a **Turn On / Turn Off** `Btn` paired with an `ACTIVE` `Badge` shown when on. Card border + background tint to coral when active so it's hard to miss the league is in finale mode.
+  - **`DepthChartTab` early-return** at `App.jsx:3148-3151`. Was `league.finaleWeek && Number(currentWeek) === Number(finaleWeek)`; now just `if (league.finaleActive)`. Simpler and matches the new mental model: commissioner flips it on, picker shows for everyone; commissioner flips it off, depth chart returns. Survives the post-finale week unchanged unless the commissioner forgets to turn it off (in which case the picker keeps showing — graceful degradation, easy to fix).
+  - **`FinaleCouplePickerScreen`** at `App.jsx:3013-3015`. The chart key is now `Number(league.currentWeek || 1)` (whichever week the toggle was flipped on for), not the static `league.finaleWeek`. Same shape stored, same scoring branch (`chart.mode === "couples"` reads it identically).
+- **Tribes → Manage Contestants sub-tab (Survivor-only)** at `App.jsx:1517-1521` (pill bar gate) and `App.jsx:1442-1517` (inlined body). The old full-screen `tribeMode` early-return — and its `tribeMode` / `setTribeMode` state hooks — are gone. The tribe editor's JSX (color picker, drag-to-select, merge toggle, etc.) is inlined as the `manageMode === "tribes"` body inside the Manage panel, sharing `selectedForMove` state with the rest of ContestantsTab. The Tribes pill only appears for `league.showType === "survivor"`; other shows don't see it (couples already serve the equivalent grouping role for Love Island). Existing leagues with tribe data populated are unaffected — the data layer is untouched, only the editor UI was moved + gated. The old "Tribes" button at the top of Cast Scoring is removed entirely.
+- **Bulk Add merged into Add modal** at `App.jsx:5475-5613`. AddContestantModal grows a `mode` state defaulting to `"single"`. When opened, a Single / Bulk paste pill bar renders at the top (hidden when `editing` is set — editing is single-only). Switching to Bulk shows the new `<BulkAddBody>` (modal-wrapper-less body extracted from the deleted `BulkAddContestants` component) inside the same modal shell. The standalone Bulk Add button is removed from the Cast Scoring header. The parse + merge logic was extracted to two pure module-level helpers:
+  - `parseContestantsFromText(rawText)` at `App.jsx:1808-1894`. Returns `[{name, bio}]`. Three-strategy parser (Love Island Name:/Age:/Job:/From:, Bravo Hometown:/Occupation:, simple list) — unchanged from v2.4.14.0, just lifted out of the deleted component so the body component can be re-used inside any modal.
+  - `mergeParsedContestants(league, parsed)` at `App.jsx:1898-1922`. Skips collisions on generated contestant id (idempotent re-imports), generates the "First L." short name, returns the updated league. Caller persists via `onUpdate`.
+- **Removed code:** the entire `BulkAddContestants` modal component (had its own overlay wrapper, redundant now), the `tribeMode` / `setTribeMode` state hooks in ContestantsTab, the `bulkAddOpen` / `setBulkAddOpen` state hooks, the header **Tribes** button, the header **Bulk Add** button, the trailing `{bulkAddOpen && <BulkAddContestants .../>}` render. ~120 lines net deleted before the new tribes sub-tab body adds ~80 lines back — net file shrinkage despite three new feature additions.
+- **No data-model change.** All three changes are UI-layer reorganizations that read/write existing league fields. `finaleActive` is a new boolean (defaults `undefined` → falsy → finale mode off for every existing league), but it doesn't replace any data — old `finaleWeek` field on any league created since v2.4.17.0 (a couple of hours ago) is ignored by the new check; safe to leave dormant in RTDB.
+- **Out of scope:** No keyboard shortcut for toggling finale mode. No "auto-detect finale" heuristic (e.g., when all remaining contestants are in <= N couples). The Bulk Add tab doesn't have a "Replace existing" mode — still appends only.
+- **Not yet smoke-tested in browser** — recommended smoke path: (a) verify the Manage panel shows a Tribes pill only on a Survivor league, not on Love Island or others; (b) on the Love Island league, open Settings → General, verify the Finale Mode card shows a Turn On button (was a number input before), flip it on and confirm the DepthChartTab swaps to the couple picker; (c) click Add on the Cast tab, switch to the Bulk tab, paste a Love Island press-kit block, verify the parsed preview and Add N button behave the same as the old standalone Bulk Add modal did.
+- `src/scoring.js` untouched. `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.71s, no new warnings).
+- **Commit:** `_pending_`
 
 ### v2.4.17.0 — 2026-05-31
 Finale-week couple-pick scoring, completing the couples arc started in v2.4.16.0. When a Captains-format league has `league.finaleWeek` set and the current {week|episode} equals it, the DepthChartTab swaps to a **FinaleCouplePickerScreen** where each manager picks a Hero couple (both members ×2) and a Sidekick couple (both members ×1.5) instead of building a normal depth chart. Replaces the depth chart for that one week only — pre-finale weeks keep using the existing 2× / 1.5× / 1× depth chart math unchanged. Pairs with v2.4.16.0's couples data layer. All 10 regression baselines pass byte-identical because no baseline league has `finaleWeek` set (the new branch in `calcTeamWeekPoints` is gated on `chart.mode === "couples"` which existing depth charts don't have).
