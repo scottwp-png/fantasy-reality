@@ -34,7 +34,7 @@ ContestantProfileModal added — parallel to TeamProfileModal but for contestant
 - **What this commit does NOT do.** Per-rule navigation from the event log (clicking a rule chip doesn't open the rule editor). No "scoring history" graph / sparkline yet. No keyboard nav between contestants. No swipe gestures on mobile to flip between teammates. All deferred to future polish.
 - **Not yet smoke-tested in browser** — recommended smoke path: (a) expand any standings row, click a contestant name in the roster list → modal opens with photo + stats + event log, (b) click a contestant chip in the Team Game Log → same modal opens, (c) close modal, verify the expanded team card row stays expanded (modal close doesn't collapse it), (d) on a leaguewith a contestant who has a bio set, verify the bio panel renders correctly with line breaks preserved.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.71s, no new warnings). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `7ed35c1`
 
 ### v2.4.23.0 — 2026-05-31
 Expanded team card on the Standings tab now mirrors the depth of the expanded contestant card on the Cast tab. Two new sections added to the existing inline expand: (1) a **Team Stats Summary** — 4-cell horizontal grid showing Last [period] / Best / Worst / Season — directly mirroring the contestant card's stats block; and (2) a **Team Game Log** — week-by-week history with the team's per-week total plus chips showing which rostered contestants contributed (and how much) that week, mirroring the contestant card's event log. Roster list and period header strip kept unchanged. All 10 regression baselines pass byte-identical, `npm run build` clean.
