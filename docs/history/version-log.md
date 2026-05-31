@@ -42,7 +42,7 @@
 - **What this commit does NOT do.** No "first to hold" / "longest holder" history of league records — just current holders. No animated transitions when a record changes hands. No notification when you take a record. No per-record drill-down view. The contestant link from records is one-way (modal); no breadcrumb back to "what other records does this contestant hold".
 - **Not yet smoke-tested in browser** — recommended smoke path: (a) verify the League Legacy panel renders above the standings list, expands on click, all 8 record cells show with valid data; (b) expand a team row and verify the Team Records section renders between stats summary and roster list with 6 cells; (c) click the Star Player or MVP cell → ContestantProfileModal opens; (d) verify the Cast subsection no longer appears in the Season/Week Breakdown panel at the bottom of Standings.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.81s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `25058a4`
 
 ### v2.4.24.0 — 2026-05-31
 ContestantProfileModal added — parallel to TeamProfileModal but for contestants. Contestant thumbnails are stripped from the expanded team card's roster list (the small 30px avatars next to each name are gone) and the contestant name itself is now the clickable surface — clicking opens the fullscreen profile modal with the contestant's photo, bio, tribe/couple/elimination chips, the same 4-cell stats summary used everywhere else, and a per-week scored-event log. Game-log contribution chips inside the expanded card are also clickable now — clicking a contestant chip opens the same modal. All 10 regression baselines pass byte-identical, `npm run build` clean.
