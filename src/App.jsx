@@ -1655,113 +1655,48 @@ function StandingsTab({ league, standings }) {
   );
 }
 
-// Full-page profile modal for a contestant. Parallels TeamProfileModal: large
-// avatar, name, optional bio, season stats (Last/Best/Worst/Season), and a
-// compact event log. Read-only viewing surface, designed to fit without scroll.
+// Profile modal for a contestant — slimmed down to identity-only after v2.4.28.0:
+// large photo, name, the metadata chip line (tribe + couple + ELIMINATED), and
+// optional bio. No stats grid, no event log — those numbers live on the Cast
+// tab's expanded card. This modal is a "look at this contestant" surface, not a
+// scoring drill-down.
 function ContestantProfileModal({ contestant, league, onClose }) {
   const c = contestant;
-  const weeks = Object.keys(league.weeklyScores || {}).sort((a,b)=>+a - +b);
-  const weeklyPts = weeks.map(w => ({ w, pts: calcContestantWeekPoints(league.weeklyScores?.[w]||{}, c.id) }));
-  const total = Math.round(weeklyPts.reduce((s,x) => s + x.pts, 0) * 10) / 10;
-  const lastWk = weeklyPts.length > 0 ? weeklyPts[weeklyPts.length-1] : null;
-  let best = { w:null, pts:-Infinity }, worst = { w:null, pts:Infinity };
-  weeklyPts.forEach(x => {
-    if (x.pts > best.pts) best = { w:x.w, pts:x.pts };
-    if (x.pts < worst.pts) worst = { w:x.w, pts:x.pts };
-  });
-  if (best.pts === -Infinity) best = { w:null, pts:0 };
-  if (worst.pts === Infinity) worst = { w:null, pts:0 };
-
   const tribeColor = getTribeColor(league, c);
   const isMerged = league.merged || false;
   const partner = getCouplePartner(league, c.id);
   const partnerContestant = partner ? (league.contestants||[]).find(x => x.id === partner) : null;
 
-  // Compact event log: per-week scored rules summary
-  function getWeekEvents(weekNum) {
-    const ws = league.weeklyScores?.[weekNum] || {};
-    const cs = ws[c.id] || {};
-    return (league.scoringRules||[]).filter(r => cs[r.id] && cs[r.id] !== 0).map(r => {
-      const pts = cs[r.id];
-      const count = r.points !== 0 ? Math.round(pts / r.points) : 0;
-      return { rule: r, count, pts: Math.round(pts*100)/100 };
-    });
-  }
-
-  const statCells = [
-    { label:`Last ${cadenceShort(league)}`, val:lastWk?.pts||0,    sub:lastWk?`${cadenceShort(league)} ${lastWk.w}`:"—", color:(lastWk?.pts||0)>0?"#4ecdc4":(lastWk?.pts||0)<0?"#e94560":"#6a6a8a" },
-    { label:"Best",                          val:best.pts,           sub:best.w?`${cadenceShort(league)} ${best.w}`:"—",      color:"#f5a623" },
-    { label:"Worst",                         val:worst.pts,          sub:worst.w?`${cadenceShort(league)} ${worst.w}`:"—",    color:"#e94560" },
-    { label:"Season",                        val:total,              sub:`${weeks.length} ${cadenceShort(league).toLowerCase()}${weeks.length===1?"":"s"}`, color:total>0?"#4ecdc4":total<0?"#e94560":"#6a6a8a" },
-  ];
-
   return (
     <div style={{ position:"fixed",inset:0,zIndex:1100,display:"flex",alignItems:"center",justifyContent:"center",
       background:"rgba(0,0,0,0.85)",backdropFilter:"blur(6px)",animation:"fadeIn 0.15s ease",padding:16 }} onClick={onClose}>
       <div style={{ background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:18,
-        width:480,maxWidth:"96vw",maxHeight:"96vh",overflowY:"auto",
+        width:440,maxWidth:"96vw",maxHeight:"96vh",overflow:"hidden",
+        display:"flex",flexDirection:"column",
         boxShadow:"0 32px 100px rgba(0,0,0,0.6)",animation:"slideUp 0.2s ease" }} onClick={e=>e.stopPropagation()}>
-        <div style={{ display:"flex",justifyContent:"flex-end",padding:"10px 10px 0" }}>
+        <div style={{ display:"flex",justifyContent:"flex-end",padding:"10px 10px 0",flexShrink:0 }}>
           <button onClick={onClose} style={{ background:"#1a1a2e",border:"1px solid #2a2a4a",borderRadius:8,color:"#888",cursor:"pointer",padding:6,display:"flex",alignItems:"center",justifyContent:"center" }}><Icon name="x" size={18}/></button>
         </div>
-        <div style={{ padding:"0 24px 22px",display:"flex",flexDirection:"column",alignItems:"center",gap:10 }}>
+        <div style={{ padding:"0 24px 22px",display:"flex",flexDirection:"column",alignItems:"center",gap:12,minHeight:0,flex:1,overflowY:"auto" }}>
           {c.photoUrl ? (
-            <img src={c.photoUrl} alt={c.name} style={{ width:"min(280px, 36vh)",height:"min(280px, 36vh)",borderRadius:20,objectFit:"cover",objectPosition:`center ${c.photoCropY||20}%`,transform:`scale(${c.photoCropZoom||1})`,transformOrigin:`center ${c.photoCropY||20}%`,border:"4px solid "+(c.status==="eliminated"?"#6a6a8a":tribeColor),flexShrink:0 }} onError={e=>{e.target.style.display="none"}} />
+            <img src={c.photoUrl} alt={c.name} style={{ width:"min(360px, 42vh)",height:"min(360px, 42vh)",borderRadius:20,objectFit:"cover",objectPosition:`center ${c.photoCropY||20}%`,transform:`scale(${c.photoCropZoom||1})`,transformOrigin:`center ${c.photoCropY||20}%`,border:"4px solid "+(c.status==="eliminated"?"#6a6a8a":tribeColor),flexShrink:0 }} onError={e=>{e.target.style.display="none"}} />
           ) : (
-            <div style={{ width:"min(280px, 36vh)",height:"min(280px, 36vh)",borderRadius:20,display:"flex",alignItems:"center",justifyContent:"center",
-              background:"#1a1a2e",fontFamily:"'Anybody',sans-serif",fontSize:110,fontWeight:900,color:"#fff",border:"4px solid "+(c.status==="eliminated"?"#6a6a8a":tribeColor),flexShrink:0 }}>
+            <div style={{ width:"min(360px, 42vh)",height:"min(360px, 42vh)",borderRadius:20,display:"flex",alignItems:"center",justifyContent:"center",
+              background:"#1a1a2e",fontFamily:"'Anybody',sans-serif",fontSize:130,fontWeight:900,color:"#fff",border:"4px solid "+(c.status==="eliminated"?"#6a6a8a":tribeColor),flexShrink:0 }}>
               {c.name?.[0]}
             </div>
           )}
-          <div style={{ textAlign:"center" }}>
+          <div style={{ textAlign:"center",flexShrink:0 }}>
             <div style={{ fontSize:22,fontWeight:900,fontFamily:"'Anybody',sans-serif",color:"#e8e8f0",letterSpacing:"-0.01em",lineHeight:1.1 }}>{c.name}</div>
-            <div style={{ marginTop:4,fontSize:12,color:"#8888aa",display:"flex",alignItems:"center",justifyContent:"center",gap:6,flexWrap:"wrap" }}>
+            <div style={{ marginTop:5,fontSize:12,color:"#8888aa",display:"flex",alignItems:"center",justifyContent:"center",gap:6,flexWrap:"wrap" }}>
               {!isMerged && c.tribe && <span style={{ fontSize:11,fontWeight:600,padding:"2px 8px",borderRadius:99,background:tribeColor+"22",color:tribeColor }}>{c.tribe}</span>}
               {partnerContestant && <span style={{ color:"#e94560",fontWeight:600 }}>♥ {partnerContestant.name}</span>}
-              {c.status==="eliminated" && <span style={{ color:"#e94560",fontWeight:600 }}>ELIMINATED{c.eliminatedWeek?` ${cadenceShort(league)} ${c.eliminatedWeek}`:""}</span>}
+              {c.status==="eliminated" && <span style={{ padding:"2px 8px",borderRadius:99,background:"#e9456018",color:"#e94560",fontWeight:700,fontSize:11 }}>ELIMINATED{c.eliminatedWeek?` ${cadenceShort(league)} ${c.eliminatedWeek}`:""}</span>}
             </div>
           </div>
           {c.bio && (
-            <div style={{ width:"100%",padding:"10px 12px",background:"#12121f",borderRadius:8,border:"1px solid #1e1e38",fontSize:12,color:"#aaaabf",lineHeight:1.5,whiteSpace:"pre-wrap" }}>
+            <div style={{ width:"100%",padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",fontSize:12,color:"#aaaabf",lineHeight:1.55,whiteSpace:"pre-wrap" }}>
               {c.bio}
-            </div>
-          )}
-          <div style={{ width:"100%",display:"flex",gap:0,borderRadius:8,overflow:"hidden",border:"1px solid #1e1e38" }}>
-            {statCells.map((s,i) => (
-              <div key={s.label} style={{ flex:1,padding:"8px 6px",textAlign:"center",background:"#12121f",borderRight:i<statCells.length-1?"1px solid #1e1e38":"none" }}>
-                <div style={{ fontSize:9,color:"#6a6a8a",textTransform:"uppercase",fontWeight:600,marginBottom:2 }}>{s.label}</div>
-                <div style={{ fontSize:16,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:s.color }}>{s.val>0?"+":""}{formatPts(Math.round(s.val*10)/10, league)}</div>
-                <div style={{ fontSize:9,color:"#4a4a6a" }}>{s.sub}</div>
-              </div>
-            ))}
-          </div>
-          {weeks.length > 0 && (
-            <div style={{ width:"100%" }}>
-              <div style={{ fontSize:10,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6 }}>Event Log</div>
-              <div style={{ borderRadius:8,border:"1px solid #1e1e38",overflow:"hidden" }}>
-                {weeks.map(w => {
-                  const wPts = weeklyPts.find(x => x.w === w)?.pts || 0;
-                  const events = getWeekEvents(w);
-                  if (wPts === 0 && events.length === 0) return null;
-                  return (
-                    <div key={w} style={{ display:"flex",alignItems:"flex-start",padding:"7px 10px",borderBottom:"1px solid #1a1a30",background:"#12121f" }}>
-                      <div style={{ width:46,fontSize:11,fontWeight:600,color:"#8888aa",flexShrink:0 }}>{cadenceShort(league)} {w}</div>
-                      <div style={{ flex:1,display:"flex",flexWrap:"wrap",gap:3,minWidth:0 }}>
-                        {events.length === 0 ? (
-                          <span style={{ fontSize:9,color:"#4a4a6a",fontStyle:"italic" }}>(no scored events)</span>
-                        ) : events.map(e => (
-                          <span key={e.rule.id} style={{ fontSize:9,padding:"2px 5px",borderRadius:3,background:e.rule.points>=0?"#4ecdc418":"#e9456018",color:e.rule.points>=0?"#4ecdc4":"#e94560",whiteSpace:"nowrap" }}>
-                            {e.rule.label}{e.count>1?` ×${e.count}`:""}
-                          </span>
-                        ))}
-                      </div>
-                      <div style={{ width:50,textAlign:"right",fontWeight:700,fontSize:13,fontFamily:"'Anybody',sans-serif",color:wPts>0?"#4ecdc4":wPts<0?"#e94560":"#6a6a8a",flexShrink:0 }}>
-                        {wPts>0?"+":""}{formatPts(Math.round(wPts*10)/10, league)}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
             </div>
           )}
         </div>
@@ -4143,28 +4078,37 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
           return { ...c, total: Math.round(total*100)/100, lastWk: Math.round(lastWk*100)/100, tribeColor: getTribeColor(league, c) };
         }).sort((a,b) => b.total - a.total).slice(0, 5);
 
-        if (ranked.length === 0) return null;
+        // Always render the Hot Picks section header so the panel stays visible
+        // even when the user already rosters every top scorer — empty state shows
+        // a placeholder instead of returning null (which made Hot Picks vanish
+        // and read as if it had been replaced by Most Rostered below).
         return (
           <div style={{ marginTop:20 }}>
             <div style={{ fontSize:14,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:"#f0f0f5",marginBottom:10,display:"flex",alignItems:"center",gap:6 }}>
               <span style={{ fontSize:16 }}>🔥</span> Hot Picks
             </div>
             <div style={{ fontSize:11,color:"#6a6a8a",marginBottom:10 }}>Top available contestants not on your roster</div>
-            <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
-              {ranked.map((c,i) => (
-                <div key={c.id} style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-                  <ContestantAvatar contestant={c} league={league} size={28} />
-                  <div style={{ flex:1,minWidth:0 }}>
-                    <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{c.name}</div>
-                    <div style={{ fontSize:10,color:"#6a6a8a" }}>#{contestantRankings[c.id]?.rank || "?"} overall{c.lastWk!==0?` · Last wk: ${c.lastWk>0?"+":""}${formatPts(c.lastWk, league)}`:""}</div>
+            {ranked.length === 0 ? (
+              <div style={{ padding:"14px",textAlign:"center",color:"#6a6a8a",fontSize:12,background:"#12121f",borderRadius:10,border:"1px dashed #2a2a4a" }}>
+                You've already rostered every top-scoring contestant. Nothing left to recommend.
+              </div>
+            ) : (
+              <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
+                {ranked.map((c,i) => (
+                  <div key={c.id} style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+                    <ContestantAvatar contestant={c} league={league} size={28} />
+                    <div style={{ flex:1,minWidth:0 }}>
+                      <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{c.name}</div>
+                      <div style={{ fontSize:10,color:"#6a6a8a" }}>#{contestantRankings[c.id]?.rank || "?"} overall{c.lastWk!==0?` · Last wk: ${c.lastWk>0?"+":""}${formatPts(c.lastWk, league)}`:""}</div>
+                    </div>
+                    <div style={{ textAlign:"right",flexShrink:0 }}>
+                      <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:15,fontWeight:800,color:c.total>0?"#4ecdc4":c.total<0?"#e94560":"#6a6a8a" }}><SpoilerText active={spoilerActive}>{c.total>0?"+":""}{formatPts(c.total, league)}</SpoilerText></div>
+                      <div style={{ fontSize:9,color:"#4a4a6a" }}>season</div>
+                    </div>
                   </div>
-                  <div style={{ textAlign:"right",flexShrink:0 }}>
-                    <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:15,fontWeight:800,color:c.total>0?"#4ecdc4":c.total<0?"#e94560":"#6a6a8a" }}><SpoilerText active={spoilerActive}>{c.total>0?"+":""}{formatPts(c.total, league)}</SpoilerText></div>
-                    <div style={{ fontSize:9,color:"#4a4a6a" }}>season</div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         );
       })()}
@@ -4213,7 +4157,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
                     <div style={{ flex:1,minWidth:0 }}>
                       <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"flex",alignItems:"center",gap:6 }}>
                         {c.name}
-                        {onMyRoster && <span style={{ fontSize:9,fontWeight:700,padding:"1px 5px",borderRadius:3,background:"#4ecdc418",color:"#4ecdc4" }}>MINE</span>}
+                        {onMyRoster && <span style={{ fontSize:9,fontWeight:700,padding:"1px 5px",borderRadius:3,background:"#4ecdc418",color:"#4ecdc4" }}>ROSTERED</span>}
                       </div>
                       <div style={{ fontSize:10,color:"#6a6a8a" }}>On {c.count} of {totalTeams} roster{totalTeams===1?"":"s"} · {pct}%</div>
                     </div>

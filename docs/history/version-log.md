@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.27.0
+**Current Production Version:** v2.4.28.0
 **Last Deploy Date:** 2026-05-31
-**App.jsx Line Count:** ~7,300
+**App.jsx Line Count:** ~7,220
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,16 @@
 ---
 
 ## Version Log
+
+### v2.4.28.0 — 2026-05-31
+Three corrections. (1) `ContestantProfileModal` slimmed to identity-only — the 4-cell stats summary and the per-week event log are removed; the modal now shows just photo + name + metadata chip line (tribe, couple, **ELIMINATED** styled as a coral chip matching how the badge looks elsewhere) + optional bio. Scoring detail lives on the Cast tab; the modal is a "look at this person" surface, not a drill-down. (2) Hot Picks section now renders an empty-state placeholder when the user has rostered every top scorer (previously returned `null`, which made the section invisible and read as if Most Rostered had replaced it). (3) Most Rostered's `MINE` badge is renamed to `ROSTERED` — clearer label for "this contestant is on your depth chart too." All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **`ContestantProfileModal` rewrite** at `App.jsx:1505-1551`. About 100 lines removed: `weeklyPts`, `total`, `lastWk`, `best`, `worst`, `statCells`, the `getWeekEvents` helper, the 4-cell stats grid block, and the Event Log block are all gone. Avatar grows from `min(280px, 36vh)` to `min(360px, 42vh)` to match the TeamProfileModal proportions (with the modal scope reduced, there's room for a bigger picture). Modal width drops from 480px to 440px (matches TeamProfileModal), `overflow:"hidden"` replaces `overflowY:"auto"` since the slimmed content fits in viewport without scroll. ELIMINATED is now a coral pill (background tint + colored text) matching how the `ELIM` chip renders in the standings expand and the team-card roster — same visual language end to end.
+- **Hot Picks placeholder** at `App.jsx:4146-4158`. Replaced the `if (ranked.length === 0) return null;` with an always-render path: the section header (🔥 Hot Picks + sub-explainer) renders unconditionally, and the body either lists the 5 ranked rows or a dashed-border placeholder reading `"You've already rostered every top-scoring contestant. Nothing left to recommend."`. The placeholder is intentionally text-only with no avatars so it reads as an info banner, not a row. With this fix, both Hot Picks and Most Rostered are always visible — the user reported v2.4.26.0 looked like Most Rostered had replaced Hot Picks, but it was actually Hot Picks self-hiding when empty.
+- **Most Rostered badge rename** at `App.jsx:4218`. The teal pill chip that marks contestants who are on the viewer's own depth chart changes from `MINE` to `ROSTERED`. Same styling, same teal accent — only the label text changed.
+- **What this commit does NOT do.** Doesn't filter Most Rostered to exclude the viewer's own picks (the list is still league-wide; popular picks the viewer also holds get the `ROSTERED` chip). Doesn't change Most Rostered's count cell ("4/6 · 67%") — that's the value-add. Doesn't add per-contestant scoring back to the modal — the user explicitly asked for it to go.
+- **Not yet smoke-tested in browser** — recommended smoke: (a) click a contestant name in the standings team-card roster, verify the modal opens with just photo + bio (no stats grid, no event log) and the ELIMINATED chip uses the coral pill style for eliminated contestants; (b) on My Roster, verify both Hot Picks and Most Rostered sections are visible even when the user has rostered every top scorer (Hot Picks shows a placeholder); (c) verify the Most Rostered rows show `ROSTERED` instead of `MINE`.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.90s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.27.0 — 2026-05-31
 The 4-cell Team Stats Summary block on the expanded team card (added in v2.4.23.0) is removed. With the v2.4.25.0 Team Records section sitting right below it, the two blocks were doing overlapping work — Stats Summary's `Best` / `Worst` are the team's best / worst single-week totals, which conceptually duplicates the Records section's `Big Hit` / `Big Miss` framing (single best/worst single-contestant week). Stats Summary's `Last` is already shown in the period header strip at the top of the expand; `Season` is the same total already displayed in the collapsed-row score column on the right. Records section + period header strip + roster list + game log now flow cleanly without the duplicate stats grid. All 10 regression baselines pass byte-identical, `npm run build` clean.
