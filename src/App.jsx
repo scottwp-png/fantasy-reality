@@ -1076,7 +1076,6 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
   const allTabs = [
     { id:"standings",label:"Standings",icon:"trophy",access:"all" },
     { id:"contestants",label:"Cast",icon:"star",access:"all" },
-    { id:"teams",label:"Teams",icon:"users",access:"all" },
     { id:"scoring",label:"Scoring",icon:"chart",access:"all" },
     ...(league.format === "standard" ? [{ id:"weekly-draft",label:"Draft",icon:"grid",access:"commissioner" }] : []),
     ...(league.format === "captains" ? [{ id:"depth-chart",label:"My Roster",icon:"crown",access:"all" }] : []),
@@ -1147,7 +1146,6 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
       <div style={{ padding:20 }}>
         {tab === "standings" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><StandingsTab league={league} standings={standings} /></SpoilerBlur>}
         {tab === "contestants" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><ContestantsTab league={league} onUpdate={isCommissioner?onUpdate:null} setModal={isCommissioner?setModal:()=>{}} setEditing={isCommissioner?setEditingItem:()=>{}} readOnly={!isCommissioner} /></SpoilerBlur>}
-        {tab === "teams" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><TeamsTab league={league} onUpdate={isCommissioner?onUpdate:null} setModal={isCommissioner?setModal:()=>{}} setEditing={isCommissioner?setEditingItem:()=>{}} readOnly={!isCommissioner} /></SpoilerBlur>}
         {tab === "scoring" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><ScoringTab league={league} onUpdate={isCommissioner ? onUpdate : null} isCommissioner={isCommissioner} /></SpoilerBlur>}
         {tab === "weekly-draft" && isCommissioner && <WeeklyDraftTab league={league} onUpdate={onUpdate} standings={standings} />}
         {tab === "depth-chart" && <DepthChartTab league={league} onUpdate={onUpdate} lockedToTeamId={isCommissioner ? null : loggedInTeamId} defaultTeamId={loggedInTeamId} isCommissioner={isCommissioner} spoilerActive={spoilerActive} myTeamId={loggedInTeamId} />}
@@ -1157,7 +1155,7 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
         {tab === "set-prices" && isCommissioner && <SalaryCapPricesTab league={league} onUpdate={onUpdate} />}
         {tab === "predict" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><PredictionsPlayerTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} /></SpoilerBlur>}
         {tab === "manage-questions" && isCommissioner && <PredictionsCommishTab league={league} onUpdate={onUpdate} />}
-        {tab === "settings" && isCommissioner && <SettingsTab league={league} onUpdate={onUpdate} allLeagues={allLeagues} />}
+        {tab === "settings" && isCommissioner && <SettingsTab league={league} onUpdate={onUpdate} allLeagues={allLeagues} setModal={setModal} setEditing={setEditingItem} />}
       </div>
 
       {isCommissioner && (
@@ -1261,18 +1259,60 @@ function WeeklyBreakdownSection({ league, standings }) {
 
 function StandingsTab({ league, standings }) {
   const weeks = Object.keys(league.weeklyScores || {}).sort((a,b)=>+a - +b);
+  const [expanded, setExpanded] = useState(null);
+  // Global week selector — controls what week the expanded roster breakdown shows.
+  // Includes a "season" option that sums all weeks. Standings rankings themselves
+  // continue to use season totals (unchanged); the selector only affects expanded
+  // roster scoring detail.
+  const [viewWeek, setViewWeek] = useState(String(league.currentWeek || 1));
+  const weekOpts = [
+    ...Array.from({length:Math.max(league.currentWeek||1,1)},(_,i)=>({value:String(i+1),label:cadenceLabel(league, i+1)})),
+    { value:"season", label:"Season Total" },
+  ];
+
+  function getTeamRosterForWeek(team, weekNum) {
+    if (league.format === "captains") {
+      const dc = (weekNum === "season")
+        ? (team.depthChart || {})
+        : (team.weeklyDepthCharts?.[weekNum] || team.depthChart || {});
+      const parts = [];
+      if (dc.captain) { const c = (league.contestants||[]).find(x=>x.id===dc.captain); if(c) parts.push({ ...c, role:"captain", multiplier:2 }); }
+      if (dc.coCaptain) { const c = (league.contestants||[]).find(x=>x.id===dc.coCaptain); if(c) parts.push({ ...c, role:"coCaptain", multiplier:1.5 }); }
+      (dc.regulars||[]).forEach(rid => { const c = (league.contestants||[]).find(x=>x.id===rid); if(c) parts.push({ ...c, role:"regular", multiplier:1 }); });
+      return parts;
+    }
+    const wr = team.weeklyRosters?.[weekNum] || [];
+    return wr.map(id => (league.contestants||[]).find(c=>c.id===id)).filter(Boolean).map(c=>({...c,role:"regular",multiplier:1}));
+  }
+
+  function getContestantWeekPts(contestantId, weekNum) {
+    if (weekNum === "season") return weeks.reduce((s,w) => s + calcContestantWeekPoints(league.weeklyScores?.[w]||{}, contestantId), 0);
+    return calcContestantWeekPoints(league.weeklyScores?.[weekNum]||{}, contestantId);
+  }
+
   return (
     <div>
-      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8 }}>
         <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Leaderboard</h3>
         <Badge color="#f5a623">{cadenceLabel(league, league.currentWeek)}</Badge>
       </div>
-      {standings.length === 0 ? <EmptyState message={`Add teams and score ${cadenceWord(league).toLowerCase()}s to see standings.`} /> : (
+      {standings.length > 0 && (
+        <div style={{ marginBottom:12 }}>
+          <Select label="Roster Breakdown Period" value={viewWeek} onChange={e=>setViewWeek(e.target.value)} options={weekOpts} />
+        </div>
+      )}
+      {standings.length === 0 ? <EmptyState message={`Add teams in Settings → Invite & Teams and score ${cadenceWord(league).toLowerCase()}s to see standings.`} /> : (
         <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
           {standings.map((team,i) => {
-            const medal = i===0?"🥇":i===1?"🥈":i===2?"🥉":null;
             const lastWk = weeks[weeks.length-1];
             const wkPts = lastWk ? (team.weeklyTotals?.[lastWk]||0) : 0;
+            const isExp = expanded === team.id;
+            const roster = isExp ? getTeamRosterForWeek(team, viewWeek) : [];
+            const periodLabel = viewWeek === "season" ? "Season" : cadenceLabel(league, viewWeek);
+            const periodTotal = isExp ? (viewWeek === "season"
+              ? weeks.reduce((s,w) => s + calcTeamWeekPoints(league, team, w), 0)
+              : calcTeamWeekPoints(league, team, viewWeek)
+            ) : 0;
             return (
               <div key={team.id} style={{
                 overflow:"hidden",borderRadius:12,
@@ -1280,7 +1320,7 @@ function StandingsTab({ league, standings }) {
                 border:i===0?"1px solid rgba(255,77,106,0.25)":i<3?"1px solid rgba(200,200,220,0.1)":"1px solid #1e1e38",
                 transition:"all 0.2s",
               }}>
-                <div style={{ display:"flex",alignItems:"center",gap:12,padding:"16px" }}>
+                <div style={{ display:"flex",alignItems:"center",gap:12,padding:"16px",cursor:"pointer" }} onClick={()=>setExpanded(isExp?null:team.id)}>
                 <div style={{ display:"flex",alignItems:"center",gap:10 }}>
                   <div style={{ fontSize:i<3?22:14,width:28,textAlign:"center",flexShrink:0,
                     fontFamily:"'Anybody',sans-serif",fontWeight:800,
@@ -1318,7 +1358,70 @@ function StandingsTab({ league, standings }) {
                     </>
                   )}
                 </div>
+                <div style={{ transform:isExp?"rotate(90deg)":"none",transition:"transform 0.15s ease",color:"#6a6a8a",flexShrink:0 }}><Icon name="chevron" size={16}/></div>
                 </div>
+                {isExp && (
+                  <div style={{ padding:"0 16px 16px",borderTop:"1px solid #1e1e38" }}>
+                    <div style={{ paddingTop:14,display:"flex",alignItems:"center",gap:14,marginBottom:12 }}>
+                      {team.teamAvatar ? (
+                        <img src={team.teamAvatar} alt={team.name} style={{ width:120,height:120,borderRadius:16,objectFit:"cover",border:"3px solid "+(team.teamColor||"#e94560"),flexShrink:0 }} />
+                      ) : (
+                        <div style={{ width:120,height:120,borderRadius:16,display:"flex",alignItems:"center",justifyContent:"center",
+                          background:team.teamColor||"#1a1a2e",fontSize:48,fontWeight:900,color:"#fff",
+                          fontFamily:"'Anybody',sans-serif",flexShrink:0,
+                        }}>{team.name?.[0]}</div>
+                      )}
+                      <div style={{ flex:1,minWidth:0 }}>
+                        <div style={{ fontSize:11,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>{periodLabel}</div>
+                        <div style={{ fontSize:28,fontWeight:900,fontFamily:"'Anybody',sans-serif",color:periodTotal>0?"#4ecdc4":periodTotal<0?"#e94560":"#6a6a8a",letterSpacing:"-0.02em" }}>{formatPts(Math.round(periodTotal*10)/10, league)}</div>
+                        <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>{league.format==="captains"?"Depth Chart":"Roster"} · {roster.length} player{roster.length===1?"":"s"}</div>
+                      </div>
+                    </div>
+                    {roster.length === 0 ? <div style={{ color:"#4a4a6a",fontSize:12,fontStyle:"italic",padding:"8px 0" }}>Empty roster</div> :
+                      roster.map((c,idx)=>{
+                        const basePts = getContestantWeekPts(c.id, viewWeek);
+                        const multipliedPts = Math.round(basePts * c.multiplier * 100) / 100;
+                        const tribeColor = getTribeColor(league, c);
+                        const isMerged = league.merged || false;
+                        const seasonPts = Math.round(weeks.reduce((s,w) => s + calcContestantWeekPoints(league.weeklyScores?.[w]||{}, c.id), 0)*10)/10;
+                        const lastWkPts = weeks.length > 0 ? Math.round(calcContestantWeekPoints(league.weeklyScores?.[weeks[weeks.length-1]]||{}, c.id)*10)/10 : 0;
+                        let bestWk = null, bestPts = -Infinity;
+                        weeks.forEach(w => { const p = calcContestantWeekPoints(league.weeklyScores?.[w]||{}, c.id); if(p>bestPts){bestPts=p;bestWk=w;} });
+                        bestPts = Math.round((bestPts===-Infinity?0:bestPts)*10)/10;
+                        return (
+                          <div key={c.id+(c.role||idx)} style={{ padding:"10px 0",borderBottom:"1px solid #1a1a30" }}>
+                            <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+                              <ContestantAvatar contestant={c} league={league} size={30} />
+                              <div style={{ flex:1 }}>
+                                <div style={{ display:"flex",alignItems:"center",gap:4,flexWrap:"wrap" }}>
+                                  <span style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>{c.name}</span>
+                                  <MultiplierBadge role={c.role}/>
+                                  {c.status==="eliminated" && <span style={{ color:"#e94560",fontSize:9 }}>ELIM</span>}
+                                  {!isMerged && c.tribe && <span style={{ fontSize:9,fontWeight:600,padding:"1px 5px",borderRadius:3,background:tribeColor+"22",color:tribeColor }}>{c.tribe}</span>}
+                                </div>
+                              </div>
+                              <div style={{ textAlign:"right" }}>
+                                {basePts !== 0 && c.multiplier > 1 && (
+                                  <div style={{ fontSize:9,color:"#6a6a8a" }}>{formatPts(basePts, league)} × {c.multiplier}</div>
+                                )}
+                                <div style={{ fontSize:16,fontWeight:800,fontFamily:"'Anybody',sans-serif",
+                                  color:multipliedPts>0?"#4ecdc4":multipliedPts<0?"#e94560":"#6a6a8a"
+                                }}>
+                                  {multipliedPts !== 0 ? (multipliedPts>0?"+":"") + formatPts(multipliedPts, league) : "—"}
+                                </div>
+                              </div>
+                            </div>
+                            <div style={{ display:"flex",gap:14,fontSize:10,color:"#6a6a8a",marginTop:5,paddingLeft:40,flexWrap:"wrap" }}>
+                              <span>Last: <span style={{ color:lastWkPts>0?"#4ecdc4":lastWkPts<0?"#e94560":"#6a6a8a",fontWeight:600 }}>{lastWkPts>0?"+":""}{formatPts(lastWkPts, league)}</span></span>
+                              <span>Best: <span style={{ color:"#f5a623",fontWeight:600 }}>{bestPts>0?"+":""}{formatPts(bestPts, league)}</span>{bestWk?` (${cadenceShort(league)} ${bestWk})`:""}</span>
+                              <span>Season: <span style={{ fontWeight:600,color:"#ccc" }}>{formatPts(seasonPts, league)}</span></span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    }
+                  </div>
+                )}
               </div>
             );
           })}
@@ -1969,154 +2072,6 @@ function BulkAddBody({ league, onUpdate, onClose }) {
             </div>
           </div>
         )}
-    </div>
-  );
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// TEAMS TAB
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function TeamsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
-  const [expanded, setExpanded] = useState(null);
-  const [viewWeek, setViewWeek] = useState(String(league.currentWeek || 1));
-
-  const weeks = Object.keys(league.weeklyScores || {}).sort((a,b)=>+a - +b);
-  const weekOpts = Array.from({length:Math.max(league.currentWeek||1,1)},(_,i)=>({value:String(i+1),label:cadenceLabel(league, i+1)}));
-
-  function getTeamRosterForWeek(team, weekNum) {
-    if (league.format === "captains") {
-      const dc = (weekNum === "season") 
-        ? (team.depthChart || {})
-        : (team.weeklyDepthCharts?.[weekNum] || team.depthChart || {});
-      const parts = [];
-      if (dc.captain) { const c = (league.contestants||[]).find(x=>x.id===dc.captain); if(c) parts.push({ ...c, role:"captain", multiplier:2 }); }
-      if (dc.coCaptain) { const c = (league.contestants||[]).find(x=>x.id===dc.coCaptain); if(c) parts.push({ ...c, role:"coCaptain", multiplier:1.5 }); }
-      (dc.regulars||[]).forEach(rid => { const c = (league.contestants||[]).find(x=>x.id===rid); if(c) parts.push({ ...c, role:"regular", multiplier:1 }); });
-      return parts;
-    }
-    const wr = team.weeklyRosters?.[weekNum] || [];
-    return wr.map(id => (league.contestants||[]).find(c=>c.id===id)).filter(Boolean).map(c=>({...c,role:"regular",multiplier:1}));
-  }
-
-  function getContestantWeekPts(contestantId, weekNum) {
-    const ws = league.weeklyScores?.[weekNum] || {};
-    return calcContestantWeekPoints(ws, contestantId);
-  }
-
-  function getContestantSeasonPts(contestantId) {
-    return weeks.reduce((sum, w) => sum + calcContestantWeekPoints(league.weeklyScores?.[w]||{}, contestantId), 0);
-  }
-
-  function getTeamWeekTotal(team, weekNum) {
-    if (weekNum === "season") {
-      return weeks.reduce((sum, w) => sum + calcTeamWeekPoints(league, team, w), 0);
-    }
-    return calcTeamWeekPoints(league, team, weekNum);
-  }
-
-  // Sort teams by the selected week's score
-  const sortedTeams = [...(league.teams||[])].sort((a,b) => getTeamWeekTotal(b, viewWeek) - getTeamWeekTotal(a, viewWeek));
-
-  return (
-    <div>
-      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8 }}>
-        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Teams</h3>
-        <div style={{ display:"flex",gap:6,alignItems:"center" }}>
-          {!readOnly && <Btn small onClick={()=>{setEditing(null);setModal("add-team")}}><Icon name="plus" size={14}/> Add Team</Btn>}
-        </div>
-      </div>
-
-      {/* Week selector */}
-      <Select value={viewWeek} onChange={e=>setViewWeek(e.target.value)} options={weekOpts} />
-
-      {sortedTeams.length===0 ? <EmptyState message="No teams yet."/> : (
-        <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
-          {sortedTeams.map(team => {
-            const isExp = expanded===team.id;
-            const roster = getTeamRosterForWeek(team, viewWeek);
-            const teamTotal = Math.round(getTeamWeekTotal(team, viewWeek) * 10) / 10;
-            return (
-              <div key={team.id} style={{ background:"#12121f",border:"1px solid #1e1e38",borderRadius:10,overflow:"hidden" }}>
-                <div style={{ display:"flex",alignItems:"center",gap:12,padding:"14px 16px",cursor:"pointer" }}
-                  onClick={()=>setExpanded(isExp?null:team.id)}>
-                  {team.teamAvatar ? (
-                    <img src={team.teamAvatar} alt={team.name} style={{ width:40,height:40,borderRadius:10,objectFit:"cover",border:"2px solid "+(team.teamColor||"#e94560"),flexShrink:0 }} />
-                  ) : (
-                    <div style={{ width:40,height:40,borderRadius:10,background:team.teamColor||"linear-gradient(135deg,#2a2a5a,#3a3a6a)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:800,color:"#fff",flexShrink:0 }}>{team.name?.[0]}</div>
-                  )}
-                  <div style={{ flex:1 }}>
-                    <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:14 }}>{team.name}</div>
-                    <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>{team.owner} · {roster.length} rostered</div>
-                  </div>
-                  <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:20,fontWeight:900,
-                    color:teamTotal>0?"#4ecdc4":teamTotal<0?"#e94560":"#6a6a8a",minWidth:45,textAlign:"right" }}>
-                    {formatPts(teamTotal, league)}
-                  </div>
-                  <div style={{ transform:isExp?"rotate(90deg)":"none",transition:"transform 0.15s ease",color:"#6a6a8a" }}><Icon name="chevron" size={16}/></div>
-                </div>
-                {isExp && (
-                  <div style={{ padding:"0 16px 14px",borderTop:"1px solid #1e1e38" }}>
-                    <div style={{ paddingTop:12 }}>
-                      <div style={{ fontSize:11,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",marginBottom:8,letterSpacing:"0.05em" }}>
-                        {league.format==="captains"?"Depth Chart":"Roster"} — {viewWeek==="season"?"Season":cadenceLabel(league, viewWeek)}
-                      </div>
-                      {roster.length===0 ? <div style={{ color:"#4a4a6a",fontSize:12,fontStyle:"italic" }}>Empty roster</div> :
-                        roster.map((c,idx)=>{
-                          const basePts = getContestantWeekPts(c.id, viewWeek);
-                          const multipliedPts = Math.round(basePts * c.multiplier * 100) / 100;
-                          const tribeColor = getTribeColor(league, c);
-                          const isMerged = league.merged || false;
-                          // Season stats
-                          const seasonPts = Math.round(weeks.reduce((s,w) => s + calcContestantWeekPoints(league.weeklyScores?.[w]||{}, c.id), 0)*10)/10;
-                          const lastWk = weeks.length > 0 ? Math.round(calcContestantWeekPoints(league.weeklyScores?.[weeks[weeks.length-1]]||{}, c.id)*10)/10 : 0;
-                          let bestWk = null, bestPts = -Infinity;
-                          weeks.forEach(w => { const p = calcContestantWeekPoints(league.weeklyScores?.[w]||{}, c.id); if(p>bestPts){bestPts=p;bestWk=w;} });
-                          bestPts = Math.round((bestPts===-Infinity?0:bestPts)*10)/10;
-                          return (
-                            <div key={c.id+(c.role||idx)} style={{ padding:"10px 0",borderBottom:"1px solid #1a1a30" }}>
-                              <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                                <ContestantAvatar contestant={c} league={league} size={30} />
-                                <div style={{ flex:1 }}>
-                                  <div style={{ display:"flex",alignItems:"center",gap:4 }}>
-                                    <span style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>{c.name}</span>
-                                    <MultiplierBadge role={c.role}/>
-                                    {c.status==="eliminated" && <span style={{ color:"#e94560",fontSize:9 }}>ELIM</span>}
-                                  </div>
-                                  <div style={{ display:"flex",gap:4,marginTop:2 }}>
-                                    {!isMerged && c.tribe && <span style={{ fontSize:9,fontWeight:600,padding:"1px 5px",borderRadius:3,background:tribeColor+"22",color:tribeColor }}>{c.tribe}</span>}
-                                  </div>
-                                </div>
-                                <div style={{ textAlign:"right" }}>
-                                  {basePts !== 0 && c.multiplier > 1 && (
-                                    <div style={{ fontSize:9,color:"#6a6a8a" }}>{formatPts(basePts, league)} × {c.multiplier}</div>
-                                  )}
-                                  <div style={{ fontSize:16,fontWeight:800,fontFamily:"'Anybody',sans-serif",
-                                    color:multipliedPts>0?"#4ecdc4":multipliedPts<0?"#e94560":"#6a6a8a"
-                                  }}>
-                                    {multipliedPts !== 0 ? (multipliedPts>0?"+":"") + formatPts(multipliedPts, league) : "—"}
-                                  </div>
-                                </div>
-                              </div>
-                              <div style={{ display:"flex",gap:14,fontSize:10,color:"#6a6a8a",marginTop:5,paddingLeft:40 }}>
-                                <span>Last: <span style={{ color:lastWk>0?"#4ecdc4":lastWk<0?"#e94560":"#6a6a8a",fontWeight:600 }}>{lastWk>0?"+":""}{formatPts(lastWk, league)}</span></span>
-                                <span>Best: <span style={{ color:"#f5a623",fontWeight:600 }}>{bestPts>0?"+":""}{formatPts(bestPts, league)}</span>{bestWk?` (${cadenceShort(league)} ${bestWk})`:""}</span>
-                                <span>Season: <span style={{ fontWeight:600,color:"#ccc" }}>{formatPts(seasonPts, league)}</span></span>
-                              </div>
-                            </div>
-                          );
-                        })
-                      }
-                      {!readOnly && (
-                      <TeamCardActions team={team} league={league} onUpdate={onUpdate} setEditing={setEditing} setModal={setModal} />
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }
@@ -5085,7 +5040,7 @@ function ScoringRulesSection({ league, onUpdate }) {
   );
 }
 
-function SettingsTab({ league, onUpdate, allLeagues }) {
+function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing }) {
   const [editingInfo, setEditingInfo] = useState(false);
   const [leagueInfo, setLeagueInfo] = useState({
     name: league.name || "",
@@ -5098,7 +5053,7 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
     { id: "general", label: "General" },
     { id: "scoring", label: "Scoring Rules" },
     { id: "roster", label: "Roster" },
-    { id: "invite", label: "Invite" },
+    { id: "invite", label: "Invite & Teams" },
     { id: "spoiler", label: "Spoiler" },
     { id: "danger", label: "Danger Zone" },
   ];
@@ -5353,6 +5308,42 @@ function SettingsTab({ league, onUpdate, allLeagues }) {
           </div>
         ) : (
           <Btn small onClick={()=>onUpdate({...league, leagueInviteCode: generateInviteCode()})}>Generate Invite Code</Btn>
+        )}
+      </div>
+
+      <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
+          <div>
+            <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>Teams</div>
+            <div style={{ fontSize:12,color:"#6a6a8a",marginTop:2,lineHeight:1.4 }}>
+              Add a team, edit names, send per-team invite codes, or remove a team. Standings and rosters live on the Standings tab — open a row there to see a team's depth chart.
+            </div>
+          </div>
+          <Btn small onClick={()=>{setEditing(null);setModal("add-team")}}><Icon name="plus" size={14}/> Add Team</Btn>
+        </div>
+        {(league.teams||[]).length === 0 ? (
+          <div style={{ padding:"20px",textAlign:"center",color:"#6a6a8a",fontSize:13,background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a" }}>
+            No teams yet. Add one above to start the league.
+          </div>
+        ) : (
+          <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
+            {(league.teams||[]).map(team => (
+              <div key={team.id} style={{ padding:"12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38" }}>
+                <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:6 }}>
+                  {team.teamAvatar ? (
+                    <img src={team.teamAvatar} alt={team.name} style={{ width:36,height:36,borderRadius:10,objectFit:"cover",border:"2px solid "+(team.teamColor||"#e94560"),flexShrink:0 }} />
+                  ) : (
+                    <div style={{ width:36,height:36,borderRadius:10,background:team.teamColor||"linear-gradient(135deg,#2a2a5a,#3a3a6a)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:"#fff",flexShrink:0 }}>{team.name?.[0]}</div>
+                  )}
+                  <div style={{ flex:1,minWidth:0 }}>
+                    <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:13 }}>{team.name}</div>
+                    <div style={{ color:"#6a6a8a",fontSize:11,marginTop:1 }}>{team.owner}</div>
+                  </div>
+                </div>
+                <TeamCardActions team={team} league={league} onUpdate={onUpdate} setEditing={setEditing} setModal={setModal} />
+              </div>
+            ))}
+          </div>
         )}
       </div>
       </>}
