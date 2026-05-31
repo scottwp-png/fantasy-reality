@@ -1448,7 +1448,7 @@ function StandingsTab({ league, standings }) {
         return (
           <details style={{ marginBottom:16 }}>
             <summary style={{ cursor:"pointer",padding:"10px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",fontSize:13,fontWeight:700,color:"#e8e8f0",display:"flex",alignItems:"center",justifyContent:"space-between",listStyle:"none" }}>
-              <span>League Legacy</span>
+              <span>Recordbook</span>
               <span style={{ fontSize:11,fontWeight:500,color:"#6a6a8a" }}>{items.length} records · tap to {/* CSS-only: arrow flips via summary marker would need pseudo */}expand</span>
             </summary>
             <div style={{ marginTop:6,display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(170px, 1fr))",gap:6 }}>

@@ -1,7 +1,7 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.30.0
+**Current Production Version:** v2.4.31.0
 **Last Deploy Date:** 2026-05-31
 **App.jsx Line Count:** ~7,220
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
@@ -22,6 +22,13 @@
 ---
 
 ## Version Log
+
+### v2.4.31.0 — 2026-05-31
+One-line rename: the collapsible records panel on the Standings tab is renamed from **League Legacy** to **Recordbook** at the user's request. No structural change — same 8 records, same collapsible `<details>`, same record-cell layout. Only the summary text changes. All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **String change** at `App.jsx:1451`. `<span>League Legacy</span>` → `<span>Recordbook</span>`. Single occurrence in the codebase; no other references to "League Legacy" remained. The `n records · tap to expand` summary suffix to the right of the label is unchanged.
+- **Records editing in Settings — intentionally not built.** The user noted there's no UI to add/remove/edit records and asked whether that was intended. Answer: the 8 records are hardcoded in `computeLeagueRecords()` because each one has its own computation logic (Star Player needs cumulative multiplied contributions; Biggest Comeback needs week-to-week deltas; Most Consistent needs standard deviation, etc.). A "user-defined record" feature would need either (a) a fixed catalog with enable/disable toggles, or (b) a computation DSL that lets users define new records in the UI. Neither is built in v2.4.31.0; flagged for follow-up.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.55s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.30.0 — 2026-05-31
 Reverts v2.4.29.0's cross-tab navigation and instead reuses the **fullscreen photo+bio lightbox that `ContestantAvatar` already had built in**. Turns out the Cast tab's contestant thumbnail click opens this self-contained lightbox (portal-rendered, photo + name + bio with `Label: value` pretty-printing) — not the row-expand I assumed. v2.4.29.0 sent users to the Cast tab's row-expand which has different content. v2.4.30.0 extracts that lightbox to a module-level `<ContestantPhotoLightbox>` so clicking a contestant name on Standings opens the **same exact modal** the avatar click on Cast does. All 10 regression baselines pass byte-identical, `npm run build` clean.
