@@ -33,7 +33,7 @@ Inline explanations under every record cell. User flagged that they didn't know 
 - **Why always-visible rather than tap-to-reveal.** Considered an "explain" toggle or a `?` icon per cell. Both add UI chrome and require user action. The cells are already low-density (value + holder + now description = three lines); the cost of one extra italic line vs the cost of a discovery problem is asymmetric in favor of always-on. Once users learn the records, they'll scan past the descriptions easily.
 - **Not yet smoke-tested in browser** — recommended smoke: expand the Recordbook panel on Standings and verify every cell shows a small italic gray description; expand a team row on Standings and verify the Team Records section also shows descriptions.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.72s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `6db5c46`
 
 ### v2.4.31.0 — 2026-05-31
 One-line rename: the collapsible records panel on the Standings tab is renamed from **League Legacy** to **Recordbook** at the user's request. No structural change — same 8 records, same collapsible `<details>`, same record-cell layout. Only the summary text changes. All 10 regression baselines pass byte-identical, `npm run build` clean.
