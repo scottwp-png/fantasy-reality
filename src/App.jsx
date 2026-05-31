@@ -1191,6 +1191,13 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
   const [tab, setTab] = useState("standings");
   const [modal, setModal] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
+  // pendingExpandContestantId: set when a contestant link is clicked on another
+  // tab (e.g., a name in the Standings team-card roster). ContestantsTab consumes
+  // it on mount/render — sets its local expandedId to this value and scrolls to
+  // it, then clears via clearPending so re-navigating doesn't re-expand.
+  const [pendingExpandContestantId, setPendingExpandContestantId] = useState(null);
+  const navigateToContestant = (id) => { setPendingExpandContestantId(id); setTab("contestants"); };
+  const clearPendingExpand = () => setPendingExpandContestantId(null);
 
   const standings = useMemo(() => calcStandings(league), [league]);
 
@@ -1276,8 +1283,8 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
       </div>
 
       <div style={{ padding:20 }}>
-        {tab === "standings" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><StandingsTab league={league} standings={standings} /></SpoilerBlur>}
-        {tab === "contestants" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><ContestantsTab league={league} onUpdate={isCommissioner?onUpdate:null} setModal={isCommissioner?setModal:()=>{}} setEditing={isCommissioner?setEditingItem:()=>{}} readOnly={!isCommissioner} /></SpoilerBlur>}
+        {tab === "standings" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><StandingsTab league={league} standings={standings} onNavigateToContestant={navigateToContestant} /></SpoilerBlur>}
+        {tab === "contestants" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><ContestantsTab league={league} onUpdate={isCommissioner?onUpdate:null} setModal={isCommissioner?setModal:()=>{}} setEditing={isCommissioner?setEditingItem:()=>{}} readOnly={!isCommissioner} pendingExpandContestantId={pendingExpandContestantId} clearPendingExpand={clearPendingExpand} /></SpoilerBlur>}
         {tab === "scoring" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><ScoringTab league={league} onUpdate={isCommissioner ? onUpdate : null} isCommissioner={isCommissioner} /></SpoilerBlur>}
         {tab === "weekly-draft" && isCommissioner && <WeeklyDraftTab league={league} onUpdate={onUpdate} standings={standings} />}
         {tab === "depth-chart" && <DepthChartTab league={league} onUpdate={onUpdate} lockedToTeamId={isCommissioner ? null : loggedInTeamId} defaultTeamId={loggedInTeamId} isCommissioner={isCommissioner} spoilerActive={spoilerActive} myTeamId={loggedInTeamId} />}
@@ -1357,7 +1364,7 @@ function WeeklyBreakdownSection({ league, standings }) {
   );
 }
 
-function StandingsTab({ league, standings }) {
+function StandingsTab({ league, standings, onNavigateToContestant }) {
   const weeks = Object.keys(league.weeklyScores || {}).sort((a,b)=>+a - +b);
   const [expanded, setExpanded] = useState(null);
   // teamModalId: when set, render <TeamProfileModal> for that team. Driven by
@@ -1366,11 +1373,11 @@ function StandingsTab({ league, standings }) {
   // calls stopPropagation.
   const [teamModalId, setTeamModalId] = useState(null);
   const teamModalTeam = teamModalId ? (league.teams||[]).find(t => t.id === teamModalId) : null;
-  // contestantModalId: when set, render <ContestantProfileModal>. Driven by
-  // clicking a contestant's name inside the expanded team card's roster list
-  // or game-log contribution chips.
-  const [contestantModalId, setContestantModalId] = useState(null);
-  const contestantModalContestant = contestantModalId ? (league.contestants||[]).find(c => c.id === contestantModalId) : null;
+  // Click handler for contestant names — navigates to the Cast tab and
+  // auto-expands the contestant's card there (handled by LeagueDashboard's
+  // pendingExpandContestantId state, consumed by ContestantsTab). Replaces the
+  // earlier modal-based approach so the user sees the full Cast tab card.
+  const openContestant = (id) => { if (id && onNavigateToContestant) onNavigateToContestant(id); };
   // Per-team + league-wide records. Single-pass scan of league.weeklyScores,
   // memoized so the records panel and per-team card don't recompute on every
   // expand/collapse toggle. See computeLeagueRecords at module scope.
@@ -1433,7 +1440,7 @@ function StandingsTab({ league, standings }) {
             </summary>
             <div style={{ marginTop:6,display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(170px, 1fr))",gap:6 }}>
               {items.map(it => (
-                <div key={it.label} onClick={it.cid ? ()=>setContestantModalId(it.cid) : undefined}
+                <div key={it.label} onClick={it.cid ? ()=>openContestant(it.cid) : undefined}
                   style={{ padding:"10px 12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38",cursor:it.cid?"pointer":"default" }}>
                   <div style={{ fontSize:9,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:3 }}>{it.label}</div>
                   <div style={{ fontSize:16,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:it.color,lineHeight:1 }}>{it.val}</div>
@@ -1542,7 +1549,7 @@ function StandingsTab({ league, standings }) {
                           <div style={{ fontSize:11,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6 }}>Team Records</div>
                           <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))",gap:6 }}>
                             {cells.map(c => (
-                              <div key={c.label} onClick={c.cid ? ()=>setContestantModalId(c.cid) : undefined}
+                              <div key={c.label} onClick={c.cid ? ()=>openContestant(c.cid) : undefined}
                                 style={{ padding:"8px 10px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38",cursor:c.cid?"pointer":"default" }}>
                                 <div style={{ fontSize:9,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:3 }}>{c.label}</div>
                                 <div style={{ fontSize:14,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:c.color,lineHeight:1 }}>{c.val}</div>
@@ -1569,7 +1576,7 @@ function StandingsTab({ league, standings }) {
                             <div style={{ display:"flex",alignItems:"center",gap:10 }}>
                               <div style={{ flex:1 }}>
                                 <div style={{ display:"flex",alignItems:"center",gap:6,flexWrap:"wrap" }}>
-                                  <span onClick={()=>setContestantModalId(c.id)} title="View contestant profile" style={{ color:"#e8e8f0",fontSize:14,fontWeight:600,cursor:"pointer",textDecoration:"underline",textDecorationColor:"#2a2a4a",textUnderlineOffset:3 }}>{c.name}</span>
+                                  <span onClick={()=>openContestant(c.id)} title="View contestant profile" style={{ color:"#e8e8f0",fontSize:14,fontWeight:600,cursor:"pointer",textDecoration:"underline",textDecorationColor:"#2a2a4a",textUnderlineOffset:3 }}>{c.name}</span>
                                   <MultiplierBadge role={c.role}/>
                                   {c.status==="eliminated" && <span style={{ color:"#e94560",fontSize:9 }}>ELIM</span>}
                                   {!isMerged && c.tribe && <span style={{ fontSize:9,fontWeight:600,padding:"1px 5px",borderRadius:3,background:tribeColor+"22",color:tribeColor }}>{c.tribe}</span>}
@@ -1621,7 +1628,7 @@ function StandingsTab({ league, standings }) {
                                   {contribs.length === 0 ? (
                                     <span style={{ fontSize:9,color:"#4a4a6a",fontStyle:"italic" }}>(no scored contributions)</span>
                                   ) : contribs.map((c,i) => (
-                                    <span key={i} onClick={()=>setContestantModalId(c.id)} title="View contestant profile" style={{ fontSize:9,padding:"2px 5px",borderRadius:3,background:c.pts>=0?"#4ecdc418":"#e9456018",color:c.pts>=0?"#4ecdc4":"#e94560",whiteSpace:"nowrap",cursor:"pointer" }}>
+                                    <span key={i} onClick={()=>openContestant(c.id)} title="View contestant profile" style={{ fontSize:9,padding:"2px 5px",borderRadius:3,background:c.pts>=0?"#4ecdc418":"#e9456018",color:c.pts>=0?"#4ecdc4":"#e94560",whiteSpace:"nowrap",cursor:"pointer" }}>
                                       {c.name} {c.pts>0?"+":""}{formatPts(c.pts, league)}
                                     </span>
                                   ))}
@@ -1648,59 +1655,6 @@ function StandingsTab({ league, standings }) {
       {teamModalTeam && (
         <TeamProfileModal team={teamModalTeam} league={league} standings={standings} onClose={()=>setTeamModalId(null)} />
       )}
-      {contestantModalContestant && (
-        <ContestantProfileModal contestant={contestantModalContestant} league={league} onClose={()=>setContestantModalId(null)} />
-      )}
-    </div>
-  );
-}
-
-// Profile modal for a contestant — slimmed down to identity-only after v2.4.28.0:
-// large photo, name, the metadata chip line (tribe + couple + ELIMINATED), and
-// optional bio. No stats grid, no event log — those numbers live on the Cast
-// tab's expanded card. This modal is a "look at this contestant" surface, not a
-// scoring drill-down.
-function ContestantProfileModal({ contestant, league, onClose }) {
-  const c = contestant;
-  const tribeColor = getTribeColor(league, c);
-  const isMerged = league.merged || false;
-  const partner = getCouplePartner(league, c.id);
-  const partnerContestant = partner ? (league.contestants||[]).find(x => x.id === partner) : null;
-
-  return (
-    <div style={{ position:"fixed",inset:0,zIndex:1100,display:"flex",alignItems:"center",justifyContent:"center",
-      background:"rgba(0,0,0,0.85)",backdropFilter:"blur(6px)",animation:"fadeIn 0.15s ease",padding:16 }} onClick={onClose}>
-      <div style={{ background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:18,
-        width:440,maxWidth:"96vw",maxHeight:"96vh",overflow:"hidden",
-        display:"flex",flexDirection:"column",
-        boxShadow:"0 32px 100px rgba(0,0,0,0.6)",animation:"slideUp 0.2s ease" }} onClick={e=>e.stopPropagation()}>
-        <div style={{ display:"flex",justifyContent:"flex-end",padding:"10px 10px 0",flexShrink:0 }}>
-          <button onClick={onClose} style={{ background:"#1a1a2e",border:"1px solid #2a2a4a",borderRadius:8,color:"#888",cursor:"pointer",padding:6,display:"flex",alignItems:"center",justifyContent:"center" }}><Icon name="x" size={18}/></button>
-        </div>
-        <div style={{ padding:"0 24px 22px",display:"flex",flexDirection:"column",alignItems:"center",gap:12,minHeight:0,flex:1,overflowY:"auto" }}>
-          {c.photoUrl ? (
-            <img src={c.photoUrl} alt={c.name} style={{ width:"min(360px, 42vh)",height:"min(360px, 42vh)",borderRadius:20,objectFit:"cover",objectPosition:`center ${c.photoCropY||20}%`,transform:`scale(${c.photoCropZoom||1})`,transformOrigin:`center ${c.photoCropY||20}%`,border:"4px solid "+(c.status==="eliminated"?"#6a6a8a":tribeColor),flexShrink:0 }} onError={e=>{e.target.style.display="none"}} />
-          ) : (
-            <div style={{ width:"min(360px, 42vh)",height:"min(360px, 42vh)",borderRadius:20,display:"flex",alignItems:"center",justifyContent:"center",
-              background:"#1a1a2e",fontFamily:"'Anybody',sans-serif",fontSize:130,fontWeight:900,color:"#fff",border:"4px solid "+(c.status==="eliminated"?"#6a6a8a":tribeColor),flexShrink:0 }}>
-              {c.name?.[0]}
-            </div>
-          )}
-          <div style={{ textAlign:"center",flexShrink:0 }}>
-            <div style={{ fontSize:22,fontWeight:900,fontFamily:"'Anybody',sans-serif",color:"#e8e8f0",letterSpacing:"-0.01em",lineHeight:1.1 }}>{c.name}</div>
-            <div style={{ marginTop:5,fontSize:12,color:"#8888aa",display:"flex",alignItems:"center",justifyContent:"center",gap:6,flexWrap:"wrap" }}>
-              {!isMerged && c.tribe && <span style={{ fontSize:11,fontWeight:600,padding:"2px 8px",borderRadius:99,background:tribeColor+"22",color:tribeColor }}>{c.tribe}</span>}
-              {partnerContestant && <span style={{ color:"#e94560",fontWeight:600 }}>♥ {partnerContestant.name}</span>}
-              {c.status==="eliminated" && <span style={{ padding:"2px 8px",borderRadius:99,background:"#e9456018",color:"#e94560",fontWeight:700,fontSize:11 }}>ELIMINATED{c.eliminatedWeek?` ${cadenceShort(league)} ${c.eliminatedWeek}`:""}</span>}
-            </div>
-          </div>
-          {c.bio && (
-            <div style={{ width:"100%",padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",fontSize:12,color:"#aaaabf",lineHeight:1.55,whiteSpace:"pre-wrap" }}>
-              {c.bio}
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
 }
@@ -1894,13 +1848,24 @@ function CouplesEditor({ league, onUpdate }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CONTESTANTS TAB
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
+function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly, pendingExpandContestantId, clearPendingExpand }) {
   const [managePhotos, setManagePhotos] = useState(false);
   const [manageMode, setManageMode] = useState("photos");
   const [filter, setFilter] = useState("all");
   const [expandedId, setExpandedId] = useState(null);
   const [sortBy, setSortBy] = useState("total");
   const [selectedForMove, setSelectedForMove] = useState(new Set());
+
+  // When LeagueDashboard sets pendingExpandContestantId (e.g., user clicked a
+  // contestant name on the Standings tab), auto-expand that contestant here on
+  // mount/render, switch the filter so the contestant is guaranteed visible,
+  // and clear the pending state so re-navigating later doesn't re-expand.
+  useEffect(() => {
+    if (!pendingExpandContestantId) return;
+    setExpandedId(pendingExpandContestantId);
+    setFilter("all");
+    if (clearPendingExpand) clearPendingExpand();
+  }, [pendingExpandContestantId, clearPendingExpand]);
 
   const weeks = Object.keys(league.weeklyScores || {}).sort((a,b)=>+a - +b);
   const tribes = league.tribes || {};
@@ -4063,6 +4028,9 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
         </div>
       )}
 
+      {/* Hot Picks + Most Rostered side-by-side. flexWrap means they stack on
+          narrow viewports (the 280px flex-basis is the breakpoint). */}
+      <div style={{ marginTop:20,display:"flex",gap:16,flexWrap:"wrap",alignItems:"flex-start" }}>
       {/* ─── HOT PICKS: Who should I roster? ─── */}
       {!league.rostersLocked && (()=>{
         const rosteredIds = new Set();
@@ -4083,7 +4051,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
         // a placeholder instead of returning null (which made Hot Picks vanish
         // and read as if it had been replaced by Most Rostered below).
         return (
-          <div style={{ marginTop:20 }}>
+          <div style={{ flex:"1 1 280px",minWidth:0 }}>
             <div style={{ fontSize:14,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:"#f0f0f5",marginBottom:10,display:"flex",alignItems:"center",gap:6 }}>
               <span style={{ fontSize:16 }}>🔥</span> Hot Picks
             </div>
@@ -4142,7 +4110,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
           .slice(0, 5);
         if (ranked.length === 0) return null;
         return (
-          <div style={{ marginTop:20 }}>
+          <div style={{ flex:"1 1 280px",minWidth:0 }}>
             <div style={{ fontSize:14,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:"#f0f0f5",marginBottom:10,display:"flex",alignItems:"center",gap:6 }}>
               <span style={{ fontSize:16 }}>👥</span> Most Rostered
             </div>
@@ -4172,6 +4140,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
           </div>
         );
       })()}
+      </div>
 
       {/* ─── TEAM HISTORY — Per-Week Breakdown ─── */}
       {weeks.length > 0 && team && (
