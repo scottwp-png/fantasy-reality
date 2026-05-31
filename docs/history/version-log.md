@@ -30,7 +30,7 @@ The 4-cell Team Stats Summary block on the expanded team card (added in v2.4.23.
 - **Design choice not made:** collapsible Game Log. The Game Log gets longer with each scored week (30+ weeks of data would push the card past 1000px). Holding off on adding a collapse toggle until the user actually feels the long-season pain — premature accordion'ing would add UI complexity that's not needed for current 6-8 week Love Island runs.
 - **Not yet smoke-tested in browser** — recommended smoke: expand a standings row, verify the layout is records → roster → game log with no 4-cell stats grid between records and the period header.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.78s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `69eee57`
 
 ### v2.4.26.0 — 2026-05-31
 New **Most Rostered** section in `DepthChartTab` (My Roster), rendering directly below Hot Picks. Shows the top 5 contestants picked by the most managers in the league, with a per-contestant `count / totalTeams · pct%` breakdown and a `MINE` chip when a contestant is also on the current viewer's depth chart. Helps managers see who's a consensus pick vs. a contrarian play — a natural companion to Hot Picks (which surfaces high-scoring contestants the viewer hasn't rostered). All 10 regression baselines pass byte-identical, `npm run build` clean.
