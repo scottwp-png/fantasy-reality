@@ -1451,17 +1451,17 @@ function StandingsTab({ league, standings }) {
         <WeeklyBreakdownSection league={league} standings={standings} />
       )}
       {teamModalTeam && (
-        <TeamProfileModal team={teamModalTeam} league={league} onClose={()=>setTeamModalId(null)} />
+        <TeamProfileModal team={teamModalTeam} league={league} standings={standings} onClose={()=>setTeamModalId(null)} />
       )}
     </div>
   );
 }
 
-// Full-page modal showing a team's profile: enlarged avatar, name, owner, and
-// current roster composition (depth chart for Captains, current-week picks for
-// other formats). No scoring details — that's what the inline expand on the
-// standings row is for. This modal is read-only viewing.
-function TeamProfileModal({ team, league, onClose }) {
+// Full-page modal showing a team's identity: large avatar, name, manager, current
+// standing, and a plain-text roster. Designed to fit on screen without scrolling
+// (avatar sized with vh units, compact text-only roster rows). Scoring detail is
+// intentionally NOT here — that's the inline standings expand's job.
+function TeamProfileModal({ team, league, standings, onClose }) {
   const contestants = league.contestants || [];
   let roster = [];
   if (league.format === "captains") {
@@ -1474,48 +1474,72 @@ function TeamProfileModal({ team, league, onClose }) {
     const ids = team.weeklyRosters?.[wk] || [];
     roster = ids.map(id => contestants.find(c=>c.id===id)).filter(Boolean).map(c=>({...c,role:"regular",multiplier:1}));
   }
+
+  // Look up the team's rank from the passed standings (already computed by the parent).
+  const rankIdx = (standings || []).findIndex(s => s.id === team.id);
+  const standingTeam = rankIdx >= 0 ? standings[rankIdx] : null;
+  const rank = rankIdx >= 0 ? rankIdx + 1 : null;
+  const rankMedal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : null;
+  const rankColor = rank === 1 ? "#ff4d6a" : rank === 2 ? "#c0c0d0" : rank === 3 ? "#cd7f32" : "#8888aa";
+
+  function roleLabel(r) {
+    if (r === "captain")   return "Hero";
+    if (r === "coCaptain") return "Side-Kick";
+    if (r === "regular")   return league.format === "captains" ? "Vigilante" : "Pick";
+    return "";
+  }
+
   return (
     <div style={{ position:"fixed",inset:0,zIndex:1100,display:"flex",alignItems:"center",justifyContent:"center",
-      background:"rgba(0,0,0,0.85)",backdropFilter:"blur(6px)",animation:"fadeIn 0.15s ease",padding:20 }} onClick={onClose}>
+      background:"rgba(0,0,0,0.85)",backdropFilter:"blur(6px)",animation:"fadeIn 0.15s ease",padding:16 }} onClick={onClose}>
       <div style={{ background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:18,
-        width:560,maxWidth:"96vw",maxHeight:"94vh",overflowY:"auto",
+        width:440,maxWidth:"96vw",maxHeight:"96vh",overflow:"hidden",
+        display:"flex",flexDirection:"column",
         boxShadow:"0 32px 100px rgba(0,0,0,0.6)",animation:"slideUp 0.2s ease" }} onClick={e=>e.stopPropagation()}>
-        <div style={{ position:"sticky",top:0,display:"flex",justifyContent:"flex-end",padding:"10px 10px 0",background:"linear-gradient(180deg,#0d0d18,transparent)",zIndex:1 }}>
+        <div style={{ display:"flex",justifyContent:"flex-end",padding:"10px 10px 0",flexShrink:0 }}>
           <button onClick={onClose} style={{ background:"#1a1a2e",border:"1px solid #2a2a4a",borderRadius:8,color:"#888",cursor:"pointer",padding:6,display:"flex",alignItems:"center",justifyContent:"center" }}><Icon name="x" size={18}/></button>
         </div>
-        <div style={{ padding:"0 28px 28px",display:"flex",flexDirection:"column",alignItems:"center",gap:14 }}>
+        <div style={{ padding:"0 24px 22px",display:"flex",flexDirection:"column",alignItems:"center",gap:10,minHeight:0,flex:1 }}>
           {team.teamAvatar ? (
-            <img src={team.teamAvatar} alt={team.name} style={{ width:"100%",maxWidth:380,aspectRatio:"1/1",borderRadius:20,objectFit:"cover",border:"4px solid "+(team.teamColor||"#e94560") }} />
+            <img src={team.teamAvatar} alt={team.name} style={{ width:"min(220px, 28vh)",height:"min(220px, 28vh)",borderRadius:18,objectFit:"cover",border:"3px solid "+(team.teamColor||"#e94560"),flexShrink:0 }} />
           ) : (
-            <div style={{ width:"100%",maxWidth:380,aspectRatio:"1/1",borderRadius:20,display:"flex",alignItems:"center",justifyContent:"center",
-              background:team.teamColor||"#1a1a2e",fontFamily:"'Anybody',sans-serif",fontSize:140,fontWeight:900,color:"#fff",border:"4px solid "+(team.teamColor||"#e94560") }}>
+            <div style={{ width:"min(220px, 28vh)",height:"min(220px, 28vh)",borderRadius:18,display:"flex",alignItems:"center",justifyContent:"center",
+              background:team.teamColor||"#1a1a2e",fontFamily:"'Anybody',sans-serif",fontSize:84,fontWeight:900,color:"#fff",border:"3px solid "+(team.teamColor||"#e94560"),flexShrink:0 }}>
               {team.name?.[0]}
             </div>
           )}
-          <div style={{ textAlign:"center" }}>
-            <div style={{ fontSize:24,fontWeight:900,fontFamily:"'Anybody',sans-serif",color:"#e8e8f0",letterSpacing:"-0.01em" }}>{team.name}</div>
-            <div style={{ fontSize:14,color:"#8888aa",marginTop:4 }}>Manager: {team.owner || "—"}</div>
+          <div style={{ textAlign:"center",flexShrink:0 }}>
+            <div style={{ fontSize:22,fontWeight:900,fontFamily:"'Anybody',sans-serif",color:"#e8e8f0",letterSpacing:"-0.01em",lineHeight:1.1 }}>{team.name}</div>
+            <div style={{ fontSize:12,color:"#8888aa",marginTop:3 }}>Manager: {team.owner || "—"}</div>
+            {rank && (
+              <div style={{ marginTop:8,display:"inline-flex",alignItems:"center",gap:6,padding:"5px 12px",background:rankColor+"18",border:"1px solid "+rankColor+"44",borderRadius:99,fontSize:12,fontWeight:700,color:rankColor }}>
+                {rankMedal && <span style={{ fontSize:14 }}>{rankMedal}</span>}
+                <span>#{rank} of {standings.length}</span>
+                {standingTeam && standingTeam.h2hRecord ? (
+                  <span style={{ color:"#8888aa",fontWeight:500 }}>· {standingTeam.h2hRecord}</span>
+                ) : standingTeam ? (
+                  <span style={{ color:"#8888aa",fontWeight:500 }}>· {formatPts(standingTeam.total, league)} pts</span>
+                ) : null}
+              </div>
+            )}
           </div>
-          <div style={{ width:"100%",marginTop:6 }}>
-            <div style={{ fontSize:11,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8,textAlign:"center" }}>
+          <div style={{ width:"100%",flexShrink:0,marginTop:4 }}>
+            <div style={{ fontSize:10,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6,textAlign:"center" }}>
               {league.format === "captains" ? "Depth Chart" : `Current ${cadenceWord(league)} Roster`}
             </div>
             {roster.length === 0 ? (
-              <div style={{ padding:"14px",textAlign:"center",color:"#6a6a8a",fontSize:13,background:"#12121f",borderRadius:10,border:"1px dashed #2a2a4a" }}>
+              <div style={{ padding:"10px",textAlign:"center",color:"#6a6a8a",fontSize:12,background:"#12121f",borderRadius:8,border:"1px dashed #2a2a4a" }}>
                 Empty roster
               </div>
             ) : (
-              <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
+              <div style={{ display:"flex",flexDirection:"column",background:"#12121f",borderRadius:8,border:"1px solid #1e1e38",overflow:"hidden" }}>
                 {roster.map((c,idx) => (
-                  <div key={c.id+"_"+idx} style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-                    <ContestantAvatar contestant={c} league={league} size={32} />
-                    <div style={{ flex:1,minWidth:0 }}>
-                      <div style={{ display:"flex",alignItems:"center",gap:6,flexWrap:"wrap" }}>
-                        <span style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>{c.name}</span>
-                        <MultiplierBadge role={c.role}/>
-                        {c.status==="eliminated" && <span style={{ color:"#e94560",fontSize:9 }}>ELIM</span>}
-                      </div>
-                    </div>
+                  <div key={c.id+"_"+idx} style={{ display:"flex",alignItems:"center",gap:8,padding:"7px 12px",borderBottom:idx<roster.length-1?"1px solid #1a1a30":"none" }}>
+                    <span style={{ fontSize:10,fontWeight:700,color:c.role==="captain"?"#f5a623":c.role==="coCaptain"?"#4ecdc4":"#6a6a8a",width:62,flexShrink:0,textTransform:"uppercase",letterSpacing:"0.04em" }}>
+                      {roleLabel(c.role)}
+                    </span>
+                    <span style={{ flex:1,minWidth:0,color:"#e8e8f0",fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{c.name}</span>
+                    {c.status==="eliminated" && <span style={{ color:"#e94560",fontSize:9,fontWeight:600 }}>ELIM</span>}
                   </div>
                 ))}
               </div>

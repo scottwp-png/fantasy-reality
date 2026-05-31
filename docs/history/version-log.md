@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.20.0
+**Current Production Version:** v2.4.21.0
 **Last Deploy Date:** 2026-05-31
-**App.jsx Line Count:** ~6,910
+**App.jsx Line Count:** ~6,920
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,22 @@
 ---
 
 ## Version Log
+
+### v2.4.21.0 — 2026-05-31
+TeamProfileModal redesign in three ways: roster goes from contestant-avatar cards to a **plain-text list** (role label + name only, no thumbnails), the team's **current standing rank** is now displayed prominently between the team name and the roster (medal + rank + total points / H2H record), and the modal is **sized to fit the viewport without scrolling**. Avatar size uses `min(220px, 28vh)` so it shrinks on shorter viewports; padding and gaps are tightened across the modal; the inner scroll-container is removed (`overflow:"hidden"`) — the layout is designed to fit at the smallest realistic mobile viewport (~600px tall) without overflow. The `standings` array is now threaded as a prop from `StandingsTab` so the modal can compute rank without re-running the standings calculation. All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **`standings` prop threading** at `App.jsx:1453-1455` (call site) and `App.jsx:1461` (modal signature). The parent `StandingsTab` already receives `standings` from its caller; the modal now takes it too. Inside the modal, `standings.findIndex(s => s.id === team.id)` gives the 0-based index → +1 for the human rank. Renders nothing rank-related if the team isn't in standings (defensive, shouldn't happen in practice but cheap).
+- **Rank pill** at `App.jsx:1499-1508`. Pill style: colored background tint matching the medal color, colored border, gold/silver/bronze/grey color for rank 1/2/3/other. Shows medal emoji for top 3, the `#N of M` text, and either the team's H2H record (if H2H league) or total points (otherwise) as a muted suffix. Roto leagues fall back to total points display since `team.rotoTotal` shows in the standings list directly elsewhere.
+- **Plain-text roster rows** at `App.jsx:1521-1531`. Each row: a 62px-wide role label on the left (color-coded — orange `#f5a623` for Hero, teal `#4ecdc4` for Side-Kick, muted `#6a6a8a` for Vigilante/Pick), the contestant name flex-grown with ellipsis truncation, and an `ELIM` chip on the right if eliminated. Total per-row height ~30px vs ~52px before (avatar + padding) — fits 7+ rows in the same vertical space the previous design fit 4. Role labels use the user's preferred naming (Hero / Side-Kick / Vigilante) defined in the local `roleLabel(role)` helper.
+- **Viewport-relative sizing.** Avatar at `min(220px, 28vh)` shrinks gracefully on short viewports — on a 600px-tall phone (28vh = 168px) the avatar is 168×168; on a 1080px desktop (28vh = 302px) it's clamped to the 220px max. Modal width reduced from 560px → 440px (less wide chrome → more vertical room for content). Outer container has `overflow:"hidden"` (not `overflowY:"auto"`) and `display:"flex",flexDirection:"column"` so the layout is forced to fit; padding gaps tightened (28px → 22-24px). The close button row is `flexShrink:0` so the avatar+name+rank+roster region is what compresses if needed.
+- **`roleLabel(role)` helper** inside the component at `App.jsx:1483-1488`. Maps internal role codes (`captain`, `coCaptain`, `regular`) to display labels (`Hero`, `Side-Kick`, `Vigilante` for Captains format, `Pick` for Standard). Single source of truth for label text in the modal — keeps the per-row JSX clean.
+- **Removed:** the per-roster-row `<ContestantAvatar>`, the per-roster-row `<MultiplierBadge>` (replaced with the inline role label color coding), the sticky close-button-header (now a plain non-sticky row since no scroll). The `MultiplierBadge` import is still used elsewhere in the standings expand, so no dead import to clean up.
+- **Design notes / out of scope.**
+  - **Not making the modal contestant-clickable.** Tapping a name in the roster doesn't navigate to that contestant on the Cast tab. Could be added later; keeps this commit focused on the user's three specific asks.
+  - **No "Edit team" link from the modal.** It's a viewing surface only; CRUD lives in Settings → Invite & Teams.
+  - **Tribe chips removed from the roster rows.** They were in the previous design but bloat the line; rank pill at the top is now the primary stat per the user's ask, and tribe info is still on the Cast tab + the inline standings expand.
+- **Not yet smoke-tested in browser** — recommended smoke path: (a) open the team modal from a standings row, verify nothing scrolls on a typical mobile viewport (use Chrome devtools responsive mode set to iPhone SE 375×667), (b) verify the rank pill shows the correct rank for #1 (gold), #2 (silver), #3 (bronze), and #4+ (muted), (c) verify the roster rows are text-only with the role label on the left, (d) on an H2H league verify the rank pill shows the W-L record instead of total points.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.81s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.20.0 — 2026-05-31
 Two Standings-tab polish items on top of v2.4.19.0's Teams-tab split. (1) The expanded standings row is restructured from a stacked layout (avatar+stats on top, roster underneath) to a **two-column layout** — enlarged 120×120 team avatar plus the period header now sit in a fixed-width left column, with the per-contestant roster breakdown flowing down a flex-grown right column. On mobile the columns wrap, so narrow viewports gracefully fall back to stacked. (2) New **TeamProfileModal** — clicking either the small (40×40) avatar in a collapsed row or the enlarged (120×120) avatar in an expanded row opens a fullscreen modal showing a very large team avatar (380px max, aspect-1:1), the team name, the owner, and the current roster composition with role badges. No scoring detail in the modal — that's still the inline expand's job; the modal is a "look at this team's identity" surface. All 10 regression baselines pass byte-identical, `npm run build` clean.
