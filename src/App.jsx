@@ -3404,27 +3404,51 @@ function arraysEqualUnordered(a, b) {
 // DEPTH CHART TAB (Captains format)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-// League-wide polls — generic side-game surface for the commissioner to ask
-// any question they want ("Who's the most attractive?", "Who'll win?", "Who
-// gets first kiss?", etc.) and have every manager pick one contestant. Picks
-// reveal live to all managers the moment they're submitted. No scoring impact.
-// Stored at league.polls = [{ id, question, createdAt, closed?, picks: { [teamId]: contestantId } }].
-// Multiple polls can be active simultaneously — for a Snog/Marry/Pie-style
-// game the commissioner just creates three polls (one per category).
+// League-wide polls — commissioner posts a poll with 1–5 questions, each
+// manager picks one contestant per question. Picks reveal live to all managers
+// the moment they're submitted. No scoring impact. Stored at:
+//   league.polls = [{
+//     id, name, createdAt, closed?,
+//     questions: [{ id, text }],                          // 1..5
+//     picks: { [teamId]: { [questionId]: contestantId } } // per-team, per-question
+//   }]
+// To recreate Snog/Marry/Pie the commissioner posts a single poll named
+// "Snog Marry Pie" with three questions: "Snog (most attractive)?", "Marry
+// (best personality)?", "Pie (least liked)?".
+const MAX_QUESTIONS_PER_POLL = 5;
 function PollsSection({ league, team, onUpdate, isCommissioner }) {
   const polls = league.polls || [];
   const contestants = league.contestants || [];
   const byId = Object.fromEntries(contestants.map(c => [c.id, c]));
   const activeContestants = contestants.filter(c => c.status !== "eliminated");
 
-  const [draftQuestion, setDraftQuestion] = useState("");
+  const [draftName, setDraftName] = useState("");
+  const [draftQuestions, setDraftQuestions] = useState([""]);
 
+  function updateDraftQuestion(idx, text) {
+    setDraftQuestions(prev => prev.map((q, i) => i === idx ? text : q));
+  }
+  function addDraftQuestion() {
+    if (draftQuestions.length >= MAX_QUESTIONS_PER_POLL) return;
+    setDraftQuestions(prev => [...prev, ""]);
+  }
+  function removeDraftQuestion(idx) {
+    if (draftQuestions.length <= 1) return;
+    setDraftQuestions(prev => prev.filter((_, i) => i !== idx));
+  }
   function createPoll() {
-    const q = draftQuestion.trim();
-    if (!q) return;
-    const poll = { id: generateId(), question: q, createdAt: Date.now(), picks: {} };
+    const name = draftName.trim();
+    const cleanQs = draftQuestions.map(q => q.trim()).filter(Boolean);
+    if (!name || cleanQs.length === 0) return;
+    const poll = {
+      id: generateId(),
+      name,
+      createdAt: Date.now(),
+      questions: cleanQs.map(text => ({ id: generateId(), text })),
+      picks: {},
+    };
     onUpdate({ ...league, polls: [poll, ...polls] });
-    setDraftQuestion("");
+    setDraftName(""); setDraftQuestions([""]);
   }
   function deletePoll(pollId) {
     if (!confirm("Delete this poll? All picks will be lost.")) return;
@@ -3433,35 +3457,71 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
   function togglePollClosed(pollId) {
     onUpdate({ ...league, polls: polls.map(p => p.id === pollId ? { ...p, closed: !p.closed } : p) });
   }
-  function submitPick(pollId, contestantId) {
+  function submitPick(pollId, questionId, contestantId) {
     if (!team) return;
     onUpdate({ ...league, polls: polls.map(p => p.id === pollId ? {
-      ...p, picks: { ...(p.picks||{}), [team.id]: contestantId },
+      ...p,
+      picks: {
+        ...(p.picks||{}),
+        [team.id]: {
+          ...((p.picks||{})[team.id] || {}),
+          [questionId]: contestantId,
+        },
+      },
     } : p) });
   }
-  function clearMyPick(pollId) {
+  function clearMyPick(pollId, questionId) {
     if (!team) return;
-    const poll = polls.find(p => p.id === pollId);
-    if (!poll) return;
-    const newPicks = { ...(poll.picks||{}) };
-    delete newPicks[team.id];
-    onUpdate({ ...league, polls: polls.map(p => p.id === pollId ? { ...p, picks: newPicks } : p) });
+    onUpdate({ ...league, polls: polls.map(p => {
+      if (p.id !== pollId) return p;
+      const myPicks = { ...((p.picks||{})[team.id] || {}) };
+      delete myPicks[questionId];
+      return { ...p, picks: { ...(p.picks||{}), [team.id]: myPicks } };
+    }) });
   }
+  function clearAllMyPicks(pollId) {
+    if (!team) return;
+    if (!confirm("Clear all your picks for this poll?")) return;
+    onUpdate({ ...league, polls: polls.map(p => {
+      if (p.id !== pollId) return p;
+      const newPicks = { ...(p.picks||{}) };
+      delete newPicks[team.id];
+      return { ...p, picks: newPicks };
+    }) });
+  }
+
+  const canPost = draftName.trim() && draftQuestions.some(q => q.trim());
 
   return (
     <div>
       {isCommissioner && (
         <div style={{ marginBottom:16,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
           <div style={{ fontSize:11,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8 }}>Create a Poll</div>
-          <div style={{ display:"flex",gap:6,alignItems:"stretch" }}>
-            <input value={draftQuestion} onChange={e=>setDraftQuestion(e.target.value)}
-              placeholder="e.g. Who's going to win?" onKeyDown={e=>{ if(e.key==="Enter") createPoll(); }}
-              style={{ flex:1,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
-                color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none" }} />
-            <Btn small onClick={createPoll} disabled={!draftQuestion.trim()}>Post</Btn>
+          <input value={draftName} onChange={e=>setDraftName(e.target.value)} placeholder="Poll name (e.g. Snog Marry Pie, or Week 3 Predictions)"
+            style={{ width:"100%",padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+              color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none",boxSizing:"border-box",marginBottom:8 }} />
+          <div style={{ fontSize:10,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:5 }}>
+            Questions ({draftQuestions.length}/{MAX_QUESTIONS_PER_POLL})
           </div>
-          <div style={{ fontSize:10,color:"#6a6a8a",marginTop:6,fontStyle:"italic" }}>
-            Polls are visible to everyone in the league. Picks reveal live as managers submit.
+          <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
+            {draftQuestions.map((q, i) => (
+              <div key={i} style={{ display:"flex",gap:4,alignItems:"center" }}>
+                <span style={{ fontSize:10,color:"#4a4a6a",width:18,textAlign:"right",flexShrink:0 }}>{i+1}.</span>
+                <input value={q} onChange={e=>updateDraftQuestion(i, e.target.value)} placeholder={i === 0 ? "e.g. Who's the most attractive?" : `Question ${i+1}`}
+                  style={{ flex:1,padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                    color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",minWidth:0 }} />
+                {draftQuestions.length > 1 && (
+                  <button onClick={()=>removeDraftQuestion(i)} title="Remove question" style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#e94560",width:26,height:26,cursor:"pointer",fontSize:13,flexShrink:0 }}>×</button>
+                )}
+              </div>
+            ))}
+          </div>
+          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8,gap:6,flexWrap:"wrap" }}>
+            <Btn small variant="ghost" onClick={addDraftQuestion} disabled={draftQuestions.length >= MAX_QUESTIONS_PER_POLL}>+ Add Question</Btn>
+            <Btn small onClick={createPoll} disabled={!canPost}>Post Poll</Btn>
+          </div>
+          <div style={{ fontSize:10,color:"#6a6a8a",marginTop:8,fontStyle:"italic",lineHeight:1.4 }}>
+            Picks reveal live as managers submit. Up to {MAX_QUESTIONS_PER_POLL} questions per poll.
           </div>
         </div>
       )}
@@ -3469,18 +3529,20 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
       {polls.length === 0 ? (
         <EmptyState message={isCommissioner ? "No polls yet. Create one above." : "Waiting for the commissioner to post a poll."} />
       ) : polls.map(poll => {
-        const myPick = team ? poll.picks?.[team.id] : null;
-        const tally = {};
-        Object.values(poll.picks || {}).forEach(cid => { if (cid) tally[cid] = (tally[cid] || 0) + 1; });
-        const tallyEntries = Object.entries(tally).map(([id, c]) => ({ id, count: c })).sort((a,b) => b.count - a.count);
-        const totalPicks = Object.keys(poll.picks || {}).length;
+        const questions = poll.questions || (poll.question ? [{ id: "q1", text: poll.question }] : []);
+        const allPicks = poll.picks || {};
+        const teamsSubmitted = Object.keys(allPicks).filter(tid => {
+          const tp = allPicks[tid] || {};
+          return questions.some(q => tp[q.id]);
+        });
         const totalTeams = (league.teams||[]).length;
         return (
           <div key={poll.id} style={{ marginBottom:14,padding:"14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",opacity:poll.closed?0.7:1 }}>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:10 }}>
+            {/* Poll header */}
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:12 }}>
               <div style={{ flex:1,minWidth:0 }}>
-                <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",lineHeight:1.3,wordBreak:"break-word" }}>{poll.question}</div>
-                <div style={{ fontSize:10,color:"#6a6a8a",marginTop:3 }}>{totalPicks} of {totalTeams} submitted{poll.closed?" · CLOSED":""}</div>
+                <div style={{ fontSize:15,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:"#e8e8f0",lineHeight:1.2,letterSpacing:"-0.01em",wordBreak:"break-word" }}>{poll.name || "(untitled)"}</div>
+                <div style={{ fontSize:10,color:"#6a6a8a",marginTop:3 }}>{questions.length} question{questions.length===1?"":"s"} · {teamsSubmitted.length} of {totalTeams} submitted{poll.closed?" · CLOSED":""}</div>
               </div>
               {isCommissioner && (
                 <div style={{ display:"flex",gap:4,flexShrink:0 }}>
@@ -3490,52 +3552,81 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
               )}
             </div>
 
-            {team && !poll.closed && (
-              <div style={{ display:"flex",gap:6,alignItems:"center",marginBottom:10 }}>
-                <select value={myPick || ""} onChange={e=>submitPick(poll.id, e.target.value)} style={{
-                  flex:1,padding:"8px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
-                  color:myPick?"#e8e8f0":"#6a6a8a",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none",
-                }}>
-                  <option value="">— Your pick —</option>
-                  {activeContestants.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-                {myPick && <Btn small variant="ghost" onClick={()=>clearMyPick(poll.id)}>Clear</Btn>}
-              </div>
-            )}
+            {/* Per-question subsections */}
+            <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
+              {questions.map((q, qIdx) => {
+                const myPick = team ? allPicks[team.id]?.[q.id] : null;
+                const tally = {};
+                Object.values(allPicks).forEach(tp => {
+                  const cid = tp?.[q.id];
+                  if (cid) tally[cid] = (tally[cid] || 0) + 1;
+                });
+                const tallyEntries = Object.entries(tally).map(([id, c]) => ({ id, count: c })).sort((a,b) => b.count - a.count);
+                const totalPicks = tallyEntries.reduce((s, e) => s + e.count, 0);
+                return (
+                  <div key={q.id} style={{ paddingTop:qIdx>0?12:0,borderTop:qIdx>0?"1px solid #1e1e38":"none" }}>
+                    <div style={{ display:"flex",gap:6,alignItems:"flex-start",marginBottom:8 }}>
+                      <span style={{ fontSize:10,fontWeight:700,color:"#f5a623",letterSpacing:"0.04em",flexShrink:0,marginTop:2 }}>Q{qIdx+1}</span>
+                      <div style={{ flex:1,fontSize:13,fontWeight:600,color:"#e8e8f0",lineHeight:1.4,wordBreak:"break-word" }}>{q.text}</div>
+                    </div>
 
-            {totalPicks > 0 && (
-              <div style={{ marginBottom:tallyEntries.length>0?10:0 }}>
-                <div style={{ fontSize:9,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:5 }}>Picks</div>
-                <div style={{ display:"flex",flexDirection:"column",gap:3 }}>
-                  {(league.teams||[]).map(t => {
-                    const pid = poll.picks?.[t.id];
-                    if (!pid) return null;
-                    return (
-                      <div key={t.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"4px 8px",background:"#0d0d18",borderRadius:5 }}>
-                        <span style={{ fontSize:11,color:"#8888aa",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flexShrink:1,minWidth:0 }}>{t.name}</span>
-                        <span style={{ fontSize:11,color:"#4a4a6a" }}>→</span>
-                        <span style={{ fontSize:11,color:"#e8e8f0",fontWeight:600,flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{byId[pid]?.name || "—"}</span>
+                    {team && !poll.closed && (
+                      <div style={{ display:"flex",gap:6,alignItems:"center",marginBottom:8 }}>
+                        <select value={myPick || ""} onChange={e=>submitPick(poll.id, q.id, e.target.value)} style={{
+                          flex:1,padding:"8px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                          color:myPick?"#e8e8f0":"#6a6a8a",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none",
+                        }}>
+                          <option value="">— Your pick —</option>
+                          {activeContestants.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                        {myPick && <button onClick={()=>clearMyPick(poll.id, q.id)} title="Clear your pick" style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#8888aa",fontSize:10,cursor:"pointer",padding:"6px 10px",fontFamily:"'Outfit',sans-serif" }}>Clear</button>}
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+                    )}
 
-            {tallyEntries.length > 0 && (
-              <div>
-                <div style={{ fontSize:9,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:5 }}>Tally</div>
-                <div style={{ display:"flex",flexDirection:"column",gap:2 }}>
-                  {tallyEntries.map(e => {
-                    const pct = totalPicks > 0 ? Math.round((e.count / totalPicks) * 100) : 0;
-                    return (
-                      <div key={e.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"4px 0" }}>
-                        <span style={{ flex:1,minWidth:0,fontSize:12,fontWeight:600,color:"#e8e8f0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{byId[e.id]?.name || "—"}</span>
-                        <span style={{ fontSize:11,color:"#f5a623",fontWeight:700,minWidth:50,textAlign:"right" }}>{e.count} ({pct}%)</span>
+                    {totalPicks > 0 && (
+                      <div style={{ marginBottom:tallyEntries.length>0?8:0 }}>
+                        <div style={{ fontSize:9,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Picks</div>
+                        <div style={{ display:"flex",flexDirection:"column",gap:2 }}>
+                          {(league.teams||[]).map(t => {
+                            const pid = allPicks[t.id]?.[q.id];
+                            if (!pid) return null;
+                            return (
+                              <div key={t.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"3px 8px",background:"#0d0d18",borderRadius:5 }}>
+                                <span style={{ fontSize:11,color:"#8888aa",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flexShrink:1,minWidth:0 }}>{t.name}</span>
+                                <span style={{ fontSize:11,color:"#4a4a6a" }}>→</span>
+                                <span style={{ fontSize:11,color:"#e8e8f0",fontWeight:600,flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{byId[pid]?.name || "—"}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
+                    )}
+
+                    {tallyEntries.length > 0 && (
+                      <div>
+                        <div style={{ fontSize:9,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Tally</div>
+                        <div style={{ display:"flex",flexDirection:"column",gap:1 }}>
+                          {tallyEntries.map(e => {
+                            const pct = totalPicks > 0 ? Math.round((e.count / totalPicks) * 100) : 0;
+                            return (
+                              <div key={e.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"3px 0" }}>
+                                <span style={{ flex:1,minWidth:0,fontSize:12,fontWeight:600,color:"#e8e8f0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{byId[e.id]?.name || "—"}</span>
+                                <span style={{ fontSize:11,color:"#f5a623",fontWeight:700,minWidth:50,textAlign:"right" }}>{e.count} ({pct}%)</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Footer: clear all my picks for this poll */}
+            {team && !poll.closed && questions.some(q => allPicks[team.id]?.[q.id]) && (
+              <div style={{ marginTop:10,display:"flex",justifyContent:"flex-end" }}>
+                <button onClick={()=>clearAllMyPicks(poll.id)} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#8888aa",fontSize:10,cursor:"pointer",padding:"4px 10px",fontFamily:"'Outfit',sans-serif" }}>Clear my picks for this poll</button>
               </div>
             )}
           </div>

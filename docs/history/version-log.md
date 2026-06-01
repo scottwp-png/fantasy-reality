@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.36.0
+**Current Production Version:** v2.4.37.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~7,380
+**App.jsx Line Count:** ~7,470
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,20 @@
 ---
 
 ## Version Log
+
+### v2.4.37.0 — 2026-06-01
+Polls grow up: a single poll can now have **1 to 5 questions**, each with its own per-manager contestant pick. Replaces v2.4.36.0's one-question-per-poll model so Snog/Marry/Pie is now a single poll named "Snog Marry Pie" with three questions (Snog, Marry, Pie) instead of three separate polls cluttering the list. Data shape updates from `polls[].question: string` + `picks: {teamId: contestantId}` to `polls[].questions: [{id, text}]` + `picks: {teamId: {questionId: contestantId}}`. A defensive read path on the display side handles legacy single-question polls (`{question: "X"}`) by treating them as a one-question poll, so any test polls created during v2.4.36.0's ~hour of life keep working. All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **Data model** at `App.jsx:3406-3423`. New shape: `{ id, name, createdAt, closed?, questions: [{ id, text }], picks: { [teamId]: { [questionId]: contestantId } } }`. Module constant `MAX_QUESTIONS_PER_POLL = 5` caps creation. Questions get their own ids so reordering or future question-edit features don't break stored picks.
+- **Create-poll form** at `App.jsx:3478-3508`. Poll name input + dynamic questions list (defaults to 1 row, `+ Add Question` button appends up to 5, per-row `×` removes — disabled when only one remains). `Post Poll` is gated on a non-empty name AND at least one non-empty question. Empty question rows are dropped at submit time so you can leave trailing blanks while typing.
+- **Display layout** at `App.jsx:3522-3604`. Each poll renders as a single card with one header (poll name + submitted-count + closed status + commissioner controls) and a stack of per-question subsections separated by 1px borders. Each subsection has its own question text (Q-numbered chip in orange), the viewer's pick selector, per-team picks list, and tally. A footer-level "Clear my picks for this poll" button nukes all the viewer's picks for that poll in one go.
+- **Picker auto-save preserved.** As in v2.4.36.0, the per-question dropdowns write immediately on change — no Submit button for single-field forms. Per-question Clear button next to each picker, plus the poll-wide Clear button at the bottom.
+- **Tally is per-question, not per-poll.** Each question has its own vote count + percentage display. Different questions surface different intent — combining them across the poll would average meaningless. Total picks count for a question = sum of submitting managers (a manager might have answered Q1 and Q3 but not Q2; the per-Q tally reflects only managers who answered THAT Q).
+- **Submitted count caveat.** The header's "N of M submitted" counts managers who have answered **at least one** question in the poll. A manager who only answered 2 of 5 questions still counts as submitted. Stricter "fully submitted" counting would punish managers for skipping awkward questions; the looser counting matches "you've engaged with this poll."
+- **Legacy single-question polls handled** at `App.jsx:3530`. `const questions = poll.questions || (poll.question ? [{ id: "q1", text: poll.question }] : [])` — if a stored poll has the old `question` (singular) shape, treat it as a one-question poll. No data migration; on the next pick write, the picks structure for that poll is rebuilt under the new shape via the `submitPick` handler.
+- **What this commit does NOT do.** No drag-to-reorder questions during creation (questions render in input order). No question-edit after the poll is posted (delete + recreate if you want to change one). No "answer all to submit" gating. No per-question lock (only the whole poll can be closed). No uniqueness constraint across questions in a poll (a manager could pick the same contestant for Snog AND Marry, which is fine for general-purpose polls; SMP convention says they should differ, but the app doesn't enforce — that's a player honor system).
+- **Not yet smoke-tested in browser** — recommended smoke: (a) as commissioner, create a poll named "Snog Marry Pie" with three questions, verify the form supports up to 5 questions and the +/- buttons work; (b) post the poll, verify it appears at the top of the list with all three questions rendered as separate subsections; (c) as a manager, pick a contestant in each subsection, verify each pick saves immediately and shows in the per-question Picks list + tally; (d) click "Clear my picks for this poll" at the bottom, verify all three of your picks are cleared at once; (e) close the poll, verify pickers go disabled.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.36s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.36.0 — 2026-06-01
 The Snog Marry Pie section from v2.4.35.0 is replaced with a generic **Polls** feature so the surface works for any show, not just Love Island. The pill in My Roster now reads "Polls" instead of "Snog Marry Pie". Each poll is one question + one contestant pick per manager. The commissioner can post as many polls as they want; managers pick one contestant per poll; picks reveal live to all managers; per-contestant tallies show vote counts and percentages. To run the Snog/Marry/Pie game the commissioner just creates three polls. `league.smpRounds` data is dropped in favor of `league.polls = [{ id, question, createdAt, closed?, picks: { [teamId]: contestantId } }]`. All 10 regression baselines pass byte-identical, `npm run build` clean.
