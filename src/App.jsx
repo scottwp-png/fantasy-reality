@@ -4702,16 +4702,39 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
       const isOwnTeam = selectedTeam === myTeamId;
       const wasLocked = isRosterLocked(league);
       const actorName = userProfile?.displayName || (isCommissioner ? "Commissioner" : "Manager");
-      const verb = contentChanged ? "changed" : "reordered";
       const target = isCommissioner && !isOwnTeam
         ? `${editedTeam?.name || "a team"}'s roster`
         : `${editedTeam?.name || "their"} roster`;
       const lockedSuffix = wasLocked ? " — while rosters were LOCKED" : "";
+      // v2.6.18.0: enrich the description with the actual diff so league
+      // members can see WHAT changed, not just THAT something changed. Look
+      // up contestant names via id → name; report position changes
+      // (Hero/Side-Kick), added/removed, and reordering.
+      const nameById = Object.fromEntries((league.contestants || []).map(c => [c.id, c.name]));
+      const nm = id => id ? (nameById[id] || id) : "—";
+      const prevReg = new Set(prevChart?.regulars || []);
+      const newReg = new Set(localChart?.regulars || []);
+      const added = [...newReg].filter(id => !prevReg.has(id));
+      const removed = [...prevReg].filter(id => !newReg.has(id));
+      const diffParts = [];
+      if (prevChart?.captain !== localChart?.captain) {
+        diffParts.push(`Hero ${nm(prevChart?.captain)} → ${nm(localChart?.captain)}`);
+      }
+      if (prevChart?.coCaptain !== localChart?.coCaptain) {
+        diffParts.push(`Side-Kick ${nm(prevChart?.coCaptain)} → ${nm(localChart?.coCaptain)}`);
+      }
+      added.forEach(id => diffParts.push(`+${nm(id)}`));
+      removed.forEach(id => diffParts.push(`−${nm(id)}`));
+      if (diffParts.length === 0 && orderChanged) {
+        diffParts.push("reordered depth chart");
+      }
+      const summary = diffParts.length > 0 ? ` (${diffParts.join(", ")})` : "";
+      const verb = contentChanged ? "changed" : "reordered";
       const audited = appendAudit(league, {
         type: wasLocked ? "roster-locked" : "roster",
         actorName,
-        desc: `${actorName} ${verb} ${target}${lockedSuffix}`,
-        meta: { teamId: selectedTeam, week: weekNum, byCommissioner: !!isCommissioner && !isOwnTeam, wasLocked, contentChanged, orderChanged },
+        desc: `${actorName} ${verb} ${target}${lockedSuffix}${summary}`,
+        meta: { teamId: selectedTeam, week: weekNum, byCommissioner: !!isCommissioner && !isOwnTeam, wasLocked, contentChanged, orderChanged, diffParts },
       });
       nextLeague = { ...audited, teams: updatedTeams };
     }
@@ -7823,6 +7846,26 @@ export default function FantasyRealityTV() {
   // at render time. The merged league flows through the rest of the app
   // unchanged — calcStandings, calcContestantWeekPoints, the cast tab, etc.
   // see the augmented scores as if they were per-league.
+  // v2.6.18.0: auto-stamp team.uid on any team the current user owns but
+  // hasn't been stamped yet. Without this, the co-commissioner promote flow
+  // would deadlock during a roster lock — promotion needs a uid stamp, but
+  // the stamp historically only happened on roster save (impossible while
+  // locked) or fresh join (already done). Now it happens silently on any
+  // app load. One write per league per user, only when the team lacks uid.
+  useEffect(() => {
+    if (!authUser || !userProfile || !leagues || leagues.length === 0) return;
+    const activations = userProfile.activations || {};
+    leagues.forEach(l => {
+      const teamId = activations[l.id];
+      if (!teamId) return;
+      const team = (l.teams || []).find(t => t.id === teamId);
+      if (!team || team.uid === authUser.uid) return;
+      const updated = { ...l, teams: l.teams.map(t => t.id === teamId ? { ...t, uid: authUser.uid } : t) };
+      saveLeague(updated).catch(() => {});
+      setLeagues(prev => prev.map(x => x.id === l.id ? updated : x));
+    });
+  }, [authUser?.uid, userProfile?.activations, leagues.length]);
+
   const [showWideData, setShowWideData] = useState(null);
   useEffect(() => {
     if (!rawSelected?.useShowWideScoring) { setShowWideData(null); return; }

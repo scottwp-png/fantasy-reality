@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.17.0
+**Current Production Version:** v2.6.18.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~9,245
+**App.jsx Line Count:** ~9,275
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,15 @@
 ---
 
 ## Version Log
+
+### v2.6.18.0 — 2026-06-01
+**Two fixes from real-use feedback on the v2.6.16.0 + v2.6.17.0 features.**
+- **Auto-stamp `team.uid` on app load** at `App.jsx:7822-7841` — top-level FantasyRealityTV effect. v2.6.6.0 stamped `team.uid` only on (a) the join flow or (b) any roster save. Pre-v2.6.6.0 teams whose owner has logged in since but hasn't saved a roster therefore stayed uid-less — making them ineligible for co-commissioner promotion in v2.6.16.0. Worse: during a roster lock, the owner CAN'T save a roster to trigger the stamp, so the co-com promote deadlocks until the lock releases. Fixed by iterating `userProfile.activations` on every app load: for each league the current user has an activation in, if the matched team's `uid` isn't equal to `authUser.uid`, write it. One silent RTDB write per league per user on first load post-fix; idempotent thereafter.
+- **Enriched audit log diff for roster changes** at `App.jsx:4701-4735`. The v2.6.1.0 entry just said "X changed Team Bob's roster" — which is what the user reported as insufficient: they made a roster swap then reverted it, and both entries looked identical despite being meaningfully different changes. Now the description includes the actual diff: position changes (Hero / Side-Kick: `prev → new`), contestants added (`+Name`), and contestants removed (`−Name`). Example: "Scott changed Team Bob's roster — while rosters were LOCKED (Hero Aidan → Bobby, +Charlie, −David)". Falls back to "reordered depth chart" when only positions shuffled without content changing. Looks up names via `league.contestants` by id so the log reads as names not opaque IDs.
+- **Why dedup-by-name in the cascade**: contestants and the cast pool share the case-insensitive trimmed name as their cross-namespace identifier. Same approach used in the v2.6.11.0 cast cascade. Captain/coCaptain/regulars all flow through the same name resolution.
+- **What this commit does NOT do.** No backfill of audit-log entries from before this commit — old "X changed Team Bob's roster" entries stay unmoddified (would require parsing old league snapshots, not worth it). No tooltip on the diff badges showing fuller context (just the inline summary). The auto-stamp doesn't retroactively patch the existing team.uid value if it's wrong — only writes when it's missing or for a different uid (which would only happen if someone manually edited the league JSON).
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.30s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.17.0 — 2026-06-01
 **Two-tier commissioner permissions.** v2.6.16.0 gave co-commissioners full parity with the primary, which exposed two genuinely risky surfaces: a rogue co-com could (a) transfer the primary role away from the real commissioner, or (b) demote the primary's other trusted co-coms / promote their own friends. Locked both to primary only.
