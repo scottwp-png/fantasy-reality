@@ -30,7 +30,7 @@
 - **`libraryAvailable` simplified** at `App.jsx:6314-6321`: always filters against the league's show preset, no conditional branch on "all". Custom rules (commissioner-added) live in `league.scoringRules` already and aren't show-bound, so they're unaffected.
 - **What this commit does NOT do.** No removal of the show selector elsewhere (admin Shows tab still has one — that's where the admin manages cross-show base rules and library add-ons). Existing leagues that had a cross-show rule added before this release still have that rule in `league.scoringRules`; removal isn't retroactive — only the picker UI is locked down.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.90s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `badb24b`
 
 ### v2.6.7.0 — 2026-06-01
 **Auto-import show cast at league creation when admin has it set up.** Universal-cast principle: the same (show, season) means the same contestants for every league. Commissioners shouldn't redo the data entry the admin already did.
