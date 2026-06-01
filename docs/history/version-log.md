@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.35.0
+**Current Production Version:** v2.4.36.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~7,420
+**App.jsx Line Count:** ~7,380
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,18 @@
 ---
 
 ## Version Log
+
+### v2.4.36.0 — 2026-06-01
+The Snog Marry Pie section from v2.4.35.0 is replaced with a generic **Polls** feature so the surface works for any show, not just Love Island. The pill in My Roster now reads "Polls" instead of "Snog Marry Pie". Each poll is one question + one contestant pick per manager. The commissioner can post as many polls as they want; managers pick one contestant per poll; picks reveal live to all managers; per-contestant tallies show vote counts and percentages. To run the Snog/Marry/Pie game the commissioner just creates three polls. `league.smpRounds` data is dropped in favor of `league.polls = [{ id, question, createdAt, closed?, picks: { [teamId]: contestantId } }]`. All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **`PollsSection` component** at `App.jsx:3406-3540` replaces `SnogMarryPieSection`. Per-poll layout: question header (with submitted count + closed status), one-line picker dropdown for the viewer's pick (auto-saves on change, no Submit button needed because there's only one slot), per-team picks list showing who picked what, and an aggregate tally with vote counts + percentages.
+- **Multi-poll layout.** Polls render as a vertical list, newest first. Each poll is independent — you can have an active poll for "Who's most attractive?" alongside one for "Who'll win?" and a closed one from last week. Closing a poll (commissioner only) dims it and disables the picker but preserves picks; reopening flips it back. Delete confirms first.
+- **Picker UX simplified.** No Submit button — selecting a contestant from the dropdown immediately writes the pick (single-field forms don't need staging). Clear button on the side appears when you've already picked, lets you wipe your submission for that poll.
+- **Stored at `league.polls`** as an array of `{ id, question, createdAt, picks, closed? }`. No migration of v2.4.35.0's `smpRounds` field — SMP was live for only a few hours and no real data exists in production. Old `smpRounds` field stays dormant in any league that touched it; the SMP UI is gone so nothing reads it.
+- **Pill renamed** at `App.jsx:3994-4003`. Three pills: Depth Chart / Game Log / **Polls** (was Snog Marry Pie). `myRosterMode === "polls"` replaces `=== "smp"`.
+- **What this commit does NOT do.** No multi-pick polls (each poll = exactly one pick). No anonymous polls (picks always attributed to the team). No poll templates (the user has to retype Snog/Marry/Pie questions if they want to play it). No poll history archive — closed polls stay in the list. No notifications.
+- **Not yet smoke-tested in browser** — recommended smoke: (a) verify the pill reads "Polls"; (b) as commissioner, post a poll, verify it appears at the top of the list; (c) as a manager, pick a contestant in the dropdown, verify the pick saves immediately and shows up in the Picks list; (d) post a second poll, verify both render; (e) close a poll, verify the picker is disabled; (f) verify the tally shows correct counts + percentages with multiple managers' picks.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.22s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.35.0 — 2026-06-01
 My Roster (DepthChartTab) reorganized into three views via a pill bar — **Depth Chart**, **Game Log**, and the new **Snog Marry Pie** side-game. Pill bar sits below the team selector so switching modes preserves the active team. Existing depth-chart editor + Hot Picks + Most Rostered + the sticky Save Roster bar live under Depth Chart; the old "Team History" section is renamed Game Log and lives under its own pill (empty-state message when no weeks scored yet); SMP is brand-new and described below. All 10 regression baselines pass byte-identical, `npm run build` clean.
