@@ -31,7 +31,7 @@
 - **Cast sort dropdown polish** at `App.jsx:2210-2234`. The literal `"A–Z"` option rendered as escape-sequence text on some browsers/builds (same JSX-text-node escape interaction as the merge banner in v2.4.46.0). Wrapped in a JSX expression container with a quoted string so JS interprets the en-dash escape. Dropped the "Other" optgroup (it held only A–Z); A–Z is now the last entry in the "Overall" group. "By {Unit}" group renamed to just `{Unit}` ("Week" / "Episode") — slightly less wordy.
 - **What this commit does NOT do.** No removal of the `standard` / `survivor_pool` / etc. format implementations themselves — they're untouched in the codebase, just unselectable at create. Existing leagues with `format: "standard"` continue to work. No customization of the "coming soon" message per-format. The manual-code-entry path on Home still shows the confirm modal — only invite LINKS skip it.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (5.46s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `84e2cac`
 
 ### v2.4.53.0 — 2026-06-01
 The CreateLeagueScreen's League Name field had a static placeholder "e.g. Top Chef Fantasy 2026" — confusing for a user creating a Survivor league. Made it dynamic based on the selected show.
