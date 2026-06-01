@@ -29,7 +29,7 @@
 - **Why prompt+alert and not a custom modal**: native `prompt` is one line of JS, has no styling required, and is universally familiar as "I'm doing something destructive." A custom Modal-based confirmation would require more state plumbing and styling work for a one-shot interaction; the protection level is the same.
 - **What this commit does NOT do.** No undo / soft delete — once you type the name and confirm, the league record is gone from RTDB. No similar gate on contestant or team deletion (those are scoped to within a league and have less catastrophic blast radius). No "are you sure" interstitial elsewhere — only the league-level delete needed the upgrade.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.20s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `b8e487c`
 
 ### v2.6.12.0 — 2026-06-01
 **Admin Shows tab restructured to mirror My Leagues** — index of show-record cards, tap to drill into a detail view. Replaces the single dense management form (show selector at top + library + cast + scoring all stacked) with a two-level navigation that matches the mental model of the existing My Leagues home screen.
