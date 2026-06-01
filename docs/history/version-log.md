@@ -1,7 +1,7 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.8.0
+**Current Production Version:** v2.6.9.0
 **Last Deploy Date:** 2026-06-01
 **App.jsx Line Count:** ~8,685
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
@@ -22,6 +22,20 @@
 ---
 
 ## Version Log
+
+### v2.6.9.0 — 2026-06-01
+**Bug fix: admin-shared RTDB paths were being written under the wrong prefix.** All scoring-library / show-wide-scoring / show-cast reads + writes in v2.6.0.0→v2.6.7.0 went through `loadData` / `saveData`, which prefix every key with `"frtv/"`. The new rule blocks I added in v2.6.3.0 (`scoringRuleLibrary`, `showScoring`, `showCast`) are at the ROOT level — outside `frtv/`. Result: the admin Shows tab was writing to `frtv/showCast/...` (covered by the permissive `frtv/$league_key` rule, which accidentally allowed any auth user to write), while the rule-protected `/showCast/...` path stayed empty. The Love Island Series 13 backfill I ran via `firebase database:set "/showCast/love_island/season_13"` correctly wrote to root, but the app code couldn't see it. Hence the "I don't see any of the love island contestants in the admin section" report.
+- **New helpers `loadRootData(key, fallback)` + `saveRootData(key, value)`** in `src/firebase.js`. Read/write directly at the path, no `frtv/` prefix. Used for admin-shared collections that have their own rule blocks.
+- **Every admin-shared-path caller switched** in `App.jsx`:
+  - `CreateLeagueScreen.handleSave` auto-import cast (`App.jsx:1126`)
+  - `ContestantsTab` Import Cast button (`App.jsx:2398`)
+  - Top-level show-wide-scoring merge load (`App.jsx:7677`)
+  - `AdminShowsTab` library load + save (`App.jsx:7965, 8046`)
+  - `ShowCastSection` load + save (`App.jsx:8147, 8173`)
+  - `ShowWideScoringSection` load + save (`App.jsx:8264, 8303`)
+- **What this commit does NOT do.** No data migration from the (probably-empty) `frtv/showCast/` etc. tree to `/showCast/`. The Love Island Series 13 cast was already at root from the one-time backfill, so it just works post-fix. Any admin who saved library overrides via v2.6.2.0 before this fix would find their writes at `frtv/scoringRuleLibrary/...` — they can re-enter via the admin UI which will now write to the correct root path.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.96s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.8.0 — 2026-06-01
 **Library picker locked to the league's show.** The show selector dropdown added in v2.4.45.0 let commissioners browse rules from any show preset (with the current show as default). In practice, cross-show rules don't apply to this league's contestants — the dropdown was decision-noise. Removed the selector, the `libraryShow` state, and the "All shows" option. The Add-from-Library picker now shows only the rules from `SHOW_PRESETS[league.showType].scoringDefaults` minus what's already in the league.

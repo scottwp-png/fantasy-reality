@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import ReactDOM from "react-dom"
-import { loadData, saveData, deleteData, loadAllLeagues, saveAllLeagues, saveLeague, loadUserProfile, saveUserProfile, loadAllUserProfiles, deleteUserProfile, deleteAuthAccount, onAuthChange, signUp, signIn, signInWithGoogle, signOut, resetPassword, ADMIN_EMAIL } from "./firebase.js"
+import { loadData, saveData, loadRootData, saveRootData, deleteData, loadAllLeagues, saveAllLeagues, saveLeague, loadUserProfile, saveUserProfile, loadAllUserProfiles, deleteUserProfile, deleteAuthAccount, onAuthChange, signUp, signIn, signInWithGoogle, signOut, resetPassword, ADMIN_EMAIL } from "./firebase.js"
 import * as XLSX from "xlsx"
 import { calcContestantWeekPoints, calcTeamWeekPoints, calcStandings } from "./scoring.js"
 
@@ -1123,7 +1123,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
     let importedContestants = [];
     if (seasonNumber) {
       try {
-        const cast = await loadData(`showCast/${showType}/season_${Number(seasonNumber)}`, null);
+        const cast = await loadRootData(`showCast/${showType}/season_${Number(seasonNumber)}`, null);
         if (Array.isArray(cast?.contestants)) {
           importedContestants = cast.contestants.map(sc => ({
             id: generateId(),
@@ -2395,7 +2395,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                 (showType, seasonNumber). Skips contestants already present
                 (matched by case-insensitive name) so re-imports are idempotent. */}
             {league.seasonNumber && <Btn small variant="ghost" onClick={async ()=>{
-              const data = await loadData(`showCast/${league.showType}/season_${league.seasonNumber}`, null);
+              const data = await loadRootData(`showCast/${league.showType}/season_${league.seasonNumber}`, null);
               const incoming = Array.isArray(data?.contestants) ? data.contestants : [];
               if (incoming.length === 0) {
                 alert(`No show cast set up yet for ${SHOW_PRESETS[league.showType]?.name || league.showType} Season ${league.seasonNumber}. Ask the admin to populate it.`);
@@ -7674,7 +7674,7 @@ export default function FantasyRealityTV() {
     if (!showType || !seasonKey) { setShowWideData(null); return; }
     let cancelled = false;
     (async () => {
-      const data = await loadData(`showScoring/${showType}/${seasonKey}`, null);
+      const data = await loadRootData(`showScoring/${showType}/${seasonKey}`, null);
       if (!cancelled) setShowWideData(data || null);
     })();
     return () => { cancelled = true; };
@@ -7962,7 +7962,7 @@ function AdminShowsTab() {
     let cancelled = false;
     setLoaded(false);
     (async () => {
-      const data = await loadData("scoringRuleLibrary/" + selectedShow, {});
+      const data = await loadRootData("scoringRuleLibrary/" + selectedShow, {});
       if (!cancelled) {
         setOverrides(data || {});
         setLoaded(true);
@@ -8043,7 +8043,7 @@ function AdminShowsTab() {
 
   async function saveAll() {
     setSaving(true);
-    await saveData("scoringRuleLibrary/" + selectedShow, overrides);
+    await saveRootData("scoringRuleLibrary/" + selectedShow, overrides);
     setSavedAt(Date.now());
     setSaving(false);
   }
@@ -8144,7 +8144,7 @@ function ShowCastSection({ selectedShow }) {
     let cancelled = false;
     setLoaded(false);
     (async () => {
-      const data = await loadData(`showCast/${selectedShow}/${seasonKey}`, null);
+      const data = await loadRootData(`showCast/${selectedShow}/${seasonKey}`, null);
       if (cancelled) return;
       setCastList(Array.isArray(data?.contestants) ? data.contestants : []);
       setLoaded(true);
@@ -8170,7 +8170,7 @@ function ShowCastSection({ selectedShow }) {
   async function saveAll() {
     if (!seasonKey) return;
     setSaving(true);
-    await saveData(`showCast/${selectedShow}/${seasonKey}`, { contestants: castList });
+    await saveRootData(`showCast/${selectedShow}/${seasonKey}`, { contestants: castList });
     setSavedAt(Date.now());
     setSaving(false);
   }
@@ -8261,7 +8261,7 @@ function ShowWideScoringSection({ selectedShow, mergedRules }) {
     let cancelled = false;
     setLoaded(false);
     (async () => {
-      const data = await loadData(`showScoring/${selectedShow}/${seasonKey}/${episode}`, {});
+      const data = await loadRootData(`showScoring/${selectedShow}/${seasonKey}/${episode}`, {});
       if (cancelled) return;
       const list = Object.entries(data || {}).map(([name, scores]) => ({ name, scores: scores || {} }));
       setContestants(list);
@@ -8300,7 +8300,7 @@ function ShowWideScoringSection({ selectedShow, mergedRules }) {
       });
       if (Object.keys(trimmed).length > 0) payload[c.name] = trimmed;
     });
-    await saveData(`showScoring/${selectedShow}/${seasonKey}/${episode}`, payload);
+    await saveRootData(`showScoring/${selectedShow}/${seasonKey}/${episode}`, payload);
     setSavedAt(Date.now());
     setSaving(false);
   }

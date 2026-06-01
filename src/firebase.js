@@ -68,6 +68,18 @@ export async function saveData(key, value) {
 export async function deleteData(key) {
   try { await remove(ref(db, "frtv/" + key)) } catch (e) {}
 }
+
+// v2.6.9.0: root-level helpers for admin-shared collections that live OUTSIDE
+// the app-namespace `frtv/` path — scoringRuleLibrary, showScoring, showCast.
+// These paths have their OWN rule blocks in database.rules.json (admin-write,
+// all-auth-read), separate from `frtv/`. The plain `loadData`/`saveData`
+// helpers prefix `frtv/` and so can't reach these paths.
+export async function loadRootData(key, fallback) {
+  try { const snap = await get(ref(db, key)); const val = snap.val(); return val !== null ? val : fallback } catch { return fallback }
+}
+export async function saveRootData(key, value) {
+  try { await set(ref(db, key), value) } catch (e) { console.error("Firebase saveRootData error:", e); throw e; }
+}
 export async function loadAllLeagues() {
   try { const index = await loadData("league_index", []); const leagues = []; for (const id of index) { const league = await loadData("league_" + id, null); if (league) leagues.push(league); } return leagues } catch { return [] }
 }
