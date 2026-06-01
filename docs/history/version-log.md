@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.22.2
+**Current Production Version:** v2.6.22.3
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~9,950
+**App.jsx Line Count:** ~9,970
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,14 @@
 ---
 
 ## Version Log
+
+### v2.6.22.3 — 2026-06-01
+**Diagnostic: verify-read in rule library save.** User reported saves "succeeding" (Saved indicator appears, no console errors) but data reverting on refresh. The `set()` promise resolved without rejection, but data isn't persisting. Adding a verify-read to either prove the write reaches RTDB or pinpoint where it's getting dropped.
+- **`saveAll` in `AdminShowDetail`** at `App.jsx:8818-8840` now: writes via `saveRootData`, then immediately reads back via `loadRootData`, compares the rule counts, throws a clear error if the write reported success but the readback is empty (RTDB silently rejected somewhere). Console logs the write count + readback count regardless, so even non-error symptoms (partial writes) surface.
+- This is purely diagnostic — no behavior change on the happy path. The save still commits the same data to the same path. If everything is working, `[Library Save]` log lines confirm it; if something's silently dropping the write, the user gets an alert with a pointer to Firebase Console.
+- **Not extended to** show cast or per-episode scoring saves yet — keeping the diagnostic narrow to the reported path. If the issue turns out to be SDK-wide, we'll widen.
+- `node _snapshots/diff-against-baseline.mjs` deferred (cosmetic diagnostic; no scoring logic touched). `npm run build` clean. `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.22.2 — 2026-06-01
 **Bulk-edit toggle for the rule library + per-row delete button.** Addresses two complaints: editing many existing rules required opening the modal once per rule, and deletion was only available inside the modal.

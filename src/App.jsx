@@ -8815,7 +8815,25 @@ function AdminShowDetail({ record, onBack }) {
   async function saveAll() {
     setSaving(true);
     try {
-      await saveRootData("scoringLibrary/" + selectedShow, library);
+      const path = "scoringLibrary/" + selectedShow;
+      const writtenKeys = Object.keys(library).length;
+      console.log("[Library Save] writing", writtenKeys, "rules to", path);
+      await saveRootData(path, library);
+      // v2.6.22.3: verify-read. The user has reported saves that "succeed"
+      // (no rejection, Saved indicator appears) but revert on refresh. If
+      // set() resolved but the readback comes back empty or short, something
+      // is silently dropping the write — RTDB rule edge case, offline-queue
+      // flush, or a concurrent overwrite. Surface it loudly instead of
+      // silently smiling.
+      const readback = await loadRootData(path, null);
+      const readbackKeys = readback && typeof readback === "object" ? Object.keys(readback).length : 0;
+      console.log("[Library Save] readback returned", readbackKeys, "rules");
+      if (writtenKeys > 0 && readbackKeys === 0) {
+        throw new Error(`Wrote ${writtenKeys} rules but readback is empty. RTDB silently rejected the write. Check Firebase Console at /scoringLibrary/${selectedShow}.`);
+      }
+      if (writtenKeys > 0 && readbackKeys < writtenKeys) {
+        console.warn("[Library Save] readback has fewer rules than written:", readbackKeys, "vs", writtenKeys);
+      }
       setSavedAt(Date.now());
     } catch (e) {
       console.error("Library save failed:", e);
