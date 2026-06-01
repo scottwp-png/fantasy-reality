@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.48.0
+**Current Production Version:** v2.4.49.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~7,830
+**App.jsx Line Count:** ~7,840
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,16 @@
 ---
 
 ## Version Log
+
+### v2.4.49.0 — 2026-06-01
+Three small commissioner-quality-of-life fixes. (1) Scoring someone as Eliminated used to require a second trip into Settings → Roster → Contestant Status to also flip their `status` and `eliminatedWeek` — that's now automatic. (2) Linked Scoring is hidden behind a comment (will be replaced by the planned Show-Wide Scoring layer). (3) Finale Mode moved from General to the Roster section of Settings (it's a roster-shape override, not a general league setting).
+- **Eliminate-on-score** — new `isElimination: true` flag on `DEFAULT_SCORING_RULES` at `App.jsx:35-38`, set on both `sv_eliminated` and `eliminated_with_idol_advantage`. New logic in `saveScores` at `App.jsx:2710-2734`: after merging the week's edits, scan every contestant; if any rule with `isElimination: true` has a non-zero count for them in this week, set `status: "eliminated", eliminatedWeek: <thisWeek>`. If a contestant was previously marked eliminated in THIS SAME WEEK and the elimination rule(s) have since been undone (count is back to 0), revert them to `status: "active", eliminatedWeek: null`. Contestants eliminated in a different week are never touched — undoing this-week's score can't accidentally resurrect a contestant who was actually eliminated three weeks ago.
+- **Hide Linked Scoring** — render line in SettingsTab at `App.jsx:6189-6195` is now a JSX comment. The `LinkedScoringSection` component stays in the file (uncommented re-enable is one line) — the use case (one admin running multiple leagues for the same show) is real but the implementation needs work, and Show-Wide Scoring is meant to obsolete it cleanly anyway.
+- **Move Finale Mode → Settings › Roster** — the Finale Mode card was at the top of the General section (`App.jsx:6206-6222` in v2.4.48.0); now it's at the top of the Roster section (`App.jsx:6278-6295`). The captains-format gate (`league.format === "captains"`) is preserved — non-captains leagues still won't see the card. Old position is replaced by a one-line comment so future readers know where it went.
+- **Why eliminate-on-score is gated by an explicit flag, not name matching.** The simpler heuristic (rule id ends with `_eliminated` / `_dumped` / `_evicted` etc.) would over-fire — Bachelor has `ba_no_rose` which sometimes does and sometimes doesn't mean elimination, and Love is Blind has events that look like elimination but aren't ("broke up" pre-finale isn't being voted off the island). The explicit `isElimination` flag keeps the rule author in control. Only the Survivor preset rules are flagged for now — adding the flag to other shows is a follow-up.
+- **What this commit does NOT do.** No UI in the ScoringTab to indicate "this rule auto-eliminates" (could be useful as a small badge later). No bulk-re-process for past weeks (only applies on saveScores, going forward). No automatic UN-eliminate for the case where a contestant was eliminated by a `Settings → Roster → Contestant Status` manual flip in a different week — that path was always manual, stays manual.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. Note: the regression suite tests `calcStandings` / `calcContestantWeekPoints` — pure read paths — so the new write-path logic in `saveScores` isn't exercised by baselines; semantics verified by code review. `npm run build` clean (4.58s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.48.0 — 2026-06-01
 The `CastBreakdownSection` shipped in v2.4.45.0 (at the bottom of the Standings tab) turned out to be redundant. The Cast tab already has a richer contestant leaderboard: filter pills (All / Active / Eliminated), sort pills (Season / Last Wk / Best / Worst / A-Z), expandable cards with a 4-stat summary and per-week game log, and built-in tribe / status indicators. User flagged the duplication; we kept the Cast tab as the single source of truth for contestant scoring.

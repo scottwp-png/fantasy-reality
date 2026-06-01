@@ -54,9 +54,9 @@ const DEFAULT_SCORING_RULES = [
     description: "Won an individual reward challenge (post-merge)." },
   { id: "wins_individual_immunity", label: "Wins Individual Immunity", points: 4, category: "Challenge Performance",
     description: "Won an individual immunity challenge (post-merge)." },
-  { id: "eliminated_with_idol_advantage", label: "Eliminated with Idol/Advantage", points: -15, category: "Tribal",
+  { id: "eliminated_with_idol_advantage", label: "Eliminated with Idol/Advantage", points: -15, category: "Tribal", isElimination: true,
     description: "Voted out at tribal while holding at least one unplayed idol or advantage." },
-  { id: "sv_eliminated", label: "Eliminated", points: -10, category: "Tribal",
+  { id: "sv_eliminated", label: "Eliminated", points: -10, category: "Tribal", isElimination: true,
     description: "Voted out at tribal council. Applies once per contestant, in the episode they are eliminated." },
   { id: "plays_hidden_immunity_idol_incorrectly", label: "Plays Idol Incorrectly", points: -3, category: "Tribal",
     description: "Played a hidden immunity idol at tribal but received zero votes (idol was wasted)." },
@@ -2703,8 +2703,33 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
   }
 
   function saveScores() {
-    const merged = { ...(league.weeklyScores||{}), [selectedWeek]: { ...weekScores, ...edits } };
-    onUpdate({ ...league, weeklyScores: merged });
+    const weekKey = selectedWeek;
+    const mergedWeek = { ...weekScores, ...edits };
+    const merged = { ...(league.weeklyScores||{}), [weekKey]: mergedWeek };
+
+    // v2.4.49.0: eliminate-on-score. When commissioner scores any rule flagged
+    // `isElimination: true` for a contestant in this week, auto-set the
+    // contestant's status to "eliminated" with `eliminatedWeek = selectedWeek`.
+    // If the contestant was previously marked eliminated THIS SAME WEEK and
+    // those rules have since been undone (all elim counts now 0), revert to
+    // active. Contestants eliminated in a DIFFERENT week are never touched.
+    const elimRuleIds = new Set((league.scoringRules || []).filter(r => r.isElimination).map(r => r.id));
+    const wkNum = Number(weekKey);
+    const nextContestants = (league.contestants || []).map(c => {
+      if (elimRuleIds.size === 0) return c;
+      const cWk = mergedWeek[c.id] || {};
+      const hasElim = [...elimRuleIds].some(id => (cWk[id] || 0) !== 0);
+      if (hasElim) {
+        if (c.status === "eliminated" && c.eliminatedWeek === wkNum) return c;
+        return { ...c, status: "eliminated", eliminatedWeek: wkNum };
+      }
+      if (c.status === "eliminated" && c.eliminatedWeek === wkNum) {
+        return { ...c, status: "active", eliminatedWeek: null };
+      }
+      return c;
+    });
+
+    onUpdate({ ...league, weeklyScores: merged, contestants: nextContestants });
     setEdits({});
   }
 
@@ -6186,8 +6211,12 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing }) {
         </select>
       </div>
 
-      {/* Linked Scoring */}
-      <LinkedScoringSection league={league} allLeagues={allLeagues} onUpdate={onUpdate} />
+      {/* v2.4.49.0: Linked Scoring is hidden pending the Show-Wide Scoring
+          rework (see backlog). Single-admin-runs-multiple-leagues-for-the-same-
+          show is a real use case but the current implementation needs work; the
+          new global admin scoring layer will replace it cleanly. Leaving the
+          component code in place so it can be re-enabled in one line.
+      <LinkedScoringSection league={league} allLeagues={allLeagues} onUpdate={onUpdate} /> */}
 
       {/* Episodes per Week */}
       <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
@@ -6203,23 +6232,8 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing }) {
         </div>
       </div>
 
-      {league.format === "captains" && (
-        <div style={{ marginBottom:20,padding:"16px",background:league.finaleActive?"#e9456011":"#12121f",borderRadius:10,border:league.finaleActive?"1px solid #e9456033":"1px solid #1e1e38",transition:"all 0.2s ease" }}>
-          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12 }}>
-            <div style={{ flex:1 }}>
-              <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:4,display:"flex",alignItems:"center",gap:6 }}>
-                {league.finaleActive ? "♥" : "○"} Finale Mode {league.finaleActive && <Badge color="#e94560">ACTIVE</Badge>}
-              </div>
-              <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.5 }}>
-                Flip this on for the finale {cadenceWord(league).toLowerCase()} only — managers' depth charts swap to a couple picker (Hero couple ×2, Sidekick couple ×1.5). Affects the current {cadenceWord(league).toLowerCase()}; turn off after the finale to return to the normal depth chart. Requires couples on the Manage Contestants → Couples tab.
-              </div>
-            </div>
-            <Btn small variant={league.finaleActive?"danger":"secondary"} onClick={()=>onUpdate({...league, finaleActive: !league.finaleActive})}>
-              {league.finaleActive ? "Turn Off" : "Turn On"}
-            </Btn>
-          </div>
-        </div>
-      )}
+      {/* v2.4.49.0: Finale Mode moved to the Roster section (it's a roster-shape
+          override — finale couples replace the depth chart). See section === "roster" below. */}
 
       <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
         <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>
@@ -6275,6 +6289,26 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing }) {
 
       {/* ─── ROSTER SECTION ─── */}
       {section === "roster" && <>
+      {/* Finale Mode — only meaningful for captains format. Moved here from
+          General in v2.4.49.0 because it's a roster-shape override (depth chart
+          → couples picker), not a general league setting. */}
+      {league.format === "captains" && (
+        <div style={{ marginBottom:20,padding:"16px",background:league.finaleActive?"#e9456011":"#12121f",borderRadius:10,border:league.finaleActive?"1px solid #e9456033":"1px solid #1e1e38",transition:"all 0.2s ease" }}>
+          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12 }}>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:4,display:"flex",alignItems:"center",gap:6 }}>
+                {league.finaleActive ? "♥" : "○"} Finale Mode {league.finaleActive && <Badge color="#e94560">ACTIVE</Badge>}
+              </div>
+              <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.5 }}>
+                Flip this on for the finale {cadenceWord(league).toLowerCase()} only — managers' depth charts swap to a couple picker (Hero couple ×2, Sidekick couple ×1.5). Affects the current {cadenceWord(league).toLowerCase()}; turn off after the finale to return to the normal depth chart. Requires couples on the Manage Contestants → Couples tab.
+              </div>
+            </div>
+            <Btn small variant={league.finaleActive?"danger":"secondary"} onClick={()=>onUpdate({...league, finaleActive: !league.finaleActive})}>
+              {league.finaleActive ? "Turn Off" : "Turn On"}
+            </Btn>
+          </div>
+        </div>
+      )}
       <div style={{ marginBottom:20,padding:"16px",background:league.rostersLocked?"#e9456011":"#12121f",borderRadius:10,
         border:league.rostersLocked?"1px solid #e9456033":"1px solid #1e1e38",transition:"all 0.2s ease" }}>
         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
