@@ -31,7 +31,7 @@ Two pre-launch fixes both centered on what users actually see on the Standings t
 - **Why default to current show, not "all"**: the cluttered list was the primary complaint. Cross-show rule borrowing exists (a custom league might steal Top Chef's "Cuts Self") but it's rare; making it one click away via the dropdown is the right trade-off.
 - **What this commit does NOT do.** Library is still compile-time `DEFAULT_SCORING_RULES` — the planned RTDB-loaded admin-managed library (v2.4.43.0 backlog item) is still future work. Scoring rules still have no `description` field — that's the next commit. Show filter is per-component state, not persisted, so it resets to the league's show on every mount (intentional — commissioners shouldn't have to re-pick the right show every time).
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.07s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `1e1e375`
 
 ### v2.4.44.0 — 2026-06-01
 Two pre-launch UX fixes from real-tester feedback: (1) the spoiler-protection overlay's reveal panel was only the small button at the bottom — testers (including the user's girlfriend) instinctively tapped the eye emoji or the headline text, which did nothing. On tall tabs like Standings the overlay was vertically centered in the full content height, forcing scroll to find the warning at all. (2) The Polls section on Standings landed on a wall of empty form fields for commissioners, drowning the actual poll list. Both issues addressed without changing any underlying mechanics.
