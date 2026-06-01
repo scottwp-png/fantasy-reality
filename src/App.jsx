@@ -835,6 +835,17 @@ function MultiplierBadge({ role }) {
 
 function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags }) {
   const [step, setStep] = useState(1);
+  // v2.4.47.0: Guided vs Advanced league-creation mode. Guided (default)
+  // splits the dense "Basics" step into three bite-sized sub-steps with
+  // explainer text — for users who don't already know what every option
+  // means. Advanced renders the whole step on one page like before, for
+  // returning commissioners or anyone who's set up fantasy leagues before.
+  // subStep is only meaningful when wizardMode && step === 1.
+  //   subStep 1 = Show + League Name + Season Name (the "what")
+  //   subStep 2 = Format + format-specific config (the central decision)
+  //   subStep 3 = Optional settings (episodes/week + h2h + best ball + roto + decimal)
+  const [wizardMode, setWizardMode] = useState(true);
+  const [subStep, setSubStep] = useState(1);
 
   // Step 1: Basics
   const [name, setName] = useState("");
@@ -959,27 +970,73 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
     rulesByCategory[cat].push(r);
   });
 
-  // Step indicator
-  const steps = ["Basics", "Scoring", "Teams"];
+  // Step indicator. In wizard mode, step 1 expands into 3 sub-steps so the
+  // progress bar shows 5 segments total (3 sub-steps + Scoring + Teams).
+  // Advanced mode keeps the original 3 segments.
+  const totalSteps = wizardMode ? 5 : 3;
+  // Linear step number used to colour progress segments + display "step X of N".
+  const linearStep = wizardMode
+    ? (step === 1 ? subStep : step + 2) // step1.subStep1→1, 1.2→2, 1.3→3, step2→4, step3→5
+    : step;
+
+  // Back button behaviour: in wizard mode, walk back through sub-steps before
+  // popping to step 1 → 2 → 3; in advanced, just step- or cancel.
+  function handleBack() {
+    if (wizardMode) {
+      if (step === 1 && subStep > 1) { setSubStep(subStep - 1); return; }
+      if (step === 2) { setStep(1); setSubStep(3); return; }
+      if (step === 3) { setStep(2); return; }
+      onCancel();
+    } else {
+      if (step > 1) setStep(step - 1);
+      else onCancel();
+    }
+  }
 
   return (
     <div style={{ padding:20 }}>
-      <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:20 }}>
-        <button onClick={step>1?()=>setStep(step-1):onCancel} style={{ background:"none",border:"none",color:"#8888aa",cursor:"pointer",padding:4 }}><Icon name="back" size={20}/></button>
+      <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:12 }}>
+        <button onClick={handleBack} style={{ background:"none",border:"none",color:"#8888aa",cursor:"pointer",padding:4 }}><Icon name="back" size={20}/></button>
         <h2 style={{ margin:0,fontSize:20,fontFamily:"'Anybody',sans-serif",fontWeight:800,color:"#e8e8f0",flex:1 }}>Create League</h2>
-        <div style={{ fontSize:12,color:"#6a6a8a" }}>Step {step} of 3</div>
+        <div style={{ fontSize:12,color:"#6a6a8a" }}>Step {linearStep} of {totalSteps}</div>
       </div>
 
-      {/* Step indicator pills */}
-      <div style={{ display:"flex",gap:6,marginBottom:24 }}>
-        {steps.map((s,i) => (
-          <div key={i} style={{ flex:1,height:4,borderRadius:2,background:i<step?"#e94560":"#1e1e38",transition:"all .3s" }}/>
+      {/* Guided / Advanced mode toggle */}
+      <div style={{ display:"flex",gap:6,marginBottom:16,padding:4,background:"#0d0d18",border:"1px solid #1e1e38",borderRadius:99 }}>
+        {[
+          { id:true, label:"Guided", hint:"Step by step — recommended for first leagues" },
+          { id:false, label:"Advanced", hint:"All settings on one page" },
+        ].map(m => (
+          <button key={String(m.id)} onClick={()=>{ setWizardMode(m.id); setSubStep(1); }} title={m.hint} style={{
+            flex:1,padding:"7px 12px",borderRadius:99,border:"none",cursor:"pointer",
+            background: wizardMode===m.id ? "#e9456022" : "transparent",
+            color: wizardMode===m.id ? "#e94560" : "#7a7a9a",
+            fontSize:12,fontWeight:wizardMode===m.id?700:600,fontFamily:"'Outfit',sans-serif",transition:"all .15s ease",
+          }}>{m.label}</button>
         ))}
       </div>
 
-      {/* ─── STEP 1: BASICS ─── */}
+      {/* Step indicator pills */}
+      <div style={{ display:"flex",gap:6,marginBottom:20 }}>
+        {Array.from({length: totalSteps}).map((_,i) => (
+          <div key={i} style={{ flex:1,height:4,borderRadius:2,background:i<linearStep?"#e94560":"#1e1e38",transition:"all .3s" }}/>
+        ))}
+      </div>
+
+      {/* ─── STEP 1: BASICS ───
+          Wizard mode breaks the dense old step 1 into 3 sub-steps with
+          explainer text. Advanced shows everything at once. */}
       {step === 1 && (
         <div>
+          {/* SECTION A — "the what": show + name + season */}
+          {(!wizardMode || subStep === 1) && (
+            <div>
+              {wizardMode && (
+                <div style={{ marginBottom:14,padding:"12px 14px",background:"#e9456011",borderRadius:10,border:"1px solid #e9456033" }}>
+                  <div style={{ fontSize:12,fontWeight:700,color:"#e94560",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>What show?</div>
+                  <div style={{ fontSize:12,color:"#aaaabf",lineHeight:1.5 }}>Pick the reality show your league will follow, then name it. You can change the season name later from Settings.</div>
+                </div>
+              )}
           <Input label="League Name" placeholder="e.g. Top Chef Fantasy 2026" value={name} onChange={e=>setName(e.target.value)} />
 
           <Select label="Show" value={showType} onChange={e=>setShowType(e.target.value)} options={[
@@ -993,6 +1050,23 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
           {showType === "custom" && <Input label="Show Name" placeholder="e.g. The Traitors" value={showName} onChange={e=>setShowName(e.target.value)} />}
           <Input label="Season Name" placeholder="e.g. Season 22" value={seasonName} onChange={e=>setSeasonName(e.target.value)} />
 
+          {wizardMode && (
+            <div style={{ marginTop:8 }}>
+              <Btn onClick={()=>setSubStep(2)} disabled={!name.trim()} style={{ width:"100%",justifyContent:"center" }}>Next: League Format</Btn>
+            </div>
+          )}
+            </div>
+          )}
+
+          {/* SECTION B — format pick + format config */}
+          {(!wizardMode || subStep === 2) && (
+            <div>
+              {wizardMode && (
+                <div style={{ marginBottom:14,padding:"12px 14px",background:"#e9456011",borderRadius:10,border:"1px solid #e9456033" }}>
+                  <div style={{ fontSize:12,fontWeight:700,color:"#e94560",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>How do you want to play?</div>
+                  <div style={{ fontSize:12,color:"#aaaabf",lineHeight:1.5 }}>Pick a league format. Heroes (recommended for first-timers) gives each player a Hero, Side-Kick, and Vigilantes worth different point multipliers. Read each option's description before choosing — you can't change format after creating.</div>
+                </div>
+              )}
           <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:8,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>League Format</label>
           <div style={{ display:"flex",gap:8,marginBottom:8,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch" }}>
             {["captains","standard",...(featureFlags?.new_formats!==false?["survivor_pool","elimination_pool","predictions","salary_cap"]:[])].filter(Boolean).map(f => {
@@ -1058,7 +1132,24 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
             </div>
           )}
 
-          {/* Settings */}
+          {wizardMode && (
+            <div style={{ display:"flex",gap:10,marginTop:8 }}>
+              <Btn variant="ghost" onClick={()=>setSubStep(1)} style={{ flex:1,justifyContent:"center" }}>Back</Btn>
+              <Btn onClick={()=>setSubStep(3)} style={{ flex:1,justifyContent:"center" }}>Next: Settings</Btn>
+            </div>
+          )}
+            </div>
+          )}
+
+          {/* SECTION C — optional settings (episodes/week + h2h + best ball + roto + decimal) */}
+          {(!wizardMode || subStep === 3) && (
+            <div>
+              {wizardMode && (
+                <div style={{ marginBottom:14,padding:"12px 14px",background:"#e9456011",borderRadius:10,border:"1px solid #e9456033" }}>
+                  <div style={{ fontSize:12,fontWeight:700,color:"#e94560",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em" }}>League settings</div>
+                  <div style={{ fontSize:12,color:"#aaaabf",lineHeight:1.5 }}>Optional tweaks. All defaults are fine for a first league — read the descriptions and flip on anything that sounds right. You can change most of these later from Settings.</div>
+                </div>
+              )}
           <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:8,marginTop:8,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>League Settings</label>
           <div style={{ display:"flex",flexDirection:"column",gap:8,marginBottom:16 }}>
             <div style={{ padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
@@ -1103,7 +1194,16 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
             </label>
           </div>
 
-          <Btn onClick={()=>setStep(2)} disabled={!name.trim()} style={{ width:"100%",justifyContent:"center" }}>Next: Scoring Rules</Btn>
+          {wizardMode ? (
+            <div style={{ display:"flex",gap:10 }}>
+              <Btn variant="ghost" onClick={()=>setSubStep(2)} style={{ flex:1,justifyContent:"center" }}>Back</Btn>
+              <Btn onClick={()=>{ setStep(2); setSubStep(1); }} disabled={!name.trim()} style={{ flex:1,justifyContent:"center" }}>Next: Scoring Rules</Btn>
+            </div>
+          ) : (
+            <Btn onClick={()=>setStep(2)} disabled={!name.trim()} style={{ width:"100%",justifyContent:"center" }}>Next: Scoring Rules</Btn>
+          )}
+            </div>
+          )}
         </div>
       )}
 
@@ -1193,7 +1293,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
           </div>
 
           <div style={{ display:"flex",gap:10,marginTop:20 }}>
-            <Btn variant="ghost" onClick={()=>setStep(1)} style={{ flex:1,justifyContent:"center" }}>Back</Btn>
+            <Btn variant="ghost" onClick={()=>{ setStep(1); setSubStep(wizardMode ? 3 : 1); }} style={{ flex:1,justifyContent:"center" }}>Back</Btn>
             <Btn onClick={()=>setStep(3)} style={{ flex:1,justifyContent:"center" }}>Next: Teams</Btn>
           </div>
         </div>

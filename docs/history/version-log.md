@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.46.0
+**Current Production Version:** v2.4.47.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~7,825
+**App.jsx Line Count:** ~7,890
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,18 @@
 ---
 
 ## Version Log
+
+### v2.4.47.0 — 2026-06-01
+The existing `CreateLeagueScreen` was already a 3-step flow but the first step ("Basics") was a single dense scrolling page with name, show, season, format pick, format-specific config (Heroes regularSlots / gender minimums / Standard picksPerManager), AND five optional toggles (episodes/week, h2h, best ball, roto, decimal). For experienced fantasy-sports commissioners that's fine — they want everything visible. For non-technical users (the dominant audience for a reality-TV fantasy app) it's a wall of decisions on the first screen. Added a **Guided / Advanced mode toggle** that splits step 1 into three bite-sized sub-steps when Guided, and keeps the existing all-in-one when Advanced.
+- **Guided/Advanced toggle pill** at `App.jsx:982-996`. Renders right under the header above the progress bar. Two pills, `wizardMode` true (Guided) is the default. Switching modes resets `subStep` to 1 so users don't get stranded.
+- **Wizard sub-step state** at `App.jsx:838-848` (`wizardMode`, `subStep`). `subStep` is only meaningful when `wizardMode && step === 1`. Three sub-steps: (1) Show + League name + Season name, (2) Format pick + format-specific config (Heroes / Standard / preview), (3) Optional settings (episodes/week + h2h + best ball + roto + decimal scoring).
+- **Adaptive progress indicator** at `App.jsx:961-997`. `totalSteps` is 5 in Guided, 3 in Advanced. `linearStep` maps the (step, subStep) tuple to a single 1–N integer for the "Step X of N" caption and the progress-segment fill. Segments shown = `totalSteps` (5 or 3).
+- **Sub-step explainer banners** at the top of each Guided sub-step (`App.jsx:1011-1015, 1035-1040, 1158-1163`). Brief contextual guidance — "What show?", "How do you want to play?" (mentions Heroes as recommended for first leagues), "League settings" (notes that defaults are fine for a first league). Hidden in Advanced — power users don't need them.
+- **Wizard-aware navigation** at `App.jsx:973-985` (centralized `handleBack`) plus the per-sub-step Next/Back buttons inside each section. Back from step 2 (Scoring) jumps to sub-step 3 of step 1 (the last sub-step they finished) instead of dumping them at sub-step 1. Next from sub-step 3 advances to step 2 and resets sub-step to 1 so any later "Back" from step 2 lands sensibly.
+- **Existing Advanced layout preserved exactly.** Every original input, label, and style is still there — sections A, B, and C are wrapped in `{(!wizardMode || subStep === N) && (` conditions so when `wizardMode === false`, all three render together as before. No behavior change for power users.
+- **What this commit does NOT do.** Steps 2 (Scoring) and 3 (Teams) are not sub-divided in Guided mode — they're already one-decision-per-screen by nature (toggle rules / add teams). The Guided/Advanced choice is not persisted to the user profile — each new league-create resets to the default (Guided). No A/B testing or first-time-vs-returning-user heuristic.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.16s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.46.0 — 2026-06-01
 Two fixes: (1) every scoring rule now has an optional `description` field that explains what the rule actually counts — shorthand labels like "Plays Idol Incorrectly" or "Correct Vote" were causing confusion during the live Survivor league because players inferred different meanings. (2) The Cast-tab tribe-merge banner was rendering escape sequences as literal text instead of the flag emoji and em-dash; wrapped the literals in JSX expression containers so JS string-literal escape interpretation happens.
