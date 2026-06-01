@@ -32,7 +32,7 @@
 - **`bulkAddRules` helper** at `App.jsx:8772-8794`. Takes the parsed rows + the default-base flag and appends them in a single `setLibrary` call. ID collisions get numeric suffixes (same scheme as `addNewRule`). Local-state-only — admin clicks the section's main Save button to persist, same as any other library edit.
 - **What this commit does NOT do.** No bulk-EDIT for existing rules — that's a meaningfully different UI (spreadsheet-style inline grid) and the bulk-add path covers the actual "15 new rules" pain. If bulk-edit becomes a thing, a separate v2.6.23.x. No xlsx parsing — the user pastes from the clipboard; the xlsx dep is for league import, not rule entry. No per-row Base/Elim toggles in the modal — the modal applies the modal-level defaults uniformly; per-row tweaks happen after via the existing row editor.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.67s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `02ebbc0`
 
 ### v2.6.22.0 — 2026-06-01
 **Rule library drag-and-drop reordering + category grouping.** Admin can now structure each show's library by category, with row-level ordering inside each category and rules movable across categories by drag.
