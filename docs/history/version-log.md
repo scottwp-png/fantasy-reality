@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.40.0
+**Current Production Version:** v2.4.41.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~7,600
+**App.jsx Line Count:** ~7,720
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,26 @@
 ---
 
 ## Version Log
+
+### v2.4.41.0 — 2026-06-01
+Poll **question groups** (called "sections" in the UI). A poll's questions now live inside one or more groups, each with its own optional `uniqueWithin` rule. This unlocks combined-gender Snog Marry Pie in a single poll: section 1 "Boys SMP" with 3 Male-filtered questions + Unique on; section 2 "Girls SMP" with 3 Female-filtered questions + Unique on. Single-section polls keep the simple, flat-looking UI from v2.4.40.0 — the section chrome only appears when a second section is added. Backward-compatible: v2.4.36–40 polls (flat `questions` array with optional poll-level `uniquePerPoll`/`genderFilter`) collapse into a single default group on read via the new `effectiveGroups(poll)` normalizer. All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **`effectiveGroups(poll)` helper** at `App.jsx:3434-3446`. Returns the canonical groups array for any poll shape. New polls have `poll.groups` and return that directly. Old polls collapse: a v2.4.40.0 flat-questions poll becomes `[{ id:"default", name:"", uniqueWithin: !!poll.uniquePerPoll, questions: poll.questions }]`; a v2.4.36.0 single-question poll becomes the same but with the single question. All downstream display + submit + validation code consumes only this normalized shape.
+- **`flattenGroupQuestions(groups)`** at `App.jsx:3447-3449`. Simple `groups.flatMap(g => g.questions)` for paths that need the full question list (e.g., "answered all?" gate, picks dictionary build).
+- **Data model** at `App.jsx:3417-3422`: `poll.groups = [{ id, name?, uniqueWithin?, questions: [{ id, text, genderFilter? }] }]`. The `picks` shape is unchanged — still `{ [teamId]: { [questionId]: contestantId } }` — because picks remain keyed by question id and the group structure is purely organizational.
+- **Create form** at `App.jsx:3550-3640`. New `draftGroups` state replaces flat `draftQuestions`. Each group renders inside an outlined sub-card *only when there are 2+ groups* — the first/only group still looks like a flat list of question rows (preserves the simple feel for polls that don't need sections). Per-group controls: optional section name input (shown only when multi-group), `+ Question` button, Unique-within checkbox (label changes between "across all questions" for single-group and "within this section" for multi-group), and `× Section` remove button (shown only when multi-group). Top-level `+ Add Section` button at the bottom.
+- **Question cap of 10** is now total across ALL sections — every add operation checks `totalDraftQuestions >= MAX_QUESTIONS_PER_POLL`. Each section can hold any sub-portion of the budget.
+- **Uniqueness validation per-group** at `App.jsx:3506-3511` (submit-time) and `App.jsx:3712-3717` (live submit-gate). Loops over groups, rejects submit if any group's picked contestants have a duplicate. The dropdown exclusion at `App.jsx:3771-3773` only excludes contestants picked in OTHER questions OF THE SAME GROUP (when `g.uniqueWithin` is true) — so a Boys-SMP-pick won't disable that contestant in Girls-SMP picker dropdowns.
+- **Display grouped** at `App.jsx:3741-3878`. The locked "Your picks" view, the staged picker form, and the per-question Picks-and-Tally section all render group-by-group with a small section header (when `hasMultipleGroups`). Section header shows the group's name (or `Section N` fallback) + a `UNIQUE` chip when the group has `uniqueWithin: true`. The poll-header constraint-chips row is gone — section rules are surfaced on the section headers themselves.
+- **Submit-gate message** at `App.jsx:3818-3820` references the failing group when uniqueness fails: `"Pick different contestants within Boys SMP."` (or `Section N` if unnamed). Helps managers immediately see which section has the conflict.
+- **Backward compatibility.** Every v2.4.36-40 poll continues to render and accept submissions normally:
+  - v2.4.36 single-question poll (`poll.question` string) → one group with one question.
+  - v2.4.37-39 flat-questions poll (`poll.questions`, optional `poll.uniquePerPoll`, optional `poll.genderFilter`) → one group named "" with that uniqueness, gender cascades to questions via `effectiveQuestionGender`.
+  - v2.4.40 flat-questions poll with per-question gender filters → same one-group collapse, per-question filters preserved.
+  - No write-side migration; the dormant legacy fields stay on those polls until they're deleted.
+- **What this commit does NOT do.** No drag-to-reorder sections or questions across sections (questions render in the order they were entered). No per-section gender filter (gender stays per-question — sections govern the uniqueness rule, that's the orthogonal axis). No "section template" presets (the SMP commissioner types Boys+Girls sections manually). No question-edit after the poll is posted.
+- **Not yet smoke-tested in browser** — recommended smoke: (a) as commissioner, create a poll named "Snog Marry Pie", verify one section appears (no section header) with one question row; (b) click `+ Add Section`, verify both sections now render with outlined cards + section name inputs; (c) name section 1 "Boys SMP", add 3 questions all tagged Male, check Unique within this section; section 2 "Girls SMP" with 3 Female questions and Unique on; (d) submit as a manager, verify the dropdown for Q1 in Boys SMP excludes contestants already picked in Boys SMP's other questions, but DOES include contestants picked for Girls SMP; (e) try to pick the same Boy twice in Boys SMP, verify Submit is disabled with the message "Pick different contestants within Boys SMP"; (f) verify the locked view groups the picks by section.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.35s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.40.0 — 2026-06-01
 Per-question gender filter (replaces v2.4.39.0's poll-level filter), question cap raised from 5 to 10. The change unlocks combined Snog Marry Pie polls: one poll named "Snog Marry Pie" with 6 questions — 3 tagged `Male only` (Boys Snog/Marry/Pie), 3 tagged `Female only` (Girls Snog/Marry/Pie), `Unique picks` enabled — instead of needing two separate Boys + Girls polls. Each question's picker pool is filtered independently; the unique-picks constraint operates across the whole poll (cross-gender questions are naturally unique already since the pools don't overlap). All 10 regression baselines pass byte-identical, `npm run build` clean.

@@ -3401,76 +3401,122 @@ function arraysEqualUnordered(a, b) {
 // DEPTH CHART TAB (Captains format)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-// League-wide polls — commissioner posts a poll with 1–10 questions; each
-// manager picks one contestant per question, then commits with the Submit
-// button. Picks are LOCKED after submit (managers cannot edit; only the
-// commissioner can clear a team's picks). Optional uniqueness constraint
-// ("each question must pick a different contestant") applies across the
-// whole poll. Each question can optionally restrict its picker pool to
-// Male or Female contestants — so one poll can mix gender-split questions
-// (e.g. SMP with 3 Boys questions + 3 Girls questions in a single poll).
+// League-wide polls — commissioner posts a poll with 1–10 questions organized
+// into one or more groups. Each group can independently enable the "unique
+// picks" rule (each manager must pick a different contestant for each
+// question in that group). Each question can independently restrict its
+// picker pool to Male / Female / All. Managers stage picks locally and
+// commit with Submit; picks lock after submit (only the commissioner can
+// clear a team's picks).
+//
+// Combined-gender Snog Marry Pie in one poll: two sections — "Boys SMP"
+// with 3 Male-filtered questions + Unique on, "Girls SMP" with 3 Female-
+// filtered questions + Unique on.
 //
 // Stored at league.polls = [{
-//   id, name, createdAt, closed?, uniquePerPoll?,
-//   genderFilter?,                                                  // legacy (v2.4.39.0) — cascades to questions
-//   questions: [{ id, text, genderFilter?: "Male" | "Female" }],    // 1..10
-//   picks: { [teamId]: { [questionId]: contestantId } }             // committed picks
+//   id, name, createdAt, closed?,
+//   groups: [{ id, name?, uniqueWithin?, questions: [{ id, text, genderFilter? }] }],
+//   picks: { [teamId]: { [questionId]: contestantId } },
+//   // Legacy fields preserved on old polls (read via effectiveGroups):
+//   uniquePerPoll?, genderFilter?, questions?, question?
 // }]
 const MAX_QUESTIONS_PER_POLL = 10;
-// Resolves the effective gender filter for a question, with backward-compat
-// cascade from the poll-level genderFilter that v2.4.39.0 stored.
 function effectiveQuestionGender(poll, q) {
   return q?.genderFilter || poll?.genderFilter || "";
 }
+// Normalizes any poll shape into the groups model so display code can iterate
+// uniformly. Old flat-questions polls collapse into a single default group.
+function effectiveGroups(poll) {
+  if (poll?.groups && Array.isArray(poll.groups)) return poll.groups;
+  const flatQs = poll?.questions || (poll?.question ? [{ id: "q1", text: poll.question }] : []);
+  if (flatQs.length === 0) return [];
+  return [{
+    id: "default",
+    name: "",
+    uniqueWithin: !!poll?.uniquePerPoll,
+    questions: flatQs,
+  }];
+}
+function flattenGroupQuestions(groups) {
+  return groups.flatMap(g => g.questions || []);
+}
+
 function PollsSection({ league, team, onUpdate, isCommissioner }) {
   const polls = league.polls || [];
   const contestants = league.contestants || [];
   const byId = Object.fromEntries(contestants.map(c => [c.id, c]));
   const activeContestants = contestants.filter(c => c.status !== "eliminated");
 
-  // Create-poll form state. Each draft question is { text, genderFilter? }.
   const [draftName, setDraftName] = useState("");
-  const [draftQuestions, setDraftQuestions] = useState([{ text:"", genderFilter:"" }]);
-  const [draftUnique, setDraftUnique] = useState(false);
-  // Per-poll in-progress pick state (local until Submit). Keyed by pollId →
-  // questionId → contestantId. Wiped after a successful submit so the form
-  // doesn't show stale state next time.
+  const [draftGroups, setDraftGroups] = useState([
+    { name: "", uniqueWithin: false, questions: [{ text: "", genderFilter: "" }] },
+  ]);
   const [drafts, setDrafts] = useState({});
 
-  function updateDraftQuestionText(idx, text) {
-    setDraftQuestions(prev => prev.map((q, i) => i === idx ? { ...q, text } : q));
+  const totalDraftQuestions = draftGroups.reduce((s, g) => s + g.questions.length, 0);
+
+  function addQuestion(gIdx) {
+    if (totalDraftQuestions >= MAX_QUESTIONS_PER_POLL) return;
+    setDraftGroups(prev => prev.map((g, i) => i === gIdx ? { ...g, questions: [...g.questions, { text:"", genderFilter:"" }] } : g));
   }
-  function updateDraftQuestionGender(idx, genderFilter) {
-    setDraftQuestions(prev => prev.map((q, i) => i === idx ? { ...q, genderFilter } : q));
+  function removeQuestion(gIdx, qIdx) {
+    setDraftGroups(prev => {
+      const next = prev.map((g, i) => i === gIdx ? { ...g, questions: g.questions.filter((_, j) => j !== qIdx) } : g);
+      const cleaned = next.filter(g => g.questions.length > 0);
+      return cleaned.length > 0 ? cleaned : [{ name:"", uniqueWithin:false, questions:[{ text:"", genderFilter:"" }] }];
+    });
   }
-  function addDraftQuestion() {
-    if (draftQuestions.length >= MAX_QUESTIONS_PER_POLL) return;
-    setDraftQuestions(prev => [...prev, { text:"", genderFilter:"" }]);
+  function updateQuestionText(gIdx, qIdx, text) {
+    setDraftGroups(prev => prev.map((g, i) => i === gIdx ? { ...g, questions: g.questions.map((q, j) => j === qIdx ? { ...q, text } : q) } : g));
   }
-  function removeDraftQuestion(idx) {
-    if (draftQuestions.length <= 1) return;
-    setDraftQuestions(prev => prev.filter((_, i) => i !== idx));
+  function updateQuestionGender(gIdx, qIdx, genderFilter) {
+    setDraftGroups(prev => prev.map((g, i) => i === gIdx ? { ...g, questions: g.questions.map((q, j) => j === qIdx ? { ...q, genderFilter } : q) } : g));
   }
+  function updateGroupName(gIdx, name) {
+    setDraftGroups(prev => prev.map((g, i) => i === gIdx ? { ...g, name } : g));
+  }
+  function updateGroupUnique(gIdx, uniqueWithin) {
+    setDraftGroups(prev => prev.map((g, i) => i === gIdx ? { ...g, uniqueWithin } : g));
+  }
+  function addGroup() {
+    if (totalDraftQuestions >= MAX_QUESTIONS_PER_POLL) return;
+    setDraftGroups(prev => [...prev, { name:"", uniqueWithin:false, questions:[{ text:"", genderFilter:"" }] }]);
+  }
+  function removeGroup(gIdx) {
+    if (draftGroups.length <= 1) return;
+    setDraftGroups(prev => prev.filter((_, i) => i !== gIdx));
+  }
+
   function createPoll() {
     const name = draftName.trim();
-    const cleanQs = draftQuestions
-      .map(q => ({ text: q.text.trim(), genderFilter: q.genderFilter || "" }))
-      .filter(q => q.text);
-    if (!name || cleanQs.length === 0) return;
+    const cleanGroups = draftGroups
+      .map(g => ({
+        ...g,
+        questions: g.questions
+          .map(q => ({ text: q.text.trim(), genderFilter: q.genderFilter || "" }))
+          .filter(q => q.text),
+      }))
+      .filter(g => g.questions.length > 0);
+    if (!name || cleanGroups.length === 0) return;
     const poll = {
       id: generateId(),
       name,
       createdAt: Date.now(),
-      questions: cleanQs.map(q => ({
+      groups: cleanGroups.map(g => ({
         id: generateId(),
-        text: q.text,
-        ...(q.genderFilter ? { genderFilter: q.genderFilter } : {}),
+        name: g.name?.trim() || "",
+        ...(g.uniqueWithin ? { uniqueWithin: true } : {}),
+        questions: g.questions.map(q => ({
+          id: generateId(),
+          text: q.text,
+          ...(q.genderFilter ? { genderFilter: q.genderFilter } : {}),
+        })),
       })),
       picks: {},
-      ...(draftUnique ? { uniquePerPoll: true } : {}),
     };
     onUpdate({ ...league, polls: [poll, ...polls] });
-    setDraftName(""); setDraftQuestions([{ text:"", genderFilter:"" }]); setDraftUnique(false);
+    setDraftName("");
+    setDraftGroups([{ name:"", uniqueWithin:false, questions:[{ text:"", genderFilter:"" }] }]);
   }
   function deletePoll(pollId) {
     if (!confirm("Delete this poll? All picks will be lost.")) return;
@@ -3489,21 +3535,19 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
     const poll = polls.find(p => p.id === pollId);
     const draft = drafts[pollId];
     if (!poll || !team || !draft) return;
-    // Validate: every question answered
-    const allAnswered = poll.questions.every(q => draft[q.id]);
-    if (!allAnswered) return;
-    // Validate uniqueness if required
-    if (poll.uniquePerPoll) {
-      const picked = poll.questions.map(q => draft[q.id]).filter(Boolean);
+    const groups = effectiveGroups(poll);
+    const allQuestions = flattenGroupQuestions(groups);
+    if (!allQuestions.every(q => draft[q.id])) return;
+    for (const g of groups) {
+      if (!g.uniqueWithin) continue;
+      const picked = g.questions.map(q => draft[q.id]).filter(Boolean);
       if (new Set(picked).size !== picked.length) return;
     }
-    // Build the per-question picks object
     const teamPicks = {};
-    poll.questions.forEach(q => { teamPicks[q.id] = draft[q.id]; });
+    allQuestions.forEach(q => { teamPicks[q.id] = draft[q.id]; });
     onUpdate({ ...league, polls: polls.map(p => p.id === pollId ? {
       ...p, picks: { ...(p.picks||{}), [team.id]: teamPicks },
     } : p) });
-    // Clear local draft for this poll
     setDrafts(prev => { const next = {...prev}; delete next[pollId]; return next; });
   }
   function clearTeamPicks(pollId, targetTeamId) {
@@ -3519,54 +3563,65 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
 
   return (
     <div>
-      {/* Commissioner — create a new poll */}
       {isCommissioner && (
         <div style={{ marginBottom:16,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
           <div style={{ fontSize:11,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8 }}>Create a Poll</div>
-          <input value={draftName} onChange={e=>setDraftName(e.target.value)} placeholder="Poll name (e.g. Snog Marry Pie — Guys)"
+          <input value={draftName} onChange={e=>setDraftName(e.target.value)} placeholder="Poll name (e.g. Snog Marry Pie)"
             style={{ width:"100%",padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
-              color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none",boxSizing:"border-box",marginBottom:8 }} />
+              color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none",boxSizing:"border-box",marginBottom:10 }} />
           <div style={{ fontSize:10,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:5 }}>
-            Questions ({draftQuestions.length}/{MAX_QUESTIONS_PER_POLL})
+            Questions ({totalDraftQuestions}/{MAX_QUESTIONS_PER_POLL})
           </div>
-          <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
-            {draftQuestions.map((q, i) => (
-              <div key={i} style={{ display:"flex",gap:4,alignItems:"center" }}>
-                <span style={{ fontSize:10,color:"#4a4a6a",width:18,textAlign:"right",flexShrink:0 }}>{i+1}.</span>
-                <input value={q.text} onChange={e=>updateDraftQuestionText(i, e.target.value)} placeholder={i === 0 ? "e.g. Who's the most attractive?" : `Question ${i+1}`}
-                  style={{ flex:1,padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
-                    color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",minWidth:0 }} />
-                <select value={q.genderFilter || ""} onChange={e=>updateDraftQuestionGender(i, e.target.value)} title="Restrict picker pool for this question"
-                  style={{ width:54,padding:"6px 4px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
-                    color:q.genderFilter?(q.genderFilter==="Male"?"#4d8aff":"#ff5da0"):"#6a6a8a",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none",flexShrink:0,textAlign:"center" }}>
-                  <option value="">All</option>
-                  <option value="Male">♂ M</option>
-                  <option value="Female">♀ F</option>
-                </select>
-                {draftQuestions.length > 1 && (
-                  <button onClick={()=>removeDraftQuestion(i)} title="Remove question" style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#e94560",width:26,height:26,cursor:"pointer",fontSize:13,flexShrink:0 }}>×</button>
-                )}
-              </div>
-            ))}
+          <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+            {draftGroups.map((g, gIdx) => {
+              const isMultiGroup = draftGroups.length > 1;
+              return (
+                <div key={gIdx} style={{ padding:isMultiGroup?"10px 12px":0, background:isMultiGroup?"#0d0d18":"transparent", borderRadius:isMultiGroup?8:0, border:isMultiGroup?"1px solid #1e1e38":"none" }}>
+                  {isMultiGroup && (
+                    <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:6,marginBottom:8 }}>
+                      <input value={g.name} onChange={e=>updateGroupName(gIdx, e.target.value)} placeholder={`Section ${gIdx+1} name (optional)`}
+                        style={{ flex:1,padding:"5px 8px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:5,
+                          color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",minWidth:0 }} />
+                      <button onClick={()=>removeGroup(gIdx)} title="Remove this section" style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#e94560",fontSize:10,cursor:"pointer",padding:"4px 8px",fontFamily:"'Outfit',sans-serif",flexShrink:0 }}>× Section</button>
+                    </div>
+                  )}
+                  <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
+                    {g.questions.map((q, qIdx) => (
+                      <div key={qIdx} style={{ display:"flex",gap:4,alignItems:"center" }}>
+                        <span style={{ fontSize:10,color:"#4a4a6a",width:18,textAlign:"right",flexShrink:0 }}>{qIdx+1}.</span>
+                        <input value={q.text} onChange={e=>updateQuestionText(gIdx, qIdx, e.target.value)} placeholder={qIdx === 0 ? (isMultiGroup ? "First question in this section" : "e.g. Who's the most attractive?") : "Question text"}
+                          style={{ flex:1,padding:"6px 10px",background:isMultiGroup?"#12121f":"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                            color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",minWidth:0 }} />
+                        <select value={q.genderFilter || ""} onChange={e=>updateQuestionGender(gIdx, qIdx, e.target.value)} title="Restrict picker pool for this question"
+                          style={{ width:54,padding:"6px 4px",background:isMultiGroup?"#12121f":"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                            color:q.genderFilter?(q.genderFilter==="Male"?"#4d8aff":"#ff5da0"):"#6a6a8a",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none",flexShrink:0,textAlign:"center" }}>
+                          <option value="">All</option>
+                          <option value="Male">♂ M</option>
+                          <option value="Female">♀ F</option>
+                        </select>
+                        {(g.questions.length > 1 || draftGroups.length > 1) && (
+                          <button onClick={()=>removeQuestion(gIdx, qIdx)} title="Remove question" style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#e94560",width:26,height:26,cursor:"pointer",fontSize:13,flexShrink:0 }}>×</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:6,marginTop:8,flexWrap:"wrap" }}>
+                    <label style={{ display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:11,color:"#aaaabf" }}>
+                      <input type="checkbox" checked={!!g.uniqueWithin} onChange={e=>updateGroupUnique(gIdx, e.target.checked)} style={{ accentColor:"#e94560",width:13,height:13,flexShrink:0 }} />
+                      <span>Unique picks {isMultiGroup ? "within this section" : "across all questions"}</span>
+                    </label>
+                    <Btn small variant="ghost" onClick={()=>addQuestion(gIdx)} disabled={totalDraftQuestions >= MAX_QUESTIONS_PER_POLL}>+ Question</Btn>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <div style={{ marginTop:10,display:"flex",justifyContent:"space-between",gap:6,flexWrap:"wrap",alignItems:"center" }}>
-            <Btn small variant="ghost" onClick={addDraftQuestion} disabled={draftQuestions.length >= MAX_QUESTIONS_PER_POLL}>+ Add Question</Btn>
-          </div>
-          {/* Constraint: unique-per-poll */}
-          <div style={{ marginTop:10,padding:"10px 12px",background:"#0d0d18",borderRadius:6,border:"1px solid #1e1e38" }}>
-            <label style={{ display:"flex",alignItems:"flex-start",gap:8,cursor:"pointer" }}>
-              <input type="checkbox" checked={draftUnique} onChange={e=>setDraftUnique(e.target.checked)} style={{ accentColor:"#e94560",width:14,height:14,marginTop:2,flexShrink:0 }} />
-              <div>
-                <div style={{ fontSize:12,fontWeight:600,color:"#e8e8f0" }}>Unique picks across questions</div>
-                <div style={{ fontSize:10,color:"#6a6a8a",marginTop:2,lineHeight:1.4 }}>Each manager must pick a different contestant for each question (Snog Marry Pie rule). Cross-gender questions are naturally unique already.</div>
-              </div>
-            </label>
+          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:10,gap:6,flexWrap:"wrap" }}>
+            <Btn small variant="ghost" onClick={addGroup} disabled={totalDraftQuestions >= MAX_QUESTIONS_PER_POLL}>+ Add Section</Btn>
+            <Btn small onClick={createPoll} disabled={!draftName.trim() || totalDraftQuestions === 0 || !draftGroups.some(g => g.questions.some(q => q.text.trim()))}>Post Poll</Btn>
           </div>
           <div style={{ fontSize:10,color:"#6a6a8a",marginTop:8,fontStyle:"italic",lineHeight:1.4 }}>
-            Each question can restrict its picker pool to Male / Female / All via the M/F dropdown. To run Snog Marry Pie covering both genders in one poll, add 6 questions (3 Male + 3 Female) and check the unique-picks box.
-          </div>
-          <div style={{ display:"flex",justifyContent:"flex-end",marginTop:8 }}>
-            <Btn small onClick={createPoll} disabled={!draftName.trim() || !draftQuestions.some(q => q.text.trim())}>Post Poll</Btn>
+            Each section's "Unique picks" rule applies to questions in that section only. Use sections when different groups of questions need different rules — e.g. SMP covering Boys + Girls (Boys section with Unique on, Girls section with Unique on).
           </div>
         </div>
       )}
@@ -3574,33 +3629,34 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
       {polls.length === 0 ? (
         <EmptyState message={isCommissioner ? "No polls yet. Create one above." : "Waiting for the commissioner to post a poll."} />
       ) : polls.map(poll => {
-        const questions = poll.questions || (poll.question ? [{ id: "q1", text: poll.question }] : []);
+        const groups = effectiveGroups(poll);
+        const allQuestions = flattenGroupQuestions(groups);
         const allPicks = poll.picks || {};
         const teamsSubmitted = Object.keys(allPicks);
         const totalTeams = (league.teams||[]).length;
         const submitted = team ? !!allPicks[team.id] : false;
         const draft = drafts[poll.id] || {};
-        // Pool per question — each question can independently restrict to Male/Female/All.
-        // Backward-compat: a poll-level genderFilter (legacy v2.4.39.0 polls) cascades to
-        // any question that doesn't have its own filter set.
         const poolForQuestion = (q) => {
           const gf = effectiveQuestionGender(poll, q);
           return activeContestants.filter(c => !gf || c.gender === gf);
         };
-        // For the unique constraint: already-drafted contestant ids in THIS poll's draft
-        const draftedIds = new Set(Object.values(draft).filter(Boolean));
-        const allAnswered = questions.every(q => draft[q.id]);
-        const uniqueOk = !poll.uniquePerPoll || (new Set(Object.values(draft).filter(Boolean)).size === questions.length);
+        const allAnswered = allQuestions.every(q => draft[q.id]);
+        const failingGroupIdx = groups.findIndex(g => {
+          if (!g.uniqueWithin) return false;
+          const picked = g.questions.map(q => draft[q.id]).filter(Boolean);
+          return new Set(picked).size !== picked.length;
+        });
+        const uniqueOk = failingGroupIdx === -1;
         const canSubmit = !submitted && !poll.closed && team && allAnswered && uniqueOk;
+        const hasMultipleGroups = groups.length > 1;
 
         return (
           <div key={poll.id} style={{ marginBottom:14,padding:"14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",opacity:poll.closed?0.7:1 }}>
-            {/* Poll header */}
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:8 }}>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:10 }}>
               <div style={{ flex:1,minWidth:0 }}>
                 <div style={{ fontSize:15,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:"#e8e8f0",lineHeight:1.2,letterSpacing:"-0.01em",wordBreak:"break-word" }}>{poll.name || "(untitled)"}</div>
                 <div style={{ fontSize:10,color:"#6a6a8a",marginTop:3 }}>
-                  {questions.length} question{questions.length===1?"":"s"} · {teamsSubmitted.length} of {totalTeams} submitted{poll.closed?" · CLOSED":""}
+                  {allQuestions.length} question{allQuestions.length===1?"":"s"}{hasMultipleGroups?` · ${groups.length} sections`:""} · {teamsSubmitted.length} of {totalTeams} submitted{poll.closed?" · CLOSED":""}
                 </div>
               </div>
               {isCommissioner && (
@@ -3610,63 +3666,74 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
                 </div>
               )}
             </div>
-            {/* Constraint chips — only show poll-level constraints here. Per-question
-                gender filters appear inline next to each Qn label below. */}
-            {poll.uniquePerPoll && (
-              <div style={{ display:"flex",gap:4,flexWrap:"wrap",marginBottom:10 }}>
-                <span style={{ fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:99,background:"#4ecdc418",color:"#4ecdc4",letterSpacing:"0.04em",textTransform:"uppercase" }}>Unique picks</span>
-              </div>
-            )}
 
-            {/* Manager view: if submitted, show locked picks; otherwise show picker form */}
             {team && (submitted ? (
               <div style={{ marginBottom:12,padding:"10px 12px",background:"#0d0d18",borderRadius:8,border:"1px solid #4ecdc433" }}>
                 <div style={{ fontSize:10,fontWeight:700,color:"#4ecdc4",letterSpacing:"0.05em",textTransform:"uppercase",marginBottom:6 }}>✓ Your picks (locked)</div>
-                <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
-                  {questions.map((q, qIdx) => {
-                    const qGender = effectiveQuestionGender(poll, q);
-                    return (
-                      <div key={q.id} style={{ display:"flex",alignItems:"center",gap:8,fontSize:12 }}>
-                        <span style={{ color:"#6a6a8a",fontWeight:700,minWidth:24 }}>Q{qIdx+1}</span>
-                        {qGender && <span style={{ fontSize:8,fontWeight:700,padding:"1px 5px",borderRadius:99,background:qGender==="Male"?"#4d8aff22":"#ff5da022",color:qGender==="Male"?"#4d8aff":"#ff5da0",letterSpacing:"0.04em",textTransform:"uppercase",flexShrink:0 }}>{qGender[0]}</span>}
-                        <span style={{ color:"#8888aa",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{q.text}</span>
-                        <span style={{ color:"#e8e8f0",fontWeight:600,flexShrink:0 }}>{byId[allPicks[team.id]?.[q.id]]?.name || "—"}</span>
-                      </div>
-                    );
-                  })}
-                </div>
+                {groups.map((g, gIdx) => (
+                  <div key={g.id || gIdx} style={{ marginTop:gIdx>0?10:0 }}>
+                    {hasMultipleGroups && (
+                      <div style={{ fontSize:10,fontWeight:700,color:"#8888aa",letterSpacing:"0.04em",textTransform:"uppercase",marginBottom:4 }}>{g.name || `Section ${gIdx+1}`}</div>
+                    )}
+                    <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
+                      {g.questions.map((q, qIdx) => {
+                        const qGender = effectiveQuestionGender(poll, q);
+                        return (
+                          <div key={q.id} style={{ display:"flex",alignItems:"center",gap:8,fontSize:12 }}>
+                            <span style={{ color:"#6a6a8a",fontWeight:700,minWidth:24 }}>Q{qIdx+1}</span>
+                            {qGender && <span style={{ fontSize:8,fontWeight:700,padding:"1px 5px",borderRadius:99,background:qGender==="Male"?"#4d8aff22":"#ff5da022",color:qGender==="Male"?"#4d8aff":"#ff5da0",letterSpacing:"0.04em",textTransform:"uppercase",flexShrink:0 }}>{qGender[0]}</span>}
+                            <span style={{ color:"#8888aa",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{q.text}</span>
+                            <span style={{ color:"#e8e8f0",fontWeight:600,flexShrink:0 }}>{byId[allPicks[team.id]?.[q.id]]?.name || "—"}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : !poll.closed && (
               <div style={{ marginBottom:12,padding:"10px 12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38" }}>
                 <div style={{ fontSize:10,fontWeight:700,color:"#6a6a8a",letterSpacing:"0.05em",textTransform:"uppercase",marginBottom:6 }}>Your picks (not yet submitted)</div>
-                <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
-                  {questions.map((q, qIdx) => {
-                    const myDraft = draft[q.id] || "";
-                    const qGender = effectiveQuestionGender(poll, q);
-                    // For unique constraint: exclude contestants picked for OTHER questions in this same draft
-                    const options = poolForQuestion(q).filter(c => !poll.uniquePerPoll || c.id === myDraft || !draftedIds.has(c.id));
-                    return (
-                      <div key={q.id}>
-                        <div style={{ display:"flex",gap:6,alignItems:"flex-start",marginBottom:4,flexWrap:"wrap" }}>
-                          <span style={{ fontSize:10,fontWeight:700,color:"#f5a623",flexShrink:0,marginTop:2 }}>Q{qIdx+1}</span>
-                          <div style={{ flex:1,fontSize:12,color:"#e8e8f0",lineHeight:1.4,wordBreak:"break-word",minWidth:0 }}>{q.text}</div>
-                          {qGender && <span style={{ fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:99,background:qGender==="Male"?"#4d8aff22":"#ff5da022",color:qGender==="Male"?"#4d8aff":"#ff5da0",letterSpacing:"0.04em",textTransform:"uppercase",flexShrink:0,marginTop:2 }}>{qGender}</span>}
-                        </div>
-                        <select value={myDraft} onChange={e=>setDraftPick(poll.id, q.id, e.target.value)} style={{
-                          width:"100%",padding:"7px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,
-                          color:myDraft?"#e8e8f0":"#6a6a8a",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",boxSizing:"border-box",
-                        }}>
-                          <option value="">— pick —</option>
-                          {options.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
+                {groups.map((g, gIdx) => (
+                  <div key={g.id || gIdx} style={{ marginTop:gIdx>0?12:0 }}>
+                    {hasMultipleGroups && (
+                      <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:6 }}>
+                        <span style={{ fontSize:10,fontWeight:700,color:"#aaaabf",letterSpacing:"0.04em",textTransform:"uppercase" }}>{g.name || `Section ${gIdx+1}`}</span>
+                        {g.uniqueWithin && <span style={{ fontSize:8,fontWeight:700,padding:"1px 6px",borderRadius:99,background:"#4ecdc418",color:"#4ecdc4",letterSpacing:"0.04em",textTransform:"uppercase",flexShrink:0 }}>Unique</span>}
                       </div>
-                    );
-                  })}
-                </div>
-                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:10,gap:6 }}>
+                    )}
+                    <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
+                      {g.questions.map((q, qIdx) => {
+                        const myDraft = draft[q.id] || "";
+                        const qGender = effectiveQuestionGender(poll, q);
+                        const sameGroupDrafted = g.uniqueWithin
+                          ? new Set(g.questions.filter(other => other.id !== q.id).map(other => draft[other.id]).filter(Boolean))
+                          : null;
+                        const options = poolForQuestion(q).filter(c => !sameGroupDrafted || !sameGroupDrafted.has(c.id));
+                        return (
+                          <div key={q.id}>
+                            <div style={{ display:"flex",gap:6,alignItems:"flex-start",marginBottom:4,flexWrap:"wrap" }}>
+                              <span style={{ fontSize:10,fontWeight:700,color:"#f5a623",flexShrink:0,marginTop:2 }}>Q{qIdx+1}</span>
+                              <div style={{ flex:1,fontSize:12,color:"#e8e8f0",lineHeight:1.4,wordBreak:"break-word",minWidth:0 }}>{q.text}</div>
+                              {qGender && <span style={{ fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:99,background:qGender==="Male"?"#4d8aff22":"#ff5da022",color:qGender==="Male"?"#4d8aff":"#ff5da0",letterSpacing:"0.04em",textTransform:"uppercase",flexShrink:0,marginTop:2 }}>{qGender}</span>}
+                            </div>
+                            <select value={myDraft} onChange={e=>setDraftPick(poll.id, q.id, e.target.value)} style={{
+                              width:"100%",padding:"7px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,
+                              color:myDraft?"#e8e8f0":"#6a6a8a",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",boxSizing:"border-box",
+                            }}>
+                              <option value="">— pick —</option>
+                              {options.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:10,gap:6,flexWrap:"wrap" }}>
                   <div style={{ fontSize:10,color:allAnswered && uniqueOk ? "#4ecdc4" : "#6a6a8a",fontStyle:"italic" }}>
-                    {!allAnswered ? `Answer all ${questions.length} question${questions.length===1?"":"s"} to submit.` :
-                     !uniqueOk ? "Pick different contestants for each question." :
+                    {!allAnswered ? `Answer all ${allQuestions.length} question${allQuestions.length===1?"":"s"} to submit.` :
+                     !uniqueOk ? `Pick different contestants within ${groups[failingGroupIdx]?.name || `Section ${failingGroupIdx+1}`}.` :
                      "Ready to submit — picks lock after submit."}
                   </div>
                   <Btn small onClick={()=>submitPoll(poll.id)} disabled={!canSubmit}>Submit My Picks</Btn>
@@ -3674,64 +3741,72 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
               </div>
             ))}
 
-            {/* Per-team picks (visible after submit) + per-question tally */}
-            <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
-              {questions.map((q, qIdx) => {
-                const tally = {};
-                Object.values(allPicks).forEach(tp => {
-                  const cid = tp?.[q.id];
-                  if (cid) tally[cid] = (tally[cid] || 0) + 1;
-                });
-                const tallyEntries = Object.entries(tally).map(([id, c]) => ({ id, count: c })).sort((a,b) => b.count - a.count);
-                const totalPicks = tallyEntries.reduce((s, e) => s + e.count, 0);
-                const qGender = effectiveQuestionGender(poll, q);
-                return (
-                  <div key={q.id} style={{ paddingTop:qIdx>0?12:0,borderTop:qIdx>0?"1px solid #1e1e38":"none" }}>
-                    <div style={{ display:"flex",gap:6,alignItems:"flex-start",marginBottom:6,flexWrap:"wrap" }}>
-                      <span style={{ fontSize:10,fontWeight:700,color:"#f5a623",letterSpacing:"0.04em",flexShrink:0,marginTop:2 }}>Q{qIdx+1}</span>
-                      <div style={{ flex:1,fontSize:12,fontWeight:600,color:"#aaaabf",lineHeight:1.4,wordBreak:"break-word",minWidth:0 }}>{q.text}</div>
-                      {qGender && <span style={{ fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:99,background:qGender==="Male"?"#4d8aff22":"#ff5da022",color:qGender==="Male"?"#4d8aff":"#ff5da0",letterSpacing:"0.04em",textTransform:"uppercase",flexShrink:0,marginTop:2 }}>{qGender}</span>}
-                    </div>
-                    {totalPicks > 0 && (
-                      <div style={{ marginBottom:tallyEntries.length>0?6:0 }}>
-                        <div style={{ fontSize:9,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3 }}>Picks</div>
-                        <div style={{ display:"flex",flexDirection:"column",gap:2 }}>
-                          {(league.teams||[]).map(t => {
-                            const pid = allPicks[t.id]?.[q.id];
-                            if (!pid) return null;
-                            return (
-                              <div key={t.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"3px 8px",background:"#0d0d18",borderRadius:5 }}>
-                                <span style={{ fontSize:11,color:"#8888aa",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flexShrink:1,minWidth:0 }}>{t.name}</span>
-                                <span style={{ fontSize:11,color:"#4a4a6a" }}>→</span>
-                                <span style={{ fontSize:11,color:"#e8e8f0",fontWeight:600,flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{byId[pid]?.name || "—"}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                    {tallyEntries.length > 0 && (
-                      <div>
-                        <div style={{ fontSize:9,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3 }}>Tally</div>
-                        <div style={{ display:"flex",flexDirection:"column",gap:1 }}>
-                          {tallyEntries.map(e => {
-                            const pct = totalPicks > 0 ? Math.round((e.count / totalPicks) * 100) : 0;
-                            return (
-                              <div key={e.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"3px 0" }}>
-                                <span style={{ flex:1,minWidth:0,fontSize:12,fontWeight:600,color:"#e8e8f0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{byId[e.id]?.name || "—"}</span>
-                                <span style={{ fontSize:11,color:"#f5a623",fontWeight:700,minWidth:50,textAlign:"right" }}>{e.count} ({pct}%)</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
+            {groups.map((g, gIdx) => (
+              <div key={g.id || gIdx} style={{ marginTop:gIdx>0?14:0 }}>
+                {hasMultipleGroups && (
+                  <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:8,paddingBottom:6,borderBottom:"1px solid #1e1e38" }}>
+                    <span style={{ fontSize:11,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:"#e8e8f0",letterSpacing:"-0.01em" }}>{g.name || `Section ${gIdx+1}`}</span>
+                    {g.uniqueWithin && <span style={{ fontSize:8,fontWeight:700,padding:"1px 6px",borderRadius:99,background:"#4ecdc418",color:"#4ecdc4",letterSpacing:"0.04em",textTransform:"uppercase" }}>Unique</span>}
                   </div>
-                );
-              })}
-            </div>
+                )}
+                <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
+                  {g.questions.map((q, qIdx) => {
+                    const tally = {};
+                    Object.values(allPicks).forEach(tp => {
+                      const cid = tp?.[q.id];
+                      if (cid) tally[cid] = (tally[cid] || 0) + 1;
+                    });
+                    const tallyEntries = Object.entries(tally).map(([id, c]) => ({ id, count: c })).sort((a,b) => b.count - a.count);
+                    const totalPicks = tallyEntries.reduce((s, e) => s + e.count, 0);
+                    const qGender = effectiveQuestionGender(poll, q);
+                    return (
+                      <div key={q.id} style={{ paddingTop:qIdx>0?12:0,borderTop:qIdx>0?"1px solid #1e1e38":"none" }}>
+                        <div style={{ display:"flex",gap:6,alignItems:"flex-start",marginBottom:6,flexWrap:"wrap" }}>
+                          <span style={{ fontSize:10,fontWeight:700,color:"#f5a623",letterSpacing:"0.04em",flexShrink:0,marginTop:2 }}>Q{qIdx+1}</span>
+                          <div style={{ flex:1,fontSize:12,fontWeight:600,color:"#aaaabf",lineHeight:1.4,wordBreak:"break-word",minWidth:0 }}>{q.text}</div>
+                          {qGender && <span style={{ fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:99,background:qGender==="Male"?"#4d8aff22":"#ff5da022",color:qGender==="Male"?"#4d8aff":"#ff5da0",letterSpacing:"0.04em",textTransform:"uppercase",flexShrink:0,marginTop:2 }}>{qGender}</span>}
+                        </div>
+                        {totalPicks > 0 && (
+                          <div style={{ marginBottom:tallyEntries.length>0?6:0 }}>
+                            <div style={{ fontSize:9,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3 }}>Picks</div>
+                            <div style={{ display:"flex",flexDirection:"column",gap:2 }}>
+                              {(league.teams||[]).map(t => {
+                                const pid = allPicks[t.id]?.[q.id];
+                                if (!pid) return null;
+                                return (
+                                  <div key={t.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"3px 8px",background:"#0d0d18",borderRadius:5 }}>
+                                    <span style={{ fontSize:11,color:"#8888aa",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flexShrink:1,minWidth:0 }}>{t.name}</span>
+                                    <span style={{ fontSize:11,color:"#4a4a6a" }}>→</span>
+                                    <span style={{ fontSize:11,color:"#e8e8f0",fontWeight:600,flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{byId[pid]?.name || "—"}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        {tallyEntries.length > 0 && (
+                          <div>
+                            <div style={{ fontSize:9,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3 }}>Tally</div>
+                            <div style={{ display:"flex",flexDirection:"column",gap:1 }}>
+                              {tallyEntries.map(e => {
+                                const pct = totalPicks > 0 ? Math.round((e.count / totalPicks) * 100) : 0;
+                                return (
+                                  <div key={e.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"3px 0" }}>
+                                    <span style={{ flex:1,minWidth:0,fontSize:12,fontWeight:600,color:"#e8e8f0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{byId[e.id]?.name || "—"}</span>
+                                    <span style={{ fontSize:11,color:"#f5a623",fontWeight:700,minWidth:50,textAlign:"right" }}>{e.count} ({pct}%)</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
 
-            {/* Commissioner-only: per-team clear */}
             {isCommissioner && teamsSubmitted.length > 0 && (
               <div style={{ marginTop:12,paddingTop:10,borderTop:"1px solid #1e1e38" }}>
                 <div style={{ fontSize:9,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:5 }}>Commissioner — clear a team's picks</div>
