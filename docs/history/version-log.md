@@ -42,7 +42,7 @@
   - **Multi-league users** > 10% = users are forming repeat behaviors across shows.
   - **Leagues with finalize** > 50% = leagues are actually being played to completion, not abandoned.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.25s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `d13859f`
 
 ### v2.6.13.0 — 2026-06-01
 **Type-the-name confirmation for league deletion.** The old `confirm("Delete this league permanently?")` was too easy to accept by reflex — a stray double-tap on the trash icon could wipe an entire season's data with one click. Now the delete flow requires the user to type the exact league name to confirm.
