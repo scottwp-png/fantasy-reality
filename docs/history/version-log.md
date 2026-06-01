@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.41.0
+**Current Production Version:** v2.4.42.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~7,720
+**App.jsx Line Count:** ~7,670
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,18 @@
 ---
 
 ## Version Log
+
+### v2.4.42.0 — 2026-06-01
+Two related cleanups: (1) **`WeeklyBreakdownSection` removed** from the bottom of the Standings tab and the component itself deleted (~50 lines). It was largely duplicating the top-of-tab standings list with the same per-team numbers in a less informative format. (2) **`PollsSection` relocated from My Roster (DepthChartTab) to the Standings tab** in the same place. Polls are league-wide social content — Standings is the universal landing tab so everyone sees polls without having to navigate to a format-specific tab. The My Roster pill bar drops the Polls pill (now: Depth Chart + Team History only). All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **`WeeklyBreakdownSection` deleted** at the prior `App.jsx:1325-1374`. Component definition + the `{standings.length > 0 && <WeeklyBreakdownSection .../>}` render at the bottom of `StandingsTab` are both gone. Net file shrinkage: ~50 lines. The existing per-team standings rows at the top of the tab cover the same per-team information with better visual treatment (medal accent for top 3, expandable roster breakdown via the v2.4.20–25 expanded card).
+- **`PollsSection` rendered at the bottom of `StandingsTab`** at `App.jsx:1432-1437`. Wrapped in a `<div style={{ marginTop:24, paddingTop:16, borderTop:"1px solid #1e1e38" }}>` with a top-level `Polls` heading, then the existing component embedded. Receives `team` resolved from `(league.teams||[]).find(t => t.id === myTeamId)` — uses the logged-in user's team (which polls cares about) rather than any depth-chart-selected team.
+- **New props threaded to `StandingsTab`** at `App.jsx:1338` (call site) and `App.jsx:1431` (signature). `onUpdate`, `isCommissioner`, `myTeamId` flow from `LeagueDashboard` (where they already exist). The function signature was `({ league, standings })`; now `({ league, standings, onUpdate, isCommissioner, myTeamId })`.
+- **My Roster pill bar pruned** at `App.jsx:4373-4385`. The `{ id:"polls", label:"Polls" }` entry is dropped; the `{myRosterMode === "polls" && <PollsSection .../>}` render line is dropped. Pill bar is now two pills: `Depth Chart` and `Team History`. Header comment at `App.jsx:3810-3814` updated to reflect the new layout.
+- **Spoiler behavior.** Polls render INSIDE the `SpoilerBlur` wrapper that already wraps `StandingsTab` in `LeagueDashboard`. When a spoiler is active (finalized week within grace period), the entire Standings tab is blurred including polls. Acceptable behavior — once the user reveals the spoiler to see standings, polls become visible too. If anyone complains about polls being blurred unnecessarily, a future fix could pull polls out of the spoiler wrapper.
+- **What this commit does NOT do.** No data migration (no data shape changed). No re-add of any per-week breakdown view (the Standings tab's expanded-row roster breakdown already serves that purpose). No "Polls" dedicated nav tab — they live at the bottom of Standings to keep the nav clean.
+- **Not yet smoke-tested in browser** — recommended smoke: (a) open Standings, verify the standings list renders at the top and the Polls section renders at the bottom with a thin separator; (b) verify the redundant Season/Week Breakdown panel is gone; (c) verify the My Roster pill bar shows only Depth Chart + Team History (no Polls pill); (d) as commissioner, create a poll from Standings → bottom, verify it shows up immediately; (e) as a non-commissioner viewer, verify Standings polls still render and you can submit picks.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (3.87s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.41.0 — 2026-06-01
 Poll **question groups** (called "sections" in the UI). A poll's questions now live inside one or more groups, each with its own optional `uniqueWithin` rule. This unlocks combined-gender Snog Marry Pie in a single poll: section 1 "Boys SMP" with 3 Male-filtered questions + Unique on; section 2 "Girls SMP" with 3 Female-filtered questions + Unique on. Single-section polls keep the simple, flat-looking UI from v2.4.40.0 — the section chrome only appears when a second section is added. Backward-compatible: v2.4.36–40 polls (flat `questions` array with optional poll-level `uniquePerPoll`/`genderFilter`) collapse into a single default group on read via the new `effectiveGroups(poll)` normalizer. All 10 regression baselines pass byte-identical, `npm run build` clean.

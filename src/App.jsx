@@ -1292,7 +1292,7 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
       </div>
 
       <div style={{ padding:20 }}>
-        {tab === "standings" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><StandingsTab league={league} standings={standings} /></SpoilerBlur>}
+        {tab === "standings" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><StandingsTab league={league} standings={standings} onUpdate={onUpdate} isCommissioner={isCommissioner} myTeamId={loggedInTeamId} /></SpoilerBlur>}
         {tab === "contestants" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><ContestantsTab league={league} onUpdate={isCommissioner?onUpdate:null} setModal={isCommissioner?setModal:()=>{}} setEditing={isCommissioner?setEditingItem:()=>{}} readOnly={!isCommissioner} /></SpoilerBlur>}
         {tab === "scoring" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><ScoringTab league={league} onUpdate={isCommissioner ? onUpdate : null} isCommissioner={isCommissioner} /></SpoilerBlur>}
         {tab === "weekly-draft" && isCommissioner && <WeeklyDraftTab league={league} onUpdate={onUpdate} standings={standings} />}
@@ -1322,58 +1322,7 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // STANDINGS TAB
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Weekly breakdown sub-panel that lives at the bottom of the Standings tab.
-// Used to also include a Cast subsection (contestant leaderboard); that's been
-// removed since the Cast tab already provides a sortable contestant list. Now
-// just shows per-team scores with a week selector.
-function WeeklyBreakdownSection({ league, standings }) {
-  const weeks = Object.keys(league.weeklyScores || {}).sort((a,b)=>+a - +b);
-  const [selectedView, setSelectedView] = useState("overall");
-
-  if (weeks.length === 0) return null;
-
-  const viewOptions = [
-    { value: "overall", label: "Overall" },
-    ...weeks.map(w => ({ value: w, label: cadenceLabel(league, w) }))
-  ];
-
-  return (
-    <div style={{ marginTop:24 }}>
-      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
-        <h4 style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:15,color:"#e8e8f0",margin:0 }}>
-          {selectedView === "overall" ? "Season Breakdown" : `${cadenceLabel(league, selectedView)} Breakdown`}
-        </h4>
-        <select value={selectedView} onChange={e => setSelectedView(e.target.value)} style={{
-          padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
-          color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",cursor:"pointer"
-        }}>
-          {viewOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      </div>
-
-      <div>
-        <div style={{ fontSize:11,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",marginBottom:8 }}>Teams</div>
-        {standings.map((team, i) => {
-          const pts = selectedView === "overall" ? team.total : (team.weeklyTotals?.[selectedView] || 0);
-          return (
-            <div key={team.id} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid #1a1a30" }}>
-              <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-                <span style={{ fontSize:12,fontWeight:700,color:i<3?"#f5a623":"#4a4a6a",width:20 }}>{i+1}</span>
-                <span style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>{team.name}</span>
-              </div>
-              <span style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:14,
-                color:pts>0?"#4ecdc4":pts<0?"#e94560":"#6a6a8a" }}>
-                {pts>0?"+":""}{formatPts(pts, league)}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function StandingsTab({ league, standings }) {
+function StandingsTab({ league, standings, onUpdate, isCommissioner, myTeamId }) {
   const weeks = Object.keys(league.weeklyScores || {}).sort((a,b)=>+a - +b);
   const [expanded, setExpanded] = useState(null);
   // teamModalId: when set, render <TeamProfileModal> for that team. Driven by
@@ -1661,9 +1610,12 @@ function StandingsTab({ league, standings }) {
           })}
         </div>
       )}
-      {standings.length > 0 && (
-        <WeeklyBreakdownSection league={league} standings={standings} />
-      )}
+      {/* League-wide polls — moved here from My Roster in v2.4.42.0 so they're
+          visible to all managers (Standings is the universal landing tab). */}
+      <div style={{ marginTop:24,paddingTop:16,borderTop:"1px solid #1e1e38" }}>
+        <h3 style={{ margin:"0 0 12px",fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Polls</h3>
+        <PollsSection league={league} team={(league.teams||[]).find(t => t.id === myTeamId)} onUpdate={onUpdate} isCommissioner={isCommissioner} />
+      </div>
       {teamModalTeam && (
         <TeamProfileModal team={teamModalTeam} league={league} standings={standings} onClose={()=>setTeamModalId(null)} />
       )}
@@ -3855,11 +3807,11 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
   const [customColor, setCustomColor] = useState("");
   const [customAvatar, setCustomAvatar] = useState("");
   const [customName, setCustomName] = useState("");
-  // Pill bar inside My Roster — three views: depth chart editor (the existing
-  // primary UI), team game log (formerly "Team History"), and league-wide
-  // Polls (commissioner-driven side-game, see PollsSection above). The pill
-  // bar sits below the team selector so switching modes doesn't lose the
-  // selected team.
+  // Pill bar inside My Roster — two views: the depth chart editor (the
+  // primary UI) and Team History (per-week breakdown of past depth charts).
+  // Polls used to live here too but moved to the Standings tab in v2.4.42.0
+  // so they're visible to all managers without spelunking. The pill bar
+  // sits below the team selector so switching modes preserves the team.
   const [myRosterMode, setMyRosterMode] = useState("depth");
   const [editingWeek, setEditingWeek] = useState(null); // null = current week, number = past week
 
@@ -4422,7 +4374,6 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
         {[
           { id:"depth", label:"Depth Chart" },
           { id:"log", label:"Team History" },
-          { id:"polls", label:"Polls" },
         ].map(m => (
           <button key={m.id} onClick={()=>setMyRosterMode(m.id)} style={{
             padding:"6px 14px",borderRadius:99,border:myRosterMode===m.id?"1px solid #e9456044":"1px solid #1e1e38",
@@ -4431,8 +4382,6 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
           }}>{m.label}</button>
         ))}
       </div>
-
-      {myRosterMode === "polls" && <PollsSection league={league} team={team} onUpdate={onUpdate} isCommissioner={isCommissioner} />}
 
       {myRosterMode === "depth" && <>
       {/* Roster table */}
