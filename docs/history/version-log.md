@@ -40,7 +40,7 @@
   - On the next league save, the `scoringCadence` field stays dormant (no writes); the new `episodesPerWeek` field can be set explicitly via Settings.
 - **Not yet smoke-tested in browser** — recommended smoke: (a) verify Settings → General now shows "Episodes per Week" as a number input (no toggle), pre-filled with the league's current effective value; (b) change it from 1 to 6 on a test league, verify labels everywhere flip from "Week" to "Episode"; (c) change back to 1, verify labels flip back; (d) verify CreateLeagueScreen no longer has the "Per-Episode Scoring" toggle and picking Love Island as the show pre-fills Episodes per Week with 6.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (3.95s). `src/scoring.js` gate simplified (one fewer condition); engine behavior unchanged on all baseline inputs.
-- **Commit:** `_pending_`
+- **Commit:** `3da31f6`
 
 ### v2.4.37.0 — 2026-06-01
 Polls grow up: a single poll can now have **1 to 5 questions**, each with its own per-manager contestant pick. Replaces v2.4.36.0's one-question-per-poll model so Snog/Marry/Pie is now a single poll named "Snog Marry Pie" with three questions (Snog, Marry, Pie) instead of three separate polls cluttering the list. Data shape updates from `polls[].question: string` + `picks: {teamId: contestantId}` to `polls[].questions: [{id, text}]` + `picks: {teamId: {questionId: contestantId}}`. A defensive read path on the display side handles legacy single-question polls (`{question: "X"}`) by treating them as a one-question poll, so any test polls created during v2.4.36.0's ~hour of life keep working. All 10 regression baselines pass byte-identical, `npm run build` clean.
