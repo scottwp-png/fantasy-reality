@@ -341,6 +341,17 @@ function isRosterLocked(league) {
 // Wire this into key write paths: roster lock toggle, depth-chart save,
 // scoring save, team add/remove, week finalize. Not exhaustive by design —
 // "doesn't need to be robust, just a transaction log with timestamps".
+// v2.6.5.0: derive the show-wide scoring key from `league.seasonNumber` — a
+// structured integer — instead of free-text seasonName. Eliminates whitespace /
+// casing / "Season 47" vs "S47" mismatches that would silently drop events.
+// Returns null when the league hasn't picked a season number yet (the UI gates
+// useShowWideScoring on this field being set).
+function getShowSeasonKey(league) {
+  const n = Number(league?.seasonNumber);
+  if (!n || n < 1) return null;
+  return `season_${n}`;
+}
+
 // v2.6.3.0: merge show-wide event counts into a league's weeklyScores so
 // downstream consumers (calcStandings, calcContestantWeekPoints, the cast tab
 // breakdown, etc.) see them as additional per-rule scores on the same shape.
@@ -1024,6 +1035,9 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
   const [showType, setShowType] = useState("survivor");
   const [showName, setShowName] = useState("");
   const [seasonName, setSeasonName] = useState("");
+  // v2.6.5.0: structured season number used for show-wide scoring matching.
+  // Defaults to undefined (no commitment) — commissioner picks during create.
+  const [seasonNumber, setSeasonNumber] = useState("");
   const [format, setFormat] = useState("captains");
 
   // Step 2: Format config + scoring
@@ -1104,7 +1118,8 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
       name: name.trim(),
       showType,
       showName: showType === "custom" ? showName.trim() : preset.name,
-      seasonName: seasonName.trim() || "Season 1",
+      seasonName: seasonName.trim() || (seasonNumber ? `Season ${seasonNumber}` : "Season 1"),
+      ...(seasonNumber ? { seasonNumber: Number(seasonNumber) } : {}),
       format,
       captainsConfig: format === "captains" ? {
         regularSlots: Number(regularSlots),
@@ -1225,7 +1240,24 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
             { value:"amazing_race",label:"The Amazing Race" },{ value:"love_is_blind",label:"Love is Blind" },{ value:"custom",label:"Custom Show" },
           ]} />
           {showType === "custom" && <Input label="Show Name" placeholder="e.g. The Traitors" value={showName} onChange={e=>setShowName(e.target.value)} />}
-          <Input label="Season Name" placeholder="e.g. Season 22" value={seasonName} onChange={e=>setSeasonName(e.target.value)} />
+          {/* v2.6.5.0: Season number is a structured int used to key into
+              show-wide scoring (showScoring/<showType>/season_<n>/...). Season
+              name stays free-text for league branding. */}
+          <div style={{ display:"flex",gap:10 }}>
+            <div style={{ width:140 }}>
+              <Select label="Season #" value={seasonNumber} onChange={e=>{
+                const v = e.target.value;
+                setSeasonNumber(v);
+                if (!seasonName.trim() && v) setSeasonName(`Season ${v}`);
+              }} options={[
+                { value: "", label: "— Pick —" },
+                ...Array.from({length: 60}, (_, i) => ({ value: String(i+1), label: `Season ${i+1}` })),
+              ]} />
+            </div>
+            <div style={{ flex:1 }}>
+              <Input label="Season Name" placeholder={seasonNumber ? `Season ${seasonNumber}` : "e.g. Season 47"} value={seasonName} onChange={e=>setSeasonName(e.target.value)} />
+            </div>
+          </div>
 
           {wizardMode && (
             <div style={{ marginTop:8 }}>
@@ -6678,6 +6710,7 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
     name: league.name || "",
     showName: league.showName || "",
     seasonName: league.seasonName || "",
+    seasonNumber: league.seasonNumber ? String(league.seasonNumber) : "",
   });
   const [section, setSection] = useState("general");
   const [pendingCommissioner, setPendingCommissioner] = useState(null);
@@ -6691,7 +6724,15 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
   ];
 
   function saveLeagueInfo() {
-    onUpdate({ ...league, name: leagueInfo.name.trim(), showName: leagueInfo.showName.trim(), seasonName: leagueInfo.seasonName.trim() });
+    const sn = Number(leagueInfo.seasonNumber);
+    const next = {
+      ...league,
+      name: leagueInfo.name.trim(),
+      showName: leagueInfo.showName.trim(),
+      seasonName: leagueInfo.seasonName.trim(),
+      ...(sn && sn >= 1 ? { seasonNumber: sn } : { seasonNumber: null }),
+    };
+    onUpdate(next);
     setEditingInfo(false);
   }
 
@@ -6724,7 +6765,22 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
           <div>
             <Input label="League Name" value={leagueInfo.name} onChange={e=>setLeagueInfo({...leagueInfo,name:e.target.value})} />
             <Input label="Show Name" value={leagueInfo.showName} onChange={e=>setLeagueInfo({...leagueInfo,showName:e.target.value})} />
-            <Input label="Season Name" value={leagueInfo.seasonName} onChange={e=>setLeagueInfo({...leagueInfo,seasonName:e.target.value})} />
+            {/* v2.6.5.0: structured Season # selector — used for show-wide
+                scoring key matching. Season Name stays free-text for branding. */}
+            <div style={{ display:"flex",gap:10 }}>
+              <div style={{ width:140 }}>
+                <Select label="Season #" value={leagueInfo.seasonNumber} onChange={e=>setLeagueInfo({...leagueInfo, seasonNumber: e.target.value})} options={[
+                  { value: "", label: "— Unset —" },
+                  ...Array.from({length: 60}, (_, i) => ({ value: String(i+1), label: `Season ${i+1}` })),
+                ]} />
+              </div>
+              <div style={{ flex:1 }}>
+                <Input label="Season Name" value={leagueInfo.seasonName} onChange={e=>setLeagueInfo({...leagueInfo,seasonName:e.target.value})} />
+              </div>
+            </div>
+            <div style={{ fontSize:10,color:"#6a6a8a",marginTop:-8,marginBottom:14,fontStyle:"italic",lineHeight:1.4 }}>
+              Season # is the key the global admin scores against. Set this to opt into show-wide scoring without name-matching issues.
+            </div>
           </div>
         ) : (
           <div>
@@ -6738,7 +6794,7 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
             </div>
             <div style={{ display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #1a1a30" }}>
               <span style={{ color:"#6a6a8a",fontSize:12 }}>Season</span>
-              <span style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>{league.seasonName}</span>
+              <span style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>{league.seasonName}{league.seasonNumber ? ` (#${league.seasonNumber})` : ""}</span>
             </div>
             <div style={{ display:"flex",justifyContent:"space-between",padding:"6px 0" }}>
               <span style={{ color:"#6a6a8a",fontSize:12 }}>Current {cadenceWord(league)}</span>
@@ -6768,7 +6824,8 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
           component code in place so it can be re-enabled in one line.
       <LinkedScoringSection league={league} allLeagues={allLeagues} onUpdate={onUpdate} /> */}
 
-      {/* v2.6.3.0: opt-in for show-wide cascade scoring */}
+      {/* v2.6.3.0: opt-in for show-wide cascade scoring
+          v2.6.5.0: gates on league.seasonNumber being set (structured key). */}
       <div style={{ marginBottom:20,padding:"16px",background:league.useShowWideScoring?"#9d5dff11":"#12121f",borderRadius:10,border:league.useShowWideScoring?"1px solid #9d5dff33":"1px solid #1e1e38" }}>
         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12 }}>
           <div style={{ flex:1 }}>
@@ -6777,8 +6834,13 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
               {league.useShowWideScoring && <Badge color="#9d5dff">ON</Badge>}
             </div>
             <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.5 }}>
-              When on, this league picks up events the global admin scores for <strong style={{color:"#e8e8f0"}}>{(SHOW_PRESETS[league.showType]?.name) || league.showName}</strong> &middot; <strong style={{color:"#e8e8f0"}}>{league.seasonName || "this season"}</strong> at render time. Each event count is multiplied by THIS league's point value for that rule, so you keep full control of scoring magnitudes and rule definitions. Contestant names in your league need to match the names the admin uses (case-insensitive trim). You can still score per-league custom rules in the Scoring tab as today.
+              When on, this league picks up events the global admin scores for <strong style={{color:"#e8e8f0"}}>{(SHOW_PRESETS[league.showType]?.name) || league.showName}</strong> &middot; <strong style={{color:"#e8e8f0"}}>{league.seasonNumber ? `Season ${league.seasonNumber}` : "(season # not set)"}</strong> at render time. Each event count is multiplied by THIS league's point value for that rule. Contestant names in your league need to match the names the admin uses (case-insensitive trim).
             </div>
+            {league.useShowWideScoring && !league.seasonNumber && (
+              <div style={{ marginTop:8,padding:"8px 10px",background:"#e9456011",border:"1px solid #e9456033",borderRadius:6,fontSize:11,color:"#e94560",fontWeight:600 }}>
+                Set the Season # in General &rsaquo; League Info above to receive show-wide events. Without it the cascade key can't be computed.
+              </div>
+            )}
           </div>
           <Btn small variant={league.useShowWideScoring?"danger":"secondary"} onClick={()=>{
             const next = !league.useShowWideScoring;
@@ -7571,7 +7633,7 @@ export default function FantasyRealityTV() {
   useEffect(() => {
     if (!rawSelected?.useShowWideScoring) { setShowWideData(null); return; }
     const showType = rawSelected.showType;
-    const seasonKey = (rawSelected.seasonName || "").trim();
+    const seasonKey = getShowSeasonKey(rawSelected);
     if (!showType || !seasonKey) { setShowWideData(null); return; }
     let cancelled = false;
     (async () => {
@@ -7579,7 +7641,7 @@ export default function FantasyRealityTV() {
       if (!cancelled) setShowWideData(data || null);
     })();
     return () => { cancelled = true; };
-  }, [rawSelected?.id, rawSelected?.useShowWideScoring, rawSelected?.showType, rawSelected?.seasonName]);
+  }, [rawSelected?.id, rawSelected?.useShowWideScoring, rawSelected?.showType, rawSelected?.seasonNumber]);
   const selected = useMemo(
     () => rawSelected?.useShowWideScoring ? mergeShowWideScoring(rawSelected, showWideData) : rawSelected,
     [rawSelected, showWideData]
@@ -8034,7 +8096,9 @@ function AdminShowsTab() {
 // admin types here, they won't match; the commissioner can rename their
 // league's contestants to align.
 function ShowWideScoringSection({ selectedShow, mergedRules }) {
-  const [seasonKey, setSeasonKey] = useState("");
+  // v2.6.5.0: structured numeric Season # to match the league-side selector.
+  // Avoids string mismatches that silently drop events.
+  const [seasonNumber, setSeasonNumber] = useState("");
   const [episode, setEpisode] = useState("1");
   const [contestants, setContestants] = useState([]); // [{ name, scores: {ruleId: count} }]
   const [newName, setNewName] = useState("");
@@ -8042,13 +8106,15 @@ function ShowWideScoringSection({ selectedShow, mergedRules }) {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
 
+  const seasonKey = seasonNumber ? `season_${seasonNumber}` : "";
+
   // Load events for selected season + episode
   useEffect(() => {
-    if (!seasonKey.trim()) { setContestants([]); setLoaded(true); return; }
+    if (!seasonKey) { setContestants([]); setLoaded(true); return; }
     let cancelled = false;
     setLoaded(false);
     (async () => {
-      const data = await loadData(`showScoring/${selectedShow}/${seasonKey.trim()}/${episode}`, {});
+      const data = await loadData(`showScoring/${selectedShow}/${seasonKey}/${episode}`, {});
       if (cancelled) return;
       const list = Object.entries(data || {}).map(([name, scores]) => ({ name, scores: scores || {} }));
       setContestants(list);
@@ -8076,7 +8142,7 @@ function ShowWideScoringSection({ selectedShow, mergedRules }) {
   }
 
   async function saveAll() {
-    if (!seasonKey.trim()) return;
+    if (!seasonKey) return;
     setSaving(true);
     // Build the payload object: { [contestantName]: { [ruleId]: count } }
     const payload = {};
@@ -8087,7 +8153,7 @@ function ShowWideScoringSection({ selectedShow, mergedRules }) {
       });
       if (Object.keys(trimmed).length > 0) payload[c.name] = trimmed;
     });
-    await saveData(`showScoring/${selectedShow}/${seasonKey.trim()}/${episode}`, payload);
+    await saveData(`showScoring/${selectedShow}/${seasonKey}/${episode}`, payload);
     setSavedAt(Date.now());
     setSaving(false);
   }
@@ -8100,21 +8166,24 @@ function ShowWideScoringSection({ selectedShow, mergedRules }) {
           <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>Score events once; opted-in leagues consume at render time</div>
         </div>
         {savedAt && <span style={{ fontSize:11,color:"#4ecdc4" }}>Saved</span>}
-        <Btn small onClick={saveAll} disabled={saving || !seasonKey.trim()}>{saving?"Saving...":"Save"}</Btn>
+        <Btn small onClick={saveAll} disabled={saving || !seasonKey}>{saving?"Saving...":"Save"}</Btn>
       </div>
 
       <div style={{ display:"flex",gap:8,marginBottom:12 }}>
         <div style={{ flex:2 }}>
-          <Input label="Season key" placeholder={`e.g. "Season 50"`} value={seasonKey} onChange={e=>setSeasonKey(e.target.value)} />
+          <Select label="Season #" value={seasonNumber} onChange={e=>setSeasonNumber(e.target.value)} options={[
+            { value: "", label: "— Pick a season —" },
+            ...Array.from({length: 60}, (_, i) => ({ value: String(i+1), label: `Season ${i+1}` })),
+          ]} />
         </div>
         <div style={{ flex:1 }}>
           <Input label="Episode" type="number" min="1" value={episode} onChange={e=>setEpisode(String(Number(e.target.value) || 1))} />
         </div>
       </div>
 
-      {!seasonKey.trim() ? (
+      {!seasonKey ? (
         <div style={{ padding:"14px",textAlign:"center",background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a",color:"#8888aa",fontSize:12,lineHeight:1.6 }}>
-          Enter a season key (e.g. "Season 50") to start scoring. Leagues opt in via Settings &rsaquo; Roster &rsaquo; "Use show-wide scoring" and match by their own <code style={{color:"#aaaabf"}}>seasonName</code> field.
+          Pick a season number to start scoring. Leagues opt in via Settings &rsaquo; Roster &rsaquo; "Use show-wide scoring" and match by their own structured <code style={{color:"#aaaabf"}}>seasonNumber</code> — no string fuzziness.
         </div>
       ) : !loaded ? (
         <div style={{ padding:"20px",textAlign:"center",color:"#6a6a8a",fontSize:13 }}>Loading...</div>
@@ -8172,17 +8241,40 @@ function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }
   const [announcement, setAnnouncement] = useState("");
   const [savedAnnouncement, setSavedAnnouncement] = useState("");
 
+  // v2.6.5.0: parent-level read of `frtv_users` requires the v2.6.3.0 rules
+  // deploy. Until that lands, fall back to reading commissioner UIDs from
+  // every league + the current admin's uid individually (those READS are
+  // allowed by the existing per-uid rule). Approximates the user count from
+  // what we can see; once rules deploy, the collection read returns the
+  // accurate full set.
+  const [userCountFallbackUsed, setUserCountFallbackUsed] = useState(false);
   useEffect(() => {
     (async () => {
       try {
         const profiles = await loadAllUserProfiles();
-        setUsers(profiles);
+        if (profiles && Object.keys(profiles).length > 0) {
+          setUsers(profiles);
+          setUserCountFallbackUsed(false);
+        } else {
+          // Fallback: per-uid reads for every commissioner UID we can see.
+          const uids = new Set();
+          leagues.forEach(l => { if (l.commissionerUid) uids.add(l.commissionerUid); });
+          const fetched = {};
+          await Promise.all([...uids].map(async uid => {
+            try {
+              const p = await loadUserProfile(uid);
+              if (p) fetched[uid] = p;
+            } catch {}
+          }));
+          setUsers(fetched);
+          setUserCountFallbackUsed(true);
+        }
         const ann = await loadData("site_announcement", "");
         setAnnouncement(ann || "");
         setSavedAnnouncement(ann || "");
       } catch {}
     })();
-  }, []);
+  }, [leagues]);
 
   async function saveAnnouncement() {
     const { saveData } = await import("./firebase.js");

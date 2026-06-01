@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.4.0
+**Current Production Version:** v2.6.5.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~8,500
+**App.jsx Line Count:** ~8,540
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,16 @@
 ---
 
 ## Version Log
+
+### v2.6.5.0 — 2026-06-01
+**Structured Season # selector for show-wide scoring + Stats user-count fallback.** Two follow-ups to v2.6.3.0 — both addressing real friction in the show-wide cascade and admin observability.
+- **`league.seasonNumber` integer field** + `getShowSeasonKey(league)` helper at `App.jsx:339-345`. Replaces the v2.6.3.0 plan to key show-wide scoring by free-text `seasonName`. The merge now derives the RTDB key as `season_${n}` from the structured integer — eliminates whitespace / casing / "Season 47" vs "S47" mismatches that would silently drop events.
+- **Dropdown selector in three places** — CreateLeagueScreen at `App.jsx:1241-1258`, SettingsTab > General > League Info edit form at `App.jsx:6772-6790`, and Admin Shows > Show-Wide Scoring at `App.jsx:7949-7959`. All three use the same `Select` component with options 1–60. The League Name placeholder auto-defaults to `Season {N}` when commissioner picks the number, so the free-text Season Name still works for branding ("Survivor 47" / "Season of the New Era" / etc.) without enforcing format.
+- **Show-wide opt-in now gates on `seasonNumber` being set** at `App.jsx:6818-6822`. If a commissioner toggles "Use show-wide scoring" ON but hasn't picked a Season # yet, a red warning explains why no events will cascade and points them at the General section to set it. Prevents the silent "I turned it on but nothing happens" failure mode.
+- **Stats user-count fallback** at `App.jsx:8081-8104`. The v2.6.3.0 `database.rules.json` change requires manual `firebase deploy --only database` to take effect. Until that lands, the parent-level `frtv_users` read still returns `{}` (permission-denied) and Stats shows 0. Added a fallback: if the collection read returns nothing, iterate `league.commissionerUid` for every visible league and read each profile individually (the per-uid read rule was always permissive). `userCountFallbackUsed` state flag lets the UI surface that the count is approximate — useful debug signal until rules deploy.
+- **Backwards-compat**: existing leagues without `seasonNumber` continue to render fine; show-wide scoring is opt-in and the new key derivation returns null when `seasonNumber` is undefined, so the merge no-ops cleanly.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.25s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.4.0 — 2026-06-01
 **Poll results consolidated to a single ranked-list view per question.** The previous layout had two separate sections per question — "Picks" (TeamName → Contestant rows) and "Tally" (Contestant + vote count + %). Same info shown twice, sliced two ways, which required mental cross-reference to answer "who picked X?" or "what did Team Bob pick?".
