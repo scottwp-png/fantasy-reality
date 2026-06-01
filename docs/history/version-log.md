@@ -34,7 +34,7 @@
 - **Empty state** for unpicked questions: "No picks yet." (was previously a silent gap).
 - **Information preserved.** Everything the old "Picks" + "Tally" sections showed is still present: every team's pick, every contestant's tally, percentage, and the ranking — just unified into one structure where each contestant row carries the team-name chips of who voted for them. Closes the "I don't love how the results show but don't want to lose info" loop from the user.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.21s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `335c17c`
 
 ### v2.6.3.0 — 2026-06-01
 **Real show-wide episode scoring + per-league opt-in + admin reorganization + Stats fix.** This was the big "scaffold → working feature" step for the show-wide cascade the user has been asking about all session.
