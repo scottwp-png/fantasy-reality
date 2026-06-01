@@ -8810,6 +8810,7 @@ function AdminShowDetail({ record, onBack }) {
     });
   }
   const [bulkAdding, setBulkAdding] = useState(false);
+  const [bulkEditMode, setBulkEditMode] = useState(false);
 
   async function saveAll() {
     setSaving(true);
@@ -8917,8 +8918,13 @@ function AdminShowDetail({ record, onBack }) {
           // append to that category.
           <div>
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:6,marginBottom:8,flexWrap:"wrap" }}>
-              <div style={{ fontSize:10,color:"#6a6a8a",fontStyle:"italic" }}>Drag a rule by its grip handle to reorder or move between categories.</div>
+              <div style={{ fontSize:10,color:"#6a6a8a",fontStyle:"italic" }}>
+                {bulkEditMode
+                  ? "Edit label, points, and category inline. Click Done to exit bulk edit. Open the modal for description / elim edits."
+                  : "Drag a rule by its grip handle to reorder or move between categories."}
+              </div>
               <div style={{ display:"flex",gap:6 }}>
+                <Btn small variant={bulkEditMode?"primary":"secondary"} onClick={()=>setBulkEditMode(!bulkEditMode)}>{bulkEditMode ? "Done" : "Bulk Edit"}</Btn>
                 <Btn small variant="secondary" onClick={()=>setBulkAdding(true)}>Bulk Add</Btn>
                 <Btn small variant={adding?"ghost":"secondary"} onClick={()=>setAdding(!adding)}>{adding?"Cancel":"+ New Rule"}</Btn>
               </div>
@@ -8965,36 +8971,49 @@ function AdminShowDetail({ record, onBack }) {
                       return (
                         <div
                           key={r.id}
-                          draggable
-                          onDragStart={e => handleDragStart(e, r.id)}
                           onDragOver={e => handleDragOverRow(e, r.id)}
                           onDragLeave={() => setDragOverRuleId(prev => prev === r.id ? null : prev)}
                           onDrop={e => handleDropOnRow(e, r.id)}
-                          onDragEnd={handleDragEnd}
                           style={{
                             display:"flex",alignItems:"center",gap:8,padding:"10px 12px",
                             background:"#0d0d18",borderRadius:8,
                             border:r.isBase?"1px solid #f5a62333":"1px solid #1e1e38",
                             borderTop: isDropTarget ? "2px solid #f5a623" : (r.isBase?"1px solid #f5a62333":"1px solid #1e1e38"),
                             opacity: isDragging ? 0.4 : 1,
-                            cursor: isDragging ? "grabbing" : "default",
                           }}
                         >
-                          <div title="Drag to reorder" style={{ color:"#4a4a6a",cursor:"grab",fontSize:14,lineHeight:1,userSelect:"none",padding:"0 2px",flexShrink:0 }}>⋮⋮</div>
+                          {/* v2.6.22.2: grip handle is now the only draggable element — keeps
+                              text inputs in bulk-edit mode free of accidental drag-starts. */}
+                          <div
+                            draggable
+                            onDragStart={e => handleDragStart(e, r.id)}
+                            onDragEnd={handleDragEnd}
+                            title="Drag to reorder"
+                            style={{ color:"#4a4a6a",cursor:"grab",fontSize:14,lineHeight:1,userSelect:"none",padding:"0 2px",flexShrink:0 }}
+                          >⋮⋮</div>
                           <button onClick={()=>toggleBase(r.id)} title={r.isBase?"Click to remove from base template":"Click to include in base template"} style={{ background:r.isBase?"#f5a62322":"#12121f",border:r.isBase?"1px solid #f5a62366":"1px solid #2a2a4a",borderRadius:99,color:r.isBase?"#f5a623":"#6a6a8a",height:22,padding:"0 10px",cursor:"pointer",fontSize:9,fontWeight:700,fontFamily:"'Outfit',sans-serif",textTransform:"uppercase",letterSpacing:"0.04em",flexShrink:0 }}>
                             {r.isBase ? "Base" : "Off"}
                           </button>
-                          <div style={{ flex:1,minWidth:0 }}>
-                            <div style={{ display:"flex",alignItems:"center",gap:6,flexWrap:"wrap" }}>
-                              <span style={{ fontSize:13,color:"#e8e8f0",fontWeight:600 }}>{r.label || "(no label)"}</span>
-                              {r.isElimination && <Badge color="#e94560">Elim</Badge>}
-                            </div>
-                          </div>
-                          <div style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:14,color:(r.points||0)>=0?"#4ecdc4":"#e94560",minWidth:48,textAlign:"right" }}>
-                            {(r.points||0)>=0?"+":""}{r.points ?? 0}
-                          </div>
-                          <button onClick={()=>setEditingRuleId(r.id)} title="Edit rule" style={{ background:"#1a1a30",border:"1px solid #2a2a4a",borderRadius:6,color:"#aaaabf",height:28,padding:"0 10px",cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"'Outfit',sans-serif",flexShrink:0 }}>
+                          {bulkEditMode ? (
+                            <BulkEditRuleRow rule={r} onPatch={patch => patchRule(r.id, patch)} />
+                          ) : (
+                            <>
+                              <div style={{ flex:1,minWidth:0 }}>
+                                <div style={{ display:"flex",alignItems:"center",gap:6,flexWrap:"wrap" }}>
+                                  <span style={{ fontSize:13,color:"#e8e8f0",fontWeight:600 }}>{r.label || "(no label)"}</span>
+                                  {r.isElimination && <Badge color="#e94560">Elim</Badge>}
+                                </div>
+                              </div>
+                              <div style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:14,color:(r.points||0)>=0?"#4ecdc4":"#e94560",minWidth:48,textAlign:"right" }}>
+                                {(r.points||0)>=0?"+":""}{r.points ?? 0}
+                              </div>
+                            </>
+                          )}
+                          <button onClick={()=>setEditingRuleId(r.id)} title="Edit rule (description, elimination)" style={{ background:"#1a1a30",border:"1px solid #2a2a4a",borderRadius:6,color:"#aaaabf",height:28,padding:"0 10px",cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"'Outfit',sans-serif",flexShrink:0 }}>
                             Edit
+                          </button>
+                          <button onClick={()=>deleteRule(r.id)} title="Delete this rule from the library" style={{ background:"transparent",border:"1px solid #2a2a4a",borderRadius:6,color:"#ff6b6b",width:28,height:28,padding:0,cursor:"pointer",fontSize:14,fontWeight:700,fontFamily:"'Outfit',sans-serif",flexShrink:0,lineHeight:1 }}>
+                            ×
                           </button>
                         </div>
                       );
@@ -9085,6 +9104,49 @@ function RuleEditorModal({ rule, onSave, onDelete, onClose }) {
         <Btn onClick={save} disabled={!draft.label.trim()}>Save</Btn>
       </div>
     </Modal>
+  );
+}
+
+// v2.6.22.2: inline-editable row used in Rule Library bulk-edit mode. Label
+// and points commit on every keystroke (cheap, no regrouping); category
+// commits on blur to avoid the row jumping between category sections mid-
+// typing. Each input maintains its own local draft so re-renders from
+// sibling patches don't blow away the in-progress text.
+function BulkEditRuleRow({ rule, onPatch }) {
+  const [labelDraft, setLabelDraft] = useState(rule.label || "");
+  const [pointsDraft, setPointsDraft] = useState(String(rule.points ?? 0));
+  const [categoryDraft, setCategoryDraft] = useState(rule.category || "");
+  useEffect(() => { setLabelDraft(rule.label || ""); }, [rule.label]);
+  useEffect(() => { setPointsDraft(String(rule.points ?? 0)); }, [rule.points]);
+  useEffect(() => { setCategoryDraft(rule.category || ""); }, [rule.category]);
+  const inputStyle = {
+    background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,
+    color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",
+    padding:"5px 8px",outline:"none",boxSizing:"border-box",
+  };
+  return (
+    <>
+      <input
+        value={labelDraft}
+        onChange={e => { setLabelDraft(e.target.value); onPatch({ label: e.target.value }); }}
+        placeholder="Label"
+        style={{ ...inputStyle, flex:1,minWidth:0 }}
+      />
+      <input
+        value={categoryDraft}
+        onChange={e => setCategoryDraft(e.target.value)}
+        onBlur={() => { if (categoryDraft !== (rule.category || "")) onPatch({ category: categoryDraft.trim() || "Other" }); }}
+        placeholder="Category"
+        style={{ ...inputStyle, width:120 }}
+      />
+      <input
+        type="number"
+        step="0.5"
+        value={pointsDraft}
+        onChange={e => { setPointsDraft(e.target.value); onPatch({ points: Number(e.target.value) || 0 }); }}
+        style={{ ...inputStyle, width:60,textAlign:"right",fontFamily:"'Anybody',sans-serif",fontWeight:700 }}
+      />
+    </>
   );
 }
 

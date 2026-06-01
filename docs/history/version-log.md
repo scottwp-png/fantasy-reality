@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.22.1
+**Current Production Version:** v2.6.22.2
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~9,890
+**App.jsx Line Count:** ~9,950
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,17 @@
 ---
 
 ## Version Log
+
+### v2.6.22.2 — 2026-06-01
+**Bulk-edit toggle for the rule library + per-row delete button.** Addresses two complaints: editing many existing rules required opening the modal once per rule, and deletion was only available inside the modal.
+- **Per-row delete button** at `App.jsx:8920-8924` — small `×` chip on the right end of every Rule Library row, always visible (both normal and bulk-edit mode). Reuses the existing `deleteRule` function with its existing confirmation. Mirrors the same pattern used for episode records in v2.6.21.2.
+- **`Bulk Edit` toggle button** at `App.jsx:8805-8810` next to `Bulk Add`. When ON, each row's label / category / points become inline editable inputs alongside the existing Base toggle, Edit button, and Delete button. The Edit modal still exists for description + isElimination edits — bulk-edit mode covers the 80% case (label / points / category tweaks) without requiring a modal per rule.
+- **New `BulkEditRuleRow` component** at `App.jsx:9095-9135`. Three inputs (label, category, points). Each maintains its own local draft state via `useState` and syncs from the prop on change (so sibling-row re-renders don't blow away in-progress text). Label and points commit on every keystroke — cheap, no regrouping. Category commits on **blur** because changing category triggers row regrouping under a different header — committing on every keystroke would make the row jump between categories mid-typing.
+- **Drag-and-drop refactored** at `App.jsx:8868-8877` to move `draggable` from the whole row onto just the grip handle. Required for bulk-edit mode — with `draggable` on the row, clicking into a text input was getting interpreted as a drag start. Drop targets stay on the row (the row still has `onDragOver` / `onDrop`), so the drop indicator still renders on the row's top edge — only the drag SOURCE moved.
+- **Help line above the list** swaps with mode: "Drag a rule by its grip handle to reorder…" in normal mode, "Edit label, points, and category inline…" in bulk-edit mode.
+- **What this commit does NOT do.** No multi-select + bulk operations (delete all selected, set category for selected, ±X points to selected). The inline grid covers the actual "edit 15 rules without 30 clicks" pain; multi-select is a separate UX that can come later if needed. No mass-export of rules as TSV either — only bulk paste IN; the bulk-edit grid replaces the need for export-edit-reimport for most cases.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.80s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.22.1 — 2026-06-01
 **Bulk-add rules via spreadsheet paste.** Admin can paste many rules at once (TSV from Excel/Sheets, or comma-separated lines) instead of clicking through the modal 15+ times.
