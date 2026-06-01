@@ -35,7 +35,7 @@
   - `ShowWideScoringSection` load + save (`App.jsx:8264, 8303`)
 - **What this commit does NOT do.** No data migration from the (probably-empty) `frtv/showCast/` etc. tree to `/showCast/`. The Love Island Series 13 cast was already at root from the one-time backfill, so it just works post-fix. Any admin who saved library overrides via v2.6.2.0 before this fix would find their writes at `frtv/scoringRuleLibrary/...` — they can re-enter via the admin UI which will now write to the correct root path.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.96s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `297165f`
 
 ### v2.6.8.0 — 2026-06-01
 **Library picker locked to the league's show.** The show selector dropdown added in v2.4.45.0 let commissioners browse rules from any show preset (with the current show as default). In practice, cross-show rules don't apply to this league's contestants — the dropdown was decision-noise. Removed the selector, the `libraryShow` state, and the "All shows" option. The Add-from-Library picker now shows only the rules from `SHOW_PRESETS[league.showType].scoringDefaults` minus what's already in the league.
