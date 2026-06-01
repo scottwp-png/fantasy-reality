@@ -32,7 +32,7 @@
 - **Tribe preservation**: AddContestantModal doesn't expose a tribe input in its UI but does preserve `editing.tribe` on save (line 7235 — `tribe: editing?.tribe || ""`). For show cast, admin can still see/edit tribe via the meta line label; this matches existing in-league behavior where tribe is edited from the Cast tab's tribe-management panel, not the AddContestant modal.
 - **What this commit does NOT do.** No real-time push of cast updates to active league sessions — a commissioner mid-roster-edit when admin adds a bombshell won't see them until they reload the league view. No update propagation for existing contestants (the cascade is additive only). No `sourceId` cross-namespace key for fuzzy matching across renames. No bulk-import-with-overwrite mode on the Cast tab's Import button. The Import button itself stays as a recovery tool — duplicates the auto-cascade logic but can be triggered explicitly.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.89s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `8379155`
 
 ### v2.6.10.0 — 2026-06-01
 **Carry contestant bios through the show-cast pipeline.** The v2.6.7.0 auto-import, the v2.6.6.0 Cast tab Import button, and the v2.6.6.0 admin Show Cast editor were all stripping `bio` — empty in admin storage, empty on import. Fixed all four touchpoints.
