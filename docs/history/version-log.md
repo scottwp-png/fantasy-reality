@@ -31,7 +31,7 @@ The floating support button (fixed-position chat-bubble at bottom-right, visible
 - **Why not in Settings.** Considered burying it in `SettingsScreen`'s account page. Rejected because non-commissioners and brand-new users hit the Home screen far more often than Settings, so the header is the more discoverable location for the common case. Settings already has an existing "Contact admin@fantasyrealitytv.com" text reference further down the page for anyone who finds themselves there.
 - **Not yet smoke-tested in browser** — recommended smoke: (a) verify the floating button is gone from every view including Home / League / Settings / Admin; (b) verify the Support button appears in the Home header next to My Account; (c) tap it and verify it opens a mailto link with the FRTV Feedback subject prefilled.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (5.50s — slower likely due to Windows AV). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `808dfa8`
 
 ### v2.4.32.0 — 2026-05-31
 Inline explanations under every record cell. User flagged that they didn't know what "Wooden Spoon" meant — short italic descriptions are now baked into both the Recordbook panel (league-wide records) and the per-team Team Records section so each cell is self-documenting. No collapse/show toggle — descriptions are always visible because the cost of one extra italic line is small and the value is permanent self-documentation. All 10 regression baselines pass byte-identical, `npm run build` clean.
