@@ -31,7 +31,7 @@
 - **Records list scrolls beyond the records you've created** by reading RTDB existence — so any show that has cast OR scoring data shows up. The Love Island Series 13 record will be visible as a card on first open of the admin tab (12 contestants from the v2.6.10.0 backfill, 0 episodes scored).
 - **What this commit does NOT do.** No delete-record affordance from the index (records "exist" as long as they have data; admin would need to clear the underlying RTDB paths manually). No bulk operations across records. No multi-edit. The record card doesn't surface the `useShowWideScoring`-enabled leagues for that season — could be a useful "X leagues subscribed" stat in a future iteration.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (5.29s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `5ba6d02`
 
 ### v2.6.11.0 — 2026-06-01
 **Show-cast updates auto-cascade to opted-in leagues + admin gets the full contestant editor.** Two related improvements. (1) Mid-season cast additions (Love Island's Casa Amor bombshells, late Survivor returnees) no longer require commissioners to hit Import Cast — when admin adds a new contestant at the show level, every league with that show + season picks it up on next load. (2) The admin Show Cast section now opens the existing `AddContestantModal` (the same rich editor commissioners use in their leagues) instead of bare inline inputs, so admin gets photo file upload, image paste, crop sliders, and bulk-paste of many contestants at once.
