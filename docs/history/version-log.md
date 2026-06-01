@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.13.0
+**Current Production Version:** v2.6.14.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~8,860
+**App.jsx Line Count:** ~9,070
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,27 @@
 ---
 
 ## Version Log
+
+### v2.6.14.0 — 2026-06-01
+**Robust Stats dashboard for soft-launch metrics.** Replaces the 5-card headline-only Stats tab with a full company-viability dashboard. Aim: real signals on whether this turns into a business — growth velocity, engagement intensity, network-effect penetration, activation rate, retention via DAU/MAU.
+- **New `AdminStatsDashboard` component** at `App.jsx:8629-8839` (~210 lines). Pure derivation from `leagues` + `users` already loaded — no extra Firebase calls, no warehouse, no charting library. Five sections stacked vertically:
+  1. **Headline** — the existing 5 totals (Users / Leagues / Active / Teams / Contestants), now with sub-labels (`"63% scored"` under Active Leagues).
+  2. **Growth (last 30 days)** — two 30-bar CSS charts: leagues created per day, users signed up per day. Each with "X this week · Y this month" summary above the chart. Bars are color-coded (red for leagues, teal for users) with opacity scaled by relative height so quiet days stay readable.
+  3. **Engagement** — activity-events-per-day bar chart (purple) drawn from every league's `auditLog`, plus a breakdown chip row showing top 6 event types (`roster: 47 · scoring: 23 · lock: 8 · ...`). Right column has DAU / WAU / MAU counters derived from `userProfile.lastLoginAt` (new in this commit) with a stickiness ratio (DAU/MAU as a percentage, color-coded — green ≥20%, amber ≥10%, red below).
+  4. **Adoption &amp; network effect** — four signal metrics: average managers per league (`teams/leagues`), count of multi-manager leagues (and % of all leagues), count of multi-league users (users in more than one league), count of leagues with at least one finalized week (and % of all leagues).
+  5. **Leagues by show** — horizontal ranked-bar list of shows by number of leagues, each row a bar with the show's preset color showing share + raw count + %.
+- **Instrumentation: `lastLoginAt` + `createdAt` on user profiles** at `App.jsx:7440-7463`. `createdAt` is stamped on first profile creation (new signups going forward); for legacy profiles, `lastLoginAt` is also patched in as a fallback floor when the field is missing. `lastLoginAt` is updated fire-and-forget on every auth state change. Net effect: signup velocity charts populate for new signups; DAU/MAU populates for any user who logs in once after this commit lands.
+- **Bar chart helper** at `App.jsx:8722-8743` is inline — 80px tall, 30 bars with 2px gaps, color-tinted with opacity tied to value/max so the eye picks up both spikes and quiet days. Hover tooltip shows `"3 days ago: 7"` etc.
+- **Stats card sub-labels** at `App.jsx:8754-8765` — Active Leagues now shows `"63% scored"`, etc. Small density win.
+- **What this commit does NOT do.** No time-series export. No funnel analysis (signup → first league created → first roster set → first finalize). No cohort analysis. No external analytics (no PostHog, no Mixpanel — everything derives from RTDB data we already have). No real-time push of dashboard updates (admin refreshes the page to recompute). For the soft launch this gives the user signal; deeper instrumentation comes if/when the product proves out.
+- **Reading the metrics for "is this a company?"**:
+  - **Multi-manager leagues %** > 50% is a strong network-effect signal. Solo players are users; multi-manager leagues are communities.
+  - **Stickiness (DAU/MAU)** ≥ 20% means users have a daily habit. Below 10% means weak retention.
+  - **Activity events last 7d** trending UP week over week = product-market fit signal.
+  - **Multi-league users** > 10% = users are forming repeat behaviors across shows.
+  - **Leagues with finalize** > 50% = leagues are actually being played to completion, not abandoned.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.25s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.13.0 — 2026-06-01
 **Type-the-name confirmation for league deletion.** The old `confirm("Delete this league permanently?")` was too easy to accept by reflex — a stray double-tap on the trash icon could wipe an entire season's data with one click. Now the delete flow requires the user to type the exact league name to confirm.

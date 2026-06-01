@@ -7437,9 +7437,22 @@ export default function FantasyRealityTV() {
         setLeagues(data);
         // Load user profile
         let profile = await loadUserProfile(user.uid);
-        if (!profile) {
-          profile = { displayName: user.displayName || user.email.split("@")[0], activations: {} };
+        const nowMs = Date.now();
+        const isNew = !profile;
+        if (isNew) {
+          // v2.6.14.0: stamp createdAt on first profile creation so admin
+          // Stats can chart signup velocity over time.
+          profile = { displayName: user.displayName || user.email.split("@")[0], activations: {}, createdAt: nowMs };
           await saveUserProfile(user.uid, profile);
+        } else {
+          // v2.6.14.0: stamp lastLoginAt on every auth load so admin Stats
+          // can compute DAU / WAU / MAU going forward. Fire-and-forget so
+          // the write doesn't block app boot. Also backfill createdAt for
+          // legacy profiles that predate the field (use lastLoginAt as a
+          // floor — they were definitely created before now).
+          const patched = { ...profile, lastLoginAt: nowMs, ...(profile.createdAt ? {} : { createdAt: nowMs }) };
+          saveUserProfile(user.uid, patched).catch(() => {});
+          profile = patched;
         }
         setUserProfile(profile);
         // Load site announcement and feature flags
@@ -8612,6 +8625,275 @@ function ShowWideScoringSection({ selectedShow, mergedRules, lockedSeason }) {
   );
 }
 
+// v2.6.14.0: app-usage dashboard for the admin. Everything derives from the
+// leagues + users we already load — plus the new lastLoginAt / createdAt
+// timestamps on user profiles (instrumentation lands going-forward, so the
+// DAU/MAU numbers will be 0 for users whose profile predates this commit
+// until they next sign in). Goal: signals that actually answer "is this
+// turning into a company" — growth velocity, engagement, network effect,
+// activation rate, retention proxy.
+function AdminStatsDashboard({ leagues, users, totalUsers, totalLeagues, activeLeagues, totalTeams, totalContestants, userCountFallbackUsed }) {
+  const now = Date.now();
+  const DAY = 86400000;
+
+  // ─── GROWTH: leagues created per day, last 30 days ───
+  const leaguesByDay = useMemo(() => {
+    const bins = new Array(30).fill(0);
+    const startOfTodayLocal = new Date(); startOfTodayLocal.setHours(0,0,0,0);
+    const startMs = startOfTodayLocal.getTime();
+    leagues.forEach(l => {
+      const t = Number(l.createdAt);
+      if (!t) return;
+      const daysAgo = Math.floor((startMs - t) / DAY);
+      if (daysAgo >= 0 && daysAgo < 30) bins[29 - daysAgo]++;
+    });
+    return bins;
+  }, [leagues]);
+  const leaguesLast7 = leaguesByDay.slice(-7).reduce((s, n) => s + n, 0);
+  const leaguesLast30 = leaguesByDay.reduce((s, n) => s + n, 0);
+
+  // ─── GROWTH: users signed up per day, last 30 days ───
+  const usersByDay = useMemo(() => {
+    const bins = new Array(30).fill(0);
+    const startOfTodayLocal = new Date(); startOfTodayLocal.setHours(0,0,0,0);
+    const startMs = startOfTodayLocal.getTime();
+    Object.values(users || {}).forEach(u => {
+      const t = Number(u?.createdAt);
+      if (!t) return;
+      const daysAgo = Math.floor((startMs - t) / DAY);
+      if (daysAgo >= 0 && daysAgo < 30) bins[29 - daysAgo]++;
+    });
+    return bins;
+  }, [users]);
+  const usersLast7 = usersByDay.slice(-7).reduce((s, n) => s + n, 0);
+  const usersLast30 = usersByDay.reduce((s, n) => s + n, 0);
+
+  // ─── ACTIVITY: audit log events per day across all leagues, last 30 days ───
+  const { activityByDay, activityByType, activityLast7, activityLast30 } = useMemo(() => {
+    const bins = new Array(30).fill(0);
+    const byType = {};
+    const startOfTodayLocal = new Date(); startOfTodayLocal.setHours(0,0,0,0);
+    const startMs = startOfTodayLocal.getTime();
+    leagues.forEach(l => {
+      (l.auditLog || []).forEach(e => {
+        const t = Number(e.time);
+        if (!t) return;
+        const daysAgo = Math.floor((startMs - t) / DAY);
+        if (daysAgo >= 0 && daysAgo < 30) {
+          bins[29 - daysAgo]++;
+          const k = e.type || "other";
+          byType[k] = (byType[k] || 0) + 1;
+        }
+      });
+    });
+    const last7 = bins.slice(-7).reduce((s, n) => s + n, 0);
+    const last30 = bins.reduce((s, n) => s + n, 0);
+    return { activityByDay: bins, activityByType: byType, activityLast7: last7, activityLast30: last30 };
+  }, [leagues]);
+
+  // ─── DAU / MAU from lastLoginAt (proxy) ───
+  const { dau, wau, mau } = useMemo(() => {
+    let d = 0, w = 0, m = 0;
+    Object.values(users || {}).forEach(u => {
+      const t = Number(u?.lastLoginAt);
+      if (!t) return;
+      const age = now - t;
+      if (age <= DAY) d++;
+      if (age <= 7 * DAY) w++;
+      if (age <= 30 * DAY) m++;
+    });
+    return { dau: d, wau: w, mau: m };
+  }, [users, now]);
+  const stickiness = mau > 0 ? Math.round((dau / mau) * 100) : 0;
+
+  // ─── ADOPTION: derived ratios ───
+  const avgManagers = totalLeagues > 0 ? (totalTeams / totalLeagues).toFixed(1) : "—";
+  const multiTeamLeagues = leagues.filter(l => (l.teams || []).length > 1).length;
+  const multiTeamPct = totalLeagues > 0 ? Math.round((multiTeamLeagues / totalLeagues) * 100) : 0;
+  const finalizedLeagues = leagues.filter(l => Object.values(l.weekStatus || {}).some(w => w?.status === "finalized")).length;
+  const finalizedPct = totalLeagues > 0 ? Math.round((finalizedLeagues / totalLeagues) * 100) : 0;
+  const multiLeagueUsers = useMemo(() => {
+    return Object.values(users || {}).filter(u => Object.keys(u?.activations || {}).length > 1).length;
+  }, [users]);
+
+  // ─── SHOWS: leagues per showType ───
+  const byShow = useMemo(() => {
+    const m = {};
+    leagues.forEach(l => { const s = l.showType || "unknown"; m[s] = (m[s] || 0) + 1; });
+    return Object.entries(m).map(([showType, count]) => ({ showType, count, name: SHOW_PRESETS[showType]?.name || showType, color: SHOW_PRESETS[showType]?.color || "#8888aa" }))
+      .sort((a, b) => b.count - a.count);
+  }, [leagues]);
+
+  function BarChart({ data, color, label, totalLabel }) {
+    const max = Math.max(...data, 1);
+    return (
+      <div>
+        <div style={{ display:"flex",alignItems:"flex-end",gap:2,height:80,padding:"0 4px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38" }}>
+          {data.map((v, i) => (
+            <div key={i} title={`${30 - i} day${30 - i === 1 ? "" : "s"} ago: ${v}`} style={{
+              flex:1, height:`${(v / max) * 100}%`,
+              background: v > 0 ? color : "transparent",
+              borderRadius:2,
+              minHeight: v > 0 ? 2 : 0,
+              opacity: v > 0 ? (0.4 + (v / max) * 0.6) : 0.1,
+            }}/>
+          ))}
+        </div>
+        <div style={{ display:"flex",justifyContent:"space-between",fontSize:9,color:"#4a4a6a",marginTop:4 }}>
+          <span>30 days ago</span><span>today</span>
+        </div>
+        {totalLabel && <div style={{ fontSize:11,color:"#8888aa",marginTop:6 }}>{totalLabel}</div>}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* HEADLINE — current totals */}
+      <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:24 }}>
+        {[
+          {label:"Total Users" + (userCountFallbackUsed ? " (approx)" : ""),value:totalUsers,color:"#4ecdc4"},
+          {label:"Total Leagues",value:totalLeagues,color:"#e94560"},
+          {label:"Active Leagues",value:activeLeagues,color:"#f5a623",sub:totalLeagues>0?`${Math.round((activeLeagues/totalLeagues)*100)}% scored`:null},
+          {label:"Total Teams",value:totalTeams,color:"#9d5dff"},
+          {label:"Total Contestants",value:totalContestants,color:"#4d8aff"},
+        ].map(s=>(
+          <div key={s.label} style={{ padding:"20px 16px",background:"#12121f",borderRadius:12,border:"1px solid #1e1e38",textAlign:"center" }}>
+            <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:32,fontWeight:900,color:s.color }}>{s.value}</div>
+            <div style={{ fontSize:11,color:"#6a6a8a",marginTop:4,fontWeight:600 }}>{s.label}</div>
+            {s.sub && <div style={{ fontSize:10,color:"#4a4a6a",marginTop:2 }}>{s.sub}</div>}
+          </div>
+        ))}
+      </div>
+
+      {userCountFallbackUsed && (
+        <div style={{ marginBottom:18,padding:"10px 14px",background:"#f5a62311",border:"1px solid #f5a62333",borderRadius:8,fontSize:11,color:"#f5a623",lineHeight:1.5 }}>
+          User count is approximate — derived from commissioner + per-team UID stamps. Existing managers from before v2.6.6.0 don't appear until they next save a roster. Run <code style={{color:"#e8e8f0"}}>firebase deploy --only database</code> for the accurate full read.
+        </div>
+      )}
+
+      {/* GROWTH */}
+      <div style={{ marginBottom:18 }}>
+        <div style={{ fontSize:11,fontWeight:700,color:"#f5a623",letterSpacing:"0.05em",textTransform:"uppercase",marginBottom:8 }}>Growth (last 30 days)</div>
+        <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12 }}>
+          <div style={{ padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:8 }}>
+              <div style={{ fontSize:13,fontWeight:700,color:"#e8e8f0" }}>Leagues created</div>
+              <div style={{ fontSize:11,color:"#6a6a8a" }}>{leaguesLast7} this week &middot; {leaguesLast30} this month</div>
+            </div>
+            <BarChart data={leaguesByDay} color="#e94560" />
+          </div>
+          <div style={{ padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:8 }}>
+              <div style={{ fontSize:13,fontWeight:700,color:"#e8e8f0" }}>Users signed up</div>
+              <div style={{ fontSize:11,color:"#6a6a8a" }}>{usersLast7} this week &middot; {usersLast30} this month</div>
+            </div>
+            <BarChart data={usersByDay} color="#4ecdc4" />
+            {usersLast30 === 0 && (
+              <div style={{ fontSize:10,color:"#6a6a8a",marginTop:6,fontStyle:"italic",lineHeight:1.4 }}>
+                createdAt is stamped on signup starting v2.6.14.0. Pre-existing profiles will show 0 here; new signups will populate.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ENGAGEMENT */}
+      <div style={{ marginBottom:18 }}>
+        <div style={{ fontSize:11,fontWeight:700,color:"#f5a623",letterSpacing:"0.05em",textTransform:"uppercase",marginBottom:8 }}>Engagement</div>
+        <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12 }}>
+          <div style={{ padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:8 }}>
+              <div style={{ fontSize:13,fontWeight:700,color:"#e8e8f0" }}>Activity events</div>
+              <div style={{ fontSize:11,color:"#6a6a8a" }}>{activityLast7} this week &middot; {activityLast30} this month</div>
+            </div>
+            <BarChart data={activityByDay} color="#9d5dff" />
+            {Object.keys(activityByType).length > 0 && (
+              <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginTop:8 }}>
+                {Object.entries(activityByType).sort((a,b) => b[1] - a[1]).slice(0, 6).map(([k, v]) => (
+                  <span key={k} style={{ fontSize:10,padding:"3px 8px",borderRadius:99,background:"#1a1a30",border:"1px solid #2a2a4a",color:"#aaaabf" }}>{k}: <strong style={{color:"#e8e8f0"}}>{v}</strong></span>
+                ))}
+              </div>
+            )}
+          </div>
+          <div style={{ padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+            <div style={{ fontSize:13,fontWeight:700,color:"#e8e8f0",marginBottom:10 }}>Returning users</div>
+            <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8 }}>
+              {[
+                { label: "DAU", value: dau, color: "#4ecdc4" },
+                { label: "WAU", value: wau, color: "#9d5dff" },
+                { label: "MAU", value: mau, color: "#f5a623" },
+              ].map(c => (
+                <div key={c.label} style={{ textAlign:"center",padding:"10px 6px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38" }}>
+                  <div style={{ fontFamily:"'Anybody',sans-serif",fontWeight:900,fontSize:22,color:c.color }}>{c.value}</div>
+                  <div style={{ fontSize:9,color:"#6a6a8a",fontWeight:700,letterSpacing:"0.05em",marginTop:2 }}>{c.label}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop:10,padding:"8px 10px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38" }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                <span style={{ fontSize:11,color:"#8888aa" }}>Stickiness (DAU/MAU)</span>
+                <span style={{ fontSize:13,fontWeight:700,color:stickiness>=20?"#4ecdc4":stickiness>=10?"#f5a623":"#e94560" }}>{stickiness}%</span>
+              </div>
+              <div style={{ fontSize:9,color:"#4a4a6a",marginTop:2,fontStyle:"italic",lineHeight:1.4 }}>20%+ = strong daily habit. Below 10% = weak retention.</div>
+            </div>
+            {mau === 0 && (
+              <div style={{ fontSize:10,color:"#6a6a8a",marginTop:6,fontStyle:"italic",lineHeight:1.4 }}>
+                lastLoginAt is stamped on each auth load starting v2.6.14.0. Existing users will populate as they sign in.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ADOPTION + NETWORK EFFECT */}
+      <div style={{ marginBottom:18 }}>
+        <div style={{ fontSize:11,fontWeight:700,color:"#f5a623",letterSpacing:"0.05em",textTransform:"uppercase",marginBottom:8 }}>Adoption &amp; network effect</div>
+        <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:10 }}>
+          {[
+            { label: "Avg managers / league", value: avgManagers, color: "#9d5dff", sub: "1.0 = solo player; higher = real social use" },
+            { label: "Multi-manager leagues", value: `${multiTeamLeagues}`, color: "#4ecdc4", sub: totalLeagues>0?`${multiTeamPct}% of all leagues`:null },
+            { label: "Multi-league users", value: multiLeagueUsers, color: "#f5a623", sub: "users in more than one league" },
+            { label: "Leagues with finalize", value: `${finalizedLeagues}`, color: "#4d8aff", sub: totalLeagues>0?`${finalizedPct}% scored a week`:null },
+          ].map(s => (
+            <div key={s.label} style={{ padding:"14px 12px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",textAlign:"center" }}>
+              <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:24,fontWeight:900,color:s.color }}>{s.value}</div>
+              <div style={{ fontSize:11,color:"#6a6a8a",marginTop:4,fontWeight:600 }}>{s.label}</div>
+              {s.sub && <div style={{ fontSize:9,color:"#4a4a6a",marginTop:2,lineHeight:1.4 }}>{s.sub}</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* SHOWS */}
+      <div style={{ marginBottom:18 }}>
+        <div style={{ fontSize:11,fontWeight:700,color:"#f5a623",letterSpacing:"0.05em",textTransform:"uppercase",marginBottom:8 }}>Leagues by show</div>
+        <div style={{ padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+          {byShow.length === 0 ? (
+            <div style={{ fontSize:12,color:"#6a6a8a",textAlign:"center",padding:"8px 0" }}>No leagues yet.</div>
+          ) : (
+            <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
+              {byShow.map(s => {
+                const pct = totalLeagues > 0 ? Math.round((s.count / totalLeagues) * 100) : 0;
+                const barPct = Math.max(8, Math.round((s.count / byShow[0].count) * 100));
+                return (
+                  <div key={s.showType} style={{ padding:"6px 8px",background:"#0d0d18",borderRadius:6,border:"1px solid #1a1a30",position:"relative",overflow:"hidden" }}>
+                    <div style={{ position:"absolute",inset:0,width:`${barPct}%`,background:`${s.color}22`,borderRight:`1px solid ${s.color}55` }}/>
+                    <div style={{ position:"relative",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:12 }}>
+                      <span style={{ color:"#e8e8f0",fontWeight:600 }}>{s.name}</span>
+                      <span style={{ color:s.color,fontWeight:700 }}>{s.count} &middot; {pct}%</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }) {
   const [tab, setTab] = useState("stats");
   const [users, setUsers] = useState(null);
@@ -8702,29 +8984,20 @@ function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }
         ))}
       </div>
 
-      {/* Stats Tab */}
+      {/* Stats Tab — v2.6.14.0 robust dashboard. Pulled from existing RTDB
+          data plus the new lastLoginAt instrumentation. Everything derived
+          here renders client-side; no warehouse, no extra writes. */}
       {tab==="stats" && (
-        <div>
-          <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12 }}>
-            {[
-              {label:"Total Users" + (userCountFallbackUsed ? " (approx)" : ""),value:totalUsers,color:"#4ecdc4"},
-              {label:"Total Leagues",value:totalLeagues,color:"#e94560"},
-              {label:"Active Leagues",value:activeLeagues,color:"#f5a623"},
-              {label:"Total Teams",value:totalTeams,color:"#9d5dff"},
-              {label:"Total Contestants",value:totalContestants,color:"#4d8aff"},
-            ].map(s=>(
-              <div key={s.label} style={{ padding:"20px 16px",background:"#12121f",borderRadius:12,border:"1px solid #1e1e38",textAlign:"center" }}>
-                <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:32,fontWeight:900,color:s.color }}>{s.value}</div>
-                <div style={{ fontSize:11,color:"#6a6a8a",marginTop:4,fontWeight:600 }}>{s.label}</div>
-              </div>
-            ))}
-          </div>
-          {userCountFallbackUsed && (
-            <div style={{ marginTop:14,padding:"10px 14px",background:"#f5a62311",border:"1px solid #f5a62333",borderRadius:8,fontSize:11,color:"#f5a623",lineHeight:1.5 }}>
-              User count is approximate — derived from commissioner + per-team UID stamps on visible leagues. Existing managers from before v2.6.6.0 don't appear until they next save a roster. For an accurate total, run <code style={{color:"#e8e8f0"}}>firebase deploy --only database</code> from the project root (deploys the v2.6.3.0 rules update that allows admin to read the full <code style={{color:"#e8e8f0"}}>frtv_users</code> collection).
-            </div>
-          )}
-        </div>
+        <AdminStatsDashboard
+          leagues={leagues}
+          users={users}
+          totalUsers={totalUsers}
+          totalLeagues={totalLeagues}
+          activeLeagues={activeLeagues}
+          totalTeams={totalTeams}
+          totalContestants={totalContestants}
+          userCountFallbackUsed={userCountFallbackUsed}
+        />
       )}
 
       {/* Shows Tab — v2.6.0.0 scaffolding. Houses (1) Scoring Rule Library
