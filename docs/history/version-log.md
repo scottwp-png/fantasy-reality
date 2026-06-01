@@ -34,7 +34,7 @@ The old "Require gender minimums" feature was a special case of a more general p
 - **Backwards compatibility verified.** `getRosterMinimums` checks `cfg.minCategory` first; only falls through to the legacy fields when it's undefined. Existing leagues with `{genderedRoster: true, minMale: 2, minFemale: 2}` still validate exactly as before. The first edit in the new editor migrates that league to the new schema in-place; subsequent edits go through the new path. The legacy fields stay on the league object harmlessly (helper ignores them once `minCategory` is set).
 - **What this commit does NOT do.** No "custom category" beyond gender / tribe (no per-league user-defined axes like "rookie vs returning"). Tribes from the merge are handled normally — once merged, tribes still exist as historical assignments and the minimum enforces against the contestant's current `tribe` field. The validation alert text in CreateLeagueScreen `handleSave` still references "Gender minimums" — that's fine because CreateLeagueScreen only supports the gender path at creation.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.10s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `3a57b4d`
 
 ### v2.4.49.0 — 2026-06-01
 Three small commissioner-quality-of-life fixes. (1) Scoring someone as Eliminated used to require a second trip into Settings → Roster → Contestant Status to also flip their `status` and `eliminatedWeek` — that's now automatic. (2) Linked Scoring is hidden behind a comment (will be replaced by the planned Show-Wide Scoring layer). (3) Finale Mode moved from General to the Roster section of Settings (it's a roster-shape override, not a general league setting).
