@@ -2018,8 +2018,13 @@ function CouplesEditor({ league, onUpdate }) {
 function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
   const [managePhotos, setManagePhotos] = useState(false);
   const [manageMode, setManageMode] = useState("photos");
-  const [filter, setFilter] = useState("all");
+  // v2.4.51.0: default filter to "active" — non-active contestants are
+  // historical noise for the typical "who's scoring well right now?" question.
+  const [filter, setFilter] = useState("active");
   const [expandedId, setExpandedId] = useState(null);
+  // v2.4.51.0: replaced the 5 sort pills (Season/LastWk/Best/Worst/A-Z) with a
+  // single dropdown so a per-week option fits — same set + every scored week.
+  // Values: "total" | "best" | "worst" | "lastWeek" | "week:<N>" | "name"
   const [sortBy, setSortBy] = useState("total");
   const [selectedForMove, setSelectedForMove] = useState(new Set());
 
@@ -2056,6 +2061,10 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
     if (sortBy === "lastWeek") return b.lastWeekPts - a.lastWeekPts;
     if (sortBy === "best") return b.bestWeekPts - a.bestWeekPts;
     if (sortBy === "worst") return a.worstWeekPts - b.worstWeekPts;
+    if (sortBy.startsWith("week:")) {
+      const w = sortBy.slice(5);
+      return (b.weeklyTotals?.[w] || 0) - (a.weeklyTotals?.[w] || 0);
+    }
     return a.name.localeCompare(b.name);
   });
 
@@ -2121,16 +2130,30 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
           </div>}
         </div>
       </div>
-      {isMerged&&(<div style={{padding:"8px 12px",background:"#f5a62311",borderRadius:8,border:"1px solid #f5a62333",marginBottom:12,fontSize:12,color:"#f5a623",display:"flex",alignItems:"center",gap:6}}>
-        {"\ud83c\udff4"} Merged into {league.mergedTribeName||"one tribe"} {"\u2014"} individual game
-      </div>)}
+      {/* v2.4.51.0: removed the merge banner that ran across the top \u2014 once a
+          season is merged, the banner was a permanent header taking space. The
+          merge state still shows naturally per-contestant (tribe field reflects
+          the merged tribe name). Commissioners can still toggle merge from the
+          Manage \u203a Tribes panel below. */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:6}}>
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
           {["all","active","eliminated"].map(f=>(<button key={f} onClick={()=>setFilter(f)} style={{padding:"6px 14px",borderRadius:99,border:filter===f?"1px solid #e9456044":"1px solid #1e1e38",cursor:"pointer",fontSize:12,fontWeight:600,textTransform:"capitalize",background:filter===f?"#e9456018":"transparent",color:filter===f?"#e94560":"#7a7a9a",fontFamily:"'Outfit',sans-serif",transition:"all .15s"}}>{f}{f==="all"?` (${league.contestants?.length||0})`:""}</button>))}
         </div>
-        <div style={{display:"flex",gap:4}}>
-          {[{id:"total",label:"Season"},{id:"lastWeek",label:"Last Wk"},{id:"best",label:"Best"},{id:"worst",label:"Worst"},{id:"name",label:"A-Z"}].map(s=>(<button key={s.id} onClick={()=>setSortBy(s.id)} style={{padding:"5px 10px",borderRadius:99,border:sortBy===s.id?"1px solid #e9456044":"1px solid transparent",cursor:"pointer",fontSize:11,fontWeight:600,background:sortBy===s.id?"#e9456018":"transparent",color:sortBy===s.id?"#e94560":"#6a6a8a",fontFamily:"'Outfit',sans-serif",transition:"all .15s"}}>{s.label}</button>))}
-        </div>
+        {/* v2.4.51.0: 5-pill sort \u2192 1 dropdown so per-week options can live in
+            the same control without taking horizontal space per week. */}
+        <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={{
+          padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+          color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",cursor:"pointer",outline:"none",
+        }}>
+          <option value="total">Season Total</option>
+          <option value="best">Best {cadenceWord(league)}</option>
+          <option value="worst">Worst {cadenceWord(league)}</option>
+          <option value="lastWeek">Last {cadenceWord(league)}</option>
+          {weeks.length > 0 && <option disabled>\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500</option>}
+          {weeks.map(w => <option key={w} value={`week:${w}`}>{cadenceLabel(league, w)}</option>)}
+          {weeks.length > 0 && <option disabled>\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500</option>}
+          <option value="name">A\u2013Z</option>
+        </select>
       </div>
       {/* Manage Contestants panel */}
       {managePhotos && !readOnly && (
@@ -2313,6 +2336,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
             else if(sortBy==="lastWeek"){bigVal=c.lastWeekPts;bigLabel=`${cadenceShort(league).toLowerCase()} ${(league.currentWeek||1)-1}`;subtitle=`Season: ${formatPts(c.total, league)}`;}
             else if(sortBy==="best"){bigVal=c.bestWeekPts;bigLabel=c.bestWeekNum?`${cadenceShort(league).toLowerCase()} ${c.bestWeekNum}`:null;subtitle=`Season: ${formatPts(c.total, league)}`;}
             else if(sortBy==="worst"){bigVal=c.worstWeekPts;bigLabel=c.worstWeekNum?`${cadenceShort(league).toLowerCase()} ${c.worstWeekNum}`:null;subtitle=`Season: ${formatPts(c.total, league)}`;}
+            else if(sortBy.startsWith("week:")){const w=sortBy.slice(5);bigVal=c.weeklyTotals?.[w]||0;bigLabel=`${cadenceShort(league).toLowerCase()} ${w}`;subtitle=`Season: ${formatPts(c.total, league)}`;}
             else{bigVal=c.total;bigLabel=null;subtitle=null;}
             return(<div key={c.id} style={{borderRadius:12,background:"#12121f",border:"1px solid #1e1e38",opacity:c.status==="eliminated"?0.5:1,overflow:"hidden",transition:"all 0.2s"}}>
               <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",cursor:"pointer"}} onClick={()=>setExpandedId(isExp?null:c.id)}>

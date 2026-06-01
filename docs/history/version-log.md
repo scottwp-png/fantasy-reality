@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.50.0
+**Current Production Version:** v2.4.51.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~7,940
+**App.jsx Line Count:** ~7,945
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,16 @@
 ---
 
 ## Version Log
+
+### v2.4.51.0 — 2026-06-01
+Three Cast-tab polish items from real-tester feedback: (1) default filter showed "All" so eliminated contestants from past episodes cluttered the leaderboard; (2) the orange "Merged into X — individual game" banner ran across the top permanently after merge, which testers found nag-y; (3) the 5 sort pills (Season / Last Wk / Best / Worst / A-Z) didn't include a way to view a specific past week's scores, so users couldn't answer "who killed it in episode 4?" without expanding each card.
+- **Default filter `"all"` → `"active"`** at `App.jsx:2057-2060`. The active filter answers the common question (who's still in the game and how are they doing?). Eliminated and All are one tap away.
+- **Merge banner removed** at `App.jsx:2192-2196`. Was a permanent orange "🏴 Merged into X — individual game" header above the filter pills. After merge that information is already conveyed by per-contestant context (everyone shares the merged tribe). Commissioners can still toggle merge from Manage › Tribes; only the always-on banner is gone. Replaced with a one-line comment explaining the removal.
+- **5 sort pills → 1 dropdown** at `App.jsx:2199-2216`. New `<select>` lists Season Total / Best {Unit} / Worst {Unit} / Last {Unit} / per-week entries (one option for every scored week, labeled via `cadenceLabel`) / A–Z. The dropdown is more compact than 5 + N pills would be (Survivor seasons can run 13+ episodes) and supports an arbitrary number of weeks without horizontal-scroll. Visual separator rows (disabled `──────────`) split the dropdown into three logical groups: aggregates, per-week, alphabetical.
+- **Sort + display wired through to the `week:<N>` case** at `App.jsx:2090-2093` (sort comparator) and `App.jsx:2339` (per-card `bigVal`/`bigLabel`/`subtitle`). When sorting by `week:5`, contestant cards rank by that week's points (descending) and the big number / label on each card shows week-5 points instead of season total. Subtitle shows season total for context.
+- **What this commit does NOT do.** No new badge or chip indicating merged state — relying on contestants' tribe field (which post-merge points at the merged tribe). No dropdown grouping with `<optgroup>` — uses disabled separator rows because `<optgroup>` styles weakly across browsers and the visual cue was the point. The Cast tab still uses card-style rows, not the dense-table look of StandingsTab; "mirror the standings tab" was interpreted as functional parity (rank, expand for detail, sort) not visual identity.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.61s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.50.0 — 2026-06-01
 The old "Require gender minimums" feature was a special case of a more general pattern: "every depth chart must include at least N of each value of some contestant category." Most useful for Survivor (where tribes matter early-season) but also for other shows where contestants differ along non-gender axes. Generalized to **Require category minimums** with `gender` or `tribe` as the category, fully backwards-compatible with existing leagues using the old fields.
