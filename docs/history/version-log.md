@@ -29,7 +29,7 @@ v2.5.1.0 went too far stripping the profile modals — the original layouts were
 - **TeamProfileModal roster restored** at `App.jsx:1906-1916`. Reverted to `flexShrink: 0` and `overflow: hidden`. The v2.4.x layout fit fine — turning the roster into an internal-scroll region was scope creep.
 - **What this commit does NOT do.** No revert of the v2.5.1.0 commit itself — keeping it in git history with this surgical follow-up. The `cursor: default` on the inner panel (v2.5.1.0) is no longer needed and was reverted too.
 - `npm run build` clean (4.21s). 10/10 baselines unaffected (modal changes are pure UI). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `d30f895`
 
 ### v2.5.1.0 — 2026-06-01
 Profile modals (contestant photo lightbox, team profile modal) now FIT in the viewport — no body-level scroll. Tall contestant photos used to push the bio + Close button below the fold; users had to scroll to dismiss. Long rosters in TeamProfileModal could push the avatar off-screen.
