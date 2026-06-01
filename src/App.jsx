@@ -6953,6 +6953,12 @@ function CoCommissionersEditor({ league, onUpdate, userProfile, isPrimaryCommiss
   const teamByUid = {};
   teams.forEach(t => { if (t.uid) teamByUid[t.uid] = t; });
   const eligible = teams.filter(t => t.uid && t.uid !== primaryUid && !co.includes(t.uid));
+  // v2.6.21.1: also show owners whose team has no uid stamp yet (e.g., user
+  // joined pre-v2.6.6.0 and hasn't logged in since the admin backfill ran,
+  // or it's a placeholder team with no real user behind it). They appear in
+  // the dropdown as disabled options so the commissioner has visibility
+  // into the full member list instead of wondering where people went.
+  const pendingOwners = teams.filter(t => !t.uid && t.id !== league.commissionerTeamId);
   const [pickTeamId, setPickTeamId] = useState("");
 
   function promote() {
@@ -7010,24 +7016,31 @@ function CoCommissionersEditor({ league, onUpdate, userProfile, isPrimaryCommiss
         </div>
       )}
 
-      {!isPrimaryCommissioner ? null : eligible.length > 0 ? (
-        <div style={{ display:"flex",gap:8 }}>
-          <select value={pickTeamId} onChange={e=>setPickTeamId(e.target.value)} style={{
-            flex:1,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",
-            borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none",
-          }}>
-            <option value="">— Pick a team owner to promote —</option>
-            {eligible.map(t => <option key={t.id} value={t.id}>{t.owner} (Team {t.name})</option>)}
-          </select>
-          <Btn small onClick={promote} disabled={!pickTeamId}>Promote</Btn>
-        </div>
+      {!isPrimaryCommissioner ? null : (eligible.length > 0 || pendingOwners.length > 0) ? (
+        <>
+          <div style={{ display:"flex",gap:8 }}>
+            <select value={pickTeamId} onChange={e=>setPickTeamId(e.target.value)} style={{
+              flex:1,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",
+              borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none",
+            }}>
+              <option value="">— Pick a team owner to promote —</option>
+              {eligible.map(t => <option key={t.id} value={t.id}>{t.owner} (Team {t.name})</option>)}
+              {pendingOwners.length > 0 && eligible.length > 0 && <option disabled>──────────</option>}
+              {pendingOwners.map(t => <option key={t.id} value={t.id} disabled>{t.owner} (Team {t.name}) — awaiting login</option>)}
+            </select>
+            <Btn small onClick={promote} disabled={!pickTeamId}>Promote</Btn>
+          </div>
+          {pendingOwners.length > 0 && (
+            <div style={{ marginTop:8,padding:"8px 10px",background:"#0d0d18",borderRadius:6,border:"1px solid #1e1e38",fontSize:11,color:"#6a6a8a",lineHeight:1.5 }}>
+              {pendingOwners.length} owner{pendingOwners.length!==1?"s":""} not yet linked to a user account. Ask them to sign up via the invite link, or to log in and save a roster once — their account links automatically — and they'll be promotable.
+            </div>
+          )}
+        </>
       ) : (
         <div style={{ padding:"8px 10px",background:"#0d0d18",borderRadius:6,border:"1px solid #1e1e38",fontSize:11,color:"#6a6a8a",lineHeight:1.5 }}>
           {teams.length === 0
             ? "Add team owners to the league first."
-            : teams.some(t => !t.uid)
-              ? "Some team owners haven't been linked to a user account yet (no `uid` on their team). Ask them to log in and save a roster once — their uid stamps automatically — and they'll appear here."
-              : "All eligible team owners are already co-commissioners or the primary commissioner."}
+            : "All eligible team owners are already co-commissioners or the primary commissioner."}
         </div>
       )}
     </div>
@@ -8044,6 +8057,44 @@ export default function FantasyRealityTV() {
       setLeagues(prev => prev.map(x => x.id === l.id ? updated : x));
     });
   }, [authUser?.uid, userProfile?.activations, leagues.length]);
+
+  // v2.6.21.1: admin-only retroactive uid backfill. The per-user stamp above
+  // only covers the LOGGED-IN user's own team — so teams owned by users who
+  // joined pre-v2.6.6.0 (when join-time uid stamping was added) and haven't
+  // logged back in remain unstamped, which hides them from the
+  // co-commissioner selector. Admin has parent-read on frtv_users, so we can
+  // cross-reference: any user profile with activations[league.id] === team.id
+  // tells us that user's uid belongs on that team. One pass on load.
+  useEffect(() => {
+    if (!isAdmin || !leagues || leagues.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const all = await loadAllUserProfiles();
+      if (cancelled) return;
+      const uidByLeagueTeam = {};
+      Object.entries(all || {}).forEach(([uid, prof]) => {
+        const acts = prof?.activations || {};
+        Object.entries(acts).forEach(([lid, tid]) => {
+          uidByLeagueTeam[`${lid}::${tid}`] = uid;
+        });
+      });
+      leagues.forEach(l => {
+        const teams = l.teams || [];
+        let touched = false;
+        const updatedTeams = teams.map(t => {
+          if (t.uid) return t;
+          const uid = uidByLeagueTeam[`${l.id}::${t.id}`];
+          if (!uid) return t;
+          touched = true;
+          return { ...t, uid };
+        });
+        if (!touched) return;
+        const updated = { ...l, teams: updatedTeams };
+        saveLeague(updated).catch(() => {});
+        setLeagues(prev => prev.map(x => x.id === l.id ? updated : x));
+      });
+    })();
+  }, [isAdmin, leagues.length]);
 
   const [showWideData, setShowWideData] = useState(null);
   useEffect(() => {
