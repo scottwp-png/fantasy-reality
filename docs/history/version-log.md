@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.39.0
+**Current Production Version:** v2.4.40.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~7,580
+**App.jsx Line Count:** ~7,600
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,20 @@
 ---
 
 ## Version Log
+
+### v2.4.40.0 — 2026-06-01
+Per-question gender filter (replaces v2.4.39.0's poll-level filter), question cap raised from 5 to 10. The change unlocks combined Snog Marry Pie polls: one poll named "Snog Marry Pie" with 6 questions — 3 tagged `Male only` (Boys Snog/Marry/Pie), 3 tagged `Female only` (Girls Snog/Marry/Pie), `Unique picks` enabled — instead of needing two separate Boys + Girls polls. Each question's picker pool is filtered independently; the unique-picks constraint operates across the whole poll (cross-gender questions are naturally unique already since the pools don't overlap). All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **`MAX_QUESTIONS_PER_POLL` raised from 5 to 10** at `App.jsx:3418`. Enough headroom for SMP × 2 genders + a couple extras without the form feeling endless. User noted the original 5 cap was arbitrary; 10 is the new ceiling.
+- **Per-question gender filter** at the data model (`App.jsx:3411`): each question can carry an optional `genderFilter: "Male" | "Female"`. The poll-level `genderFilter` field added in v2.4.39.0 is deprecated for new writes but kept readable via the new `effectiveQuestionGender(poll, q)` helper at `App.jsx:3422`, which cascades the poll-level filter down to any question without its own. Existing v2.4.39.0 polls render correctly without migration.
+- **Create form per-question gender dropdown** at `App.jsx:3526-3531`. Compact 54px-wide `<select>` next to each question's text input with options `All` / `♂ M` / `♀ F`. Color-coded value (`#4d8aff` for Male, `#ff5da0` for Female) when set so it's scannable. The old poll-level "Restrict pool to" dropdown is removed.
+- **Picker filtering** at `App.jsx:3635-3641`. New `poolForQuestion(q)` closure derives the per-question pool from `effectiveQuestionGender(poll, q)`. Each question's dropdown options apply both the gender filter AND the unique-picks exclusion (already-drafted contestants in other questions of the same draft).
+- **Gender chip shown inline next to each Qn label**, three places: (1) the active picker form at `App.jsx:3705`, (2) the locked "Your picks" view at `App.jsx:3677`, (3) the read-only tally section at `App.jsx:3742`. The poll-level chip on the header is gone (`App.jsx:3590-3595` simplified to only show the `Unique picks` chip when set). Per-question chips render uppercase `MALE` / `FEMALE`, colored to match the dropdown.
+- **Uniqueness with per-question gender filters.** The unique-picks constraint operates across the entire poll's drafted contestants. With per-question gender filters, cross-gender questions can never collide (different pools), so the uniqueness math naturally reduces to "unique within each gender group" — which is exactly the SMP rule. No special-case code needed; the existing `new Set(picked).size !== picked.length` check at `App.jsx:3491-3493` handles it cleanly.
+- **Migration / backward-compat.** v2.4.39.0 polls (with `poll.genderFilter` set) cascade that filter to every question via `effectiveQuestionGender`. v2.4.36.0 single-question polls still work via the existing `poll.questions || (poll.question ? [...] : [])` fallback. No write-side migration — the dormant `poll.genderFilter` field on legacy polls stays until the commissioner reposts.
+- **What this commit does NOT do.** No drag-to-reorder questions. No question-edit after the poll is posted. No "Boys section / Girls section" labels on the header (the per-question chips carry the gender context; adding section breaks would over-engineer for this side-game's actual usage). No auto-create button for "SMP boilerplate" (the commissioner types the 6 questions manually).
+- **Not yet smoke-tested in browser** — recommended smoke: (a) as commissioner, create a poll named "Snog Marry Pie" with 6 questions, tag the first 3 as Male and the last 3 as Female, check Unique picks, post; (b) verify the constraint chip on the header reads "Unique picks" (no gender chip — those are per-question now); (c) verify each question's Qn label shows its respective `MALE` / `FEMALE` chip; (d) as a manager, verify the Boys questions only show male contestants in the dropdown and the Girls questions only show female; (e) try to pick the same Boy for both Snog and Marry, verify the dropdown excludes him from Marry; (f) submit, verify the locked view shows all 6 with their gender chips next to each Qn label; (g) post-submit, verify a commissioner can clear that team's picks.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.34s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.39.0 — 2026-06-01
 Polls v3 — submit flow, lock-after-submit, optional constraints. Picks now stage in local component state as the manager fills out the form, and only commit on **Submit My Picks**. Once submitted, picks are locked — managers can no longer edit. Commissioners can clear a specific team's picks (which unlocks that team to resubmit). Two optional poll-level constraints are added: **Unique picks across questions** (Snog/Marry/Pie rule — each question must pick a different contestant) and **Restrict pool to Male/Female only** (run the poll twice for gender-split games). Pill in My Roster renamed **Game Log → Team History**. All 10 regression baselines pass byte-identical, `npm run build` clean.
