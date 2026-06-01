@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.0.0
+**Current Production Version:** v2.6.1.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~8,235
+**App.jsx Line Count:** ~8,300
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,22 @@
 ---
 
 ## Version Log
+
+### v2.6.1.0 — 2026-06-01
+**Per-league activity log, visible to ALL league members.** The intent is detection of commissioner abuse — if a commissioner edits someone else's roster while rosters are "locked", every league member can see the receipt with a timestamp and a red FLAGGED badge. Same idea as the admin Audit Log tab, but scoped to one league and exposed to all members.
+- **`appendAudit(league, entry)` helper** at `App.jsx:329-349`. Pure function — returns a new league object with the entry prepended to `league.auditLog` (newest-first). Auto-caps at 500 entries to keep the league doc bounded (~50 KB even with verbose descriptions). Entry shape: `{ time, type, actorName?, desc, meta? }`. Time is `Date.now()` if not provided.
+- **New `LeagueActivityTab` component** at `App.jsx:1472-1521`. Renders `league.auditLog` newest-first with smart timestamps ("Today 3:14 PM", "Yesterday 9:02 AM", "Jun 1 11:30 AM"). Dot colors by type: roster=teal, lock=amber, scoring=purple, finalize=blue, roster-while-locked=red. Entries flagged with `byCommissioner: true` or type `"roster-locked"` render with a red-tinted background and a FLAGGED badge — these are the "looking at you commissioners" cases. Empty state explains the concept.
+- **New `activity` tab in LeagueDashboard** at `App.jsx:1492, 1572`. Access level `all` — visible to every league member, not just commissioners. Sits between format-specific tabs and Settings.
+- **Audit wires** at four high-impact write sites:
+  1. **Roster lock toggle** at `App.jsx:6629-6644` (SettingsTab) — logs every manual lock/unlock with the actor's display name.
+  2. **Depth chart save** at `App.jsx:4477-4503` (DepthChartTab) — logs roster saves. When the saver is a commissioner editing someone ELSE'S team, OR when rosters were locked at save time, the entry is marked `byCommissioner` / `wasLocked` and the type is `roster-locked` so it surfaces flagged in the activity feed.
+  3. **Scoring save** at `App.jsx:2766-2779` (ScoringTab) — logs every score update with the cadence-labeled week.
+  4. **Week finalize** at `App.jsx:3411-3429` (ScoringTab) — logs finalize and notes that rosters auto-release as a consequence.
+- **Auto-lock bug fix** at `App.jsx:297`. v2.5.3.0 compared `league.weekStatus[currentWeek] === "finalized"` directly, but the stored value is `{ status, finalizedAt }` (an object). Fixed to `?.status === "finalized"`. Without this, auto-lock would never release on finalize.
+- **`userProfile` threaded into write components** at `App.jsx:1563, 1565, 1573`. ScoringTab, DepthChartTab, and SettingsTab now accept `userProfile` so they can attribute audit entries to the actual user (`userProfile.displayName`). Fallback strings ("Commissioner" / "Manager") when displayName is missing.
+- **What this commit does NOT do.** Not exhaustive coverage — team add/remove, contestant add/remove, finale-mode toggle, scoring-rule edits, and prediction-question edits don't write to the log yet. Could add later; the helper makes it a one-line addition per write site. No filtering UI (search/type-filter in the activity tab). No export. No server-side write-rule enforcement that the log is append-only — the database rules currently allow commissioners to overwrite the entire league doc, including the auditLog. That gap is acceptable for the trust model of this app (a malicious commissioner could already mess with scores; the audit log raises the cost of doing it covertly because all members would see the entries — and the absence of expected entries is itself evidence of tampering).
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.14s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.0.0 — 2026-06-01
 **Admin Shows tab — scaffolding for show-wide scoring, library management, and per-show base-rule editing.** The full compute-on-read merge that actually cascades show-wide events to subscribed leagues isn't wired in this commit (that requires data-model changes to `calcContestantWeekPoints` + a new `league.showSeasonId` field + RTDB writes for episode events), but the architecture is documented in code and the admin UI is in place so the admin can see what's planned and the layout it'll fit.

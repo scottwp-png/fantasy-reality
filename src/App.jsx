@@ -294,7 +294,7 @@ function getAutoLockState(league, now) {
   const schedule = SHOW_PRESETS[league?.showType]?.airSchedule;
   if (!schedule) return { autoLocked: false };
   const currentWeek = String(league?.currentWeek || 1);
-  if (league?.weekStatus?.[currentWeek] === "finalized") return { autoLocked: false };
+  if (league?.weekStatus?.[currentWeek]?.status === "finalized") return { autoLocked: false };
 
   const nowDate = now || new Date();
   const lead = Number(schedule.lockLeadHours) || 2;
@@ -327,6 +327,27 @@ function getAutoLockState(league, now) {
 function isRosterLocked(league) {
   if (league?.rostersLocked === true) return true;
   return getAutoLockState(league).autoLocked === true;
+}
+
+// v2.6.1.0: per-league audit log. Append-only transaction log visible to ALL
+// league members (not just commissioners). The intent is detection of
+// commissioner abuse — e.g. a commissioner editing someone else's roster
+// while rosters are "locked" — without needing server-side enforcement.
+// Storage: `league.auditLog` array of { time, type, actorName?, desc, meta? }
+// capped at the last 500 entries to keep the league document bounded (~50 KB
+// max even with verbose descriptions). Returns a new league object — callers
+// pipe through onUpdate as usual.
+//
+// Wire this into key write paths: roster lock toggle, depth-chart save,
+// scoring save, team add/remove, week finalize. Not exhaustive by design —
+// "doesn't need to be robust, just a transaction log with timestamps".
+function appendAudit(league, entry) {
+  const next = [
+    { time: Date.now(), ...entry },
+    ...(Array.isArray(league?.auditLog) ? league.auditLog : []),
+  ];
+  // Cap at 500 — keeps the league doc small and bounded.
+  return { ...league, auditLog: next.slice(0, 500) };
 }
 
 // Cadence-aware factory. Returns the same shape as the old static
@@ -1469,6 +1490,61 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // LEAGUE DASHBOARD
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// v2.6.1.0: Per-league activity log, accessible to ALL league members (not
+// just commissioners). Renders league.auditLog newest-first with timestamps.
+// Entries are appended by writes elsewhere via appendAudit(). The visibility
+// is the whole point — managers can see if a commissioner edited someone's
+// roster while it was supposed to be locked.
+function LeagueActivityTab({ league }) {
+  const log = Array.isArray(league?.auditLog) ? league.auditLog : [];
+  if (log.length === 0) {
+    return <EmptyState message="No activity recorded yet. As league members make changes (roster edits, scoring, lock toggles), they'll show up here for everyone to see." />;
+  }
+  function fmtTime(t) {
+    if (!t) return "";
+    const d = new Date(t);
+    const now = new Date();
+    const sameDay = d.toDateString() === now.toDateString();
+    const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+    const isYesterday = d.toDateString() === yesterday.toDateString();
+    const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    if (sameDay) return `Today ${time}`;
+    if (isYesterday) return `Yesterday ${time}`;
+    return `${d.toLocaleDateString([], { month: "short", day: "numeric" })} ${time}`;
+  }
+  function dotColor(type) {
+    if (type === "roster-locked") return "#e94560"; // commissioner-while-locked → red flag
+    if (type === "roster") return "#4ecdc4";
+    if (type === "lock") return "#f5a623";
+    if (type === "scoring") return "#9d5dff";
+    if (type === "finalize") return "#4d8aff";
+    return "#8888aa";
+  }
+  return (
+    <div>
+      <div style={{ fontSize:13,color:"#6a6a8a",marginBottom:16,lineHeight:1.5 }}>
+        Recent league activity. Roster edits, scoring updates, lock changes, and finalize actions are all logged. Visible to every league member.
+      </div>
+      <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
+        {log.map((e, i) => {
+          const flagged = e.type === "roster-locked" || e.meta?.byCommissioner;
+          return (
+            <div key={i} style={{ display:"flex",alignItems:"flex-start",gap:10,padding:"10px 12px",borderRadius:8,
+              background:flagged?"#e9456011":"#12121f",border:flagged?"1px solid #e9456033":"1px solid #1e1e38" }}>
+              <div style={{ width:8,height:8,borderRadius:"50%",flexShrink:0,marginTop:5,background:dotColor(e.type) }}/>
+              <div style={{ flex:1,minWidth:0 }}>
+                <div style={{ fontSize:13,color:"#e8e8f0",lineHeight:1.4 }}>{e.desc}</div>
+                <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>{fmtTime(e.time)}</div>
+              </div>
+              {flagged && <Badge color="#e94560">FLAGGED</Badge>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissioner, allLeagues, userProfile, onRevealSpoiler }) {
   const [tab, setTab] = useState("standings");
   const [modal, setModal] = useState(null);
@@ -1503,6 +1579,7 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
       { id:"predict",label:"Predict",icon:"star",access:"all" },
       { id:"manage-questions",label:"Questions",icon:"settings",access:"commissioner" },
     ] : []),
+    { id:"activity",label:"Activity",icon:"clock",access:"all" },
     { id:"settings",label:"Settings",icon:"settings",access:"commissioner" },
   ];
 
@@ -1560,16 +1637,17 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
       <div style={{ padding:20 }}>
         {tab === "standings" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><StandingsTab league={league} standings={standings} onUpdate={onUpdate} isCommissioner={isCommissioner} myTeamId={loggedInTeamId} /></SpoilerBlur>}
         {tab === "contestants" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><ContestantsTab league={league} onUpdate={isCommissioner?onUpdate:null} setModal={isCommissioner?setModal:()=>{}} setEditing={isCommissioner?setEditingItem:()=>{}} readOnly={!isCommissioner} /></SpoilerBlur>}
-        {tab === "scoring" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><ScoringTab league={league} onUpdate={isCommissioner ? onUpdate : null} isCommissioner={isCommissioner} /></SpoilerBlur>}
+        {tab === "scoring" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><ScoringTab league={league} onUpdate={isCommissioner ? onUpdate : null} isCommissioner={isCommissioner} userProfile={userProfile} /></SpoilerBlur>}
         {tab === "weekly-draft" && isCommissioner && <WeeklyDraftTab league={league} onUpdate={onUpdate} standings={standings} />}
-        {tab === "depth-chart" && <DepthChartTab league={league} onUpdate={onUpdate} lockedToTeamId={isCommissioner ? null : loggedInTeamId} defaultTeamId={loggedInTeamId} isCommissioner={isCommissioner} spoilerActive={spoilerActive} myTeamId={loggedInTeamId} />}
+        {tab === "depth-chart" && <DepthChartTab league={league} onUpdate={onUpdate} lockedToTeamId={isCommissioner ? null : loggedInTeamId} defaultTeamId={loggedInTeamId} isCommissioner={isCommissioner} spoilerActive={spoilerActive} myTeamId={loggedInTeamId} userProfile={userProfile} />}
         {tab === "my-pick" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><SurvivorPoolTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} /></SpoilerBlur>}
         {tab === "weekly-pick" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><EliminationPoolTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} /></SpoilerBlur>}
         {tab === "my-roster-cap" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><SalaryCapRosterTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} /></SpoilerBlur>}
         {tab === "set-prices" && isCommissioner && <SalaryCapPricesTab league={league} onUpdate={onUpdate} />}
         {tab === "predict" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><PredictionsPlayerTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} /></SpoilerBlur>}
         {tab === "manage-questions" && isCommissioner && <PredictionsCommishTab league={league} onUpdate={onUpdate} />}
-        {tab === "settings" && isCommissioner && <SettingsTab league={league} onUpdate={onUpdate} allLeagues={allLeagues} setModal={setModal} setEditing={setEditingItem} />}
+        {tab === "activity" && <LeagueActivityTab league={league} />}
+        {tab === "settings" && isCommissioner && <SettingsTab league={league} onUpdate={onUpdate} allLeagues={allLeagues} setModal={setModal} setEditing={setEditingItem} userProfile={userProfile} />}
       </div>
 
       {isCommissioner && (
@@ -2881,7 +2959,7 @@ function TeamCardActions({ team, league, onUpdate, setEditing, setModal }) {
   );
 }
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function ScoringTab({ league, onUpdate, isCommissioner = true }) {
+function ScoringTab({ league, onUpdate, isCommissioner = true, userProfile }) {
   const [selectedWeek, setSelectedWeek] = useState(String(league.currentWeek||1));
   const [edits, setEdits] = useState({});
   const [selectedRule, setSelectedRule] = useState(null);
@@ -2946,6 +3024,9 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
     const weekKey = selectedWeek;
     const mergedWeek = { ...weekScores, ...edits };
     const merged = { ...(league.weeklyScores||{}), [weekKey]: mergedWeek };
+    // v2.6.1.0: log score saves so league members see when scoring happened.
+    const actorName = userProfile?.displayName || "Commissioner";
+    const auditEntry = { type: "scoring", actorName, desc: `${actorName} updated scoring for ${cadenceLabel(league, weekKey)}`, meta: { week: weekKey } };
 
     // v2.4.49.0: eliminate-on-score. When commissioner scores any rule flagged
     // `isElimination: true` for a contestant in this week, auto-set the
@@ -2969,7 +3050,8 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
       return c;
     });
 
-    onUpdate({ ...league, weeklyScores: merged, contestants: nextContestants });
+    const audited = appendAudit(league, auditEntry);
+    onUpdate({ ...audited, weeklyScores: merged, contestants: nextContestants });
     setEdits({});
   }
 
@@ -3384,10 +3466,16 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
           {Object.keys(weekScores).length > 0 && !league.weekStatus?.[selectedWeek]?.finalizedAt && (
             <Btn variant="ghost" onClick={() => {
               if (!confirm(`Finalize ${cadenceLabel(league, selectedWeek)}? This enables spoiler protection for all members.`)) return;
-              let updated = {
-                ...league,
+              const actorName = userProfile?.displayName || "Commissioner";
+              let updated = appendAudit(league, {
+                type: "finalize", actorName,
+                desc: `${actorName} finalized ${cadenceLabel(league, selectedWeek)} (rosters auto-released)`,
+                meta: { week: selectedWeek },
+              });
+              updated = {
+                ...updated,
                 weekStatus: {
-                  ...(league.weekStatus || {}),
+                  ...(updated.weekStatus || {}),
                   [String(selectedWeek)]: { status: "finalized", finalizedAt: Date.now() }
                 }
               };
@@ -4237,7 +4325,7 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
   );
 }
 
-function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isCommissioner, spoilerActive, myTeamId }) {
+function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isCommissioner, spoilerActive, myTeamId, userProfile }) {
   // Finale-week swap: when the commissioner has flipped on finale mode, render
   // the couple picker instead of the depth chart for the current week. Early-return
   // BEFORE any hooks so React doesn't see a different hook order across renders —
@@ -4461,7 +4549,23 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
       depthChart: editingWeek ? t.depthChart : { ...localChart },
       weeklyDepthCharts: { ...(t.weeklyDepthCharts||{}), [weekNum]: { ...localChart } },
     });
-    onUpdate({ ...league, teams: updatedTeams });
+    // v2.6.1.0: log roster save so all league members can see who edited
+    // what and when. Critically flags commissioner-while-locked edits — the
+    // "looking at you commissioners" detection the user asked for.
+    const editedTeam = league.teams.find(t => t.id === selectedTeam);
+    const isOwnTeam = selectedTeam === myTeamId;
+    const wasLocked = isRosterLocked(league);
+    const actorName = userProfile?.displayName || (isCommissioner ? "Commissioner" : "Manager");
+    const auditDesc = isCommissioner && !isOwnTeam
+      ? `${actorName} (commissioner) saved ${editedTeam?.name || "a team"}'s roster${wasLocked ? " — while rosters were LOCKED" : ""}`
+      : `${actorName} saved ${editedTeam?.name || "their"} roster${wasLocked ? " — while LOCKED" : ""}`;
+    const audited = appendAudit(league, {
+      type: wasLocked ? "roster-locked" : "roster",
+      actorName,
+      desc: auditDesc,
+      meta: { teamId: selectedTeam, week: weekNum, byCommissioner: !!isCommissioner && !isOwnTeam, wasLocked },
+    });
+    onUpdate({ ...audited, teams: updatedTeams });
     setEditingName(false);
   }
 
@@ -6455,7 +6559,7 @@ function CategoryMinimumsEditor({ league, onUpdate }) {
   );
 }
 
-function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing }) {
+function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userProfile }) {
   const [editingInfo, setEditingInfo] = useState(false);
   const [leagueInfo, setLeagueInfo] = useState({
     name: league.name || "",
@@ -6642,7 +6746,16 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing }) {
                 {autoExplainer && <div style={{ fontSize:11,color:"#8888aa",marginTop:4,fontStyle:"italic",lineHeight:1.4 }}>{autoExplainer}</div>}
               </div>
               <Btn small variant={manual?"danger":"secondary"}
-                onClick={()=>onUpdate({...league,rostersLocked:!manual})}>
+                onClick={()=>{
+                  const actorName = userProfile?.displayName || "Commissioner";
+                  const next = !manual;
+                  const audited = appendAudit(league, {
+                    type: "lock",
+                    actorName,
+                    desc: `${actorName} ${next ? "manually locked" : "manually unlocked"} rosters`,
+                  });
+                  onUpdate({ ...audited, rostersLocked: next });
+                }}>
                 {manual ? "Unlock" : "Lock"}
               </Btn>
             </div>
