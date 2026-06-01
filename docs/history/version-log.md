@@ -34,7 +34,7 @@ The Cast tab sort dropdown's per-week options now group episodes into **draft we
 - **Why grouping ALWAYS happens (even single-ep)**: keeping the code path unified avoids a branch in every consumer. For single-ep leagues, `draftWeeksGrouped` has shape `[{ num: "1", episodes: ["1"] }, ...]`. The sort comparator's `eps.reduce` sums one entry. The dropdown shows one option per week. The chip row is gated on `epsPerWk > 1` separately, so single-ep cards don't get cluttered.
 - **What this commit does NOT do.** Episode-level statistics (best-episode-of-best-week, etc.) — current Best/Worst/Last still use per-episode entries from `weeklyTotals`. For multi-ep shows that mismatch (Best Episode vs Best Week) is acceptable for the soft launch; we can add a "Best Week" sort that sums per-draft-week later. No way to navigate between episodes within the modal (e.g., "next episode" arrows) — close modal, tap next chip is fine for now.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.31s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `36c17f1`
 
 ### v2.5.1.1 — 2026-06-01
 v2.5.1.0 went too far stripping the profile modals — the original layouts were basically right, they just needed the photo capped so portrait images didn't push the close button below the fold on small viewports. Reverted both modals to their pre-v2.5.1.0 layout (outer scroll, photo as natural-width, no internal scroll regions) and added a single line: `maxHeight: 55vh` on the contestant photo's `<img>`. The TeamProfileModal didn't need any change — kept its v2.4.x roster layout.
