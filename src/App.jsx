@@ -7614,7 +7614,19 @@ export default function FantasyRealityTV() {
   }
 
   async function deleteLeague(leagueId) {
-    if (!confirm("Delete this league permanently?")) return;
+    const target = leagues.find(l => l.id === leagueId);
+    if (!target) return;
+    // v2.6.13.0: extra protection — require typing the exact league name so a
+    // stray double-tap on the trash icon doesn't wipe a whole season's data.
+    const typed = prompt(
+      `Permanently delete "${target.name}"? This cannot be undone — all teams, rosters, scoring, and league activity will be lost.\n\nType the league name exactly to confirm:`,
+      ""
+    );
+    if (typed === null) return; // user cancelled the prompt
+    if (typed.trim() !== target.name.trim()) {
+      alert(`League name didn't match. Nothing deleted.\n\nExpected: "${target.name}"\nYou typed: "${typed}"`);
+      return;
+    }
     const updated = leagues.filter(l => l.id !== leagueId);
     await deleteData("league_" + leagueId);
     await saveData("league_index", updated.map(l => l.id));

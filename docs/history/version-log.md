@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.12.0
+**Current Production Version:** v2.6.13.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~8,850
+**App.jsx Line Count:** ~8,860
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,14 @@
 ---
 
 ## Version Log
+
+### v2.6.13.0 — 2026-06-01
+**Type-the-name confirmation for league deletion.** The old `confirm("Delete this league permanently?")` was too easy to accept by reflex — a stray double-tap on the trash icon could wipe an entire season's data with one click. Now the delete flow requires the user to type the exact league name to confirm.
+- **`deleteLeague` reworked** at `App.jsx:7616-7635`. Replaces `confirm(...)` with a `prompt(...)` that includes the league name in the message and asks the user to type it back. Compares trimmed strings; mismatch shows an `alert` with both expected and typed values, then aborts. `null` return (user hit Cancel on the prompt) is treated as cancel without the alert. Exact-match on trim — case-sensitive, so leagues with intentional casing ("Fantasy Survivor 50" vs. "fantasy survivor 50") still get the protection.
+- **Why prompt+alert and not a custom modal**: native `prompt` is one line of JS, has no styling required, and is universally familiar as "I'm doing something destructive." A custom Modal-based confirmation would require more state plumbing and styling work for a one-shot interaction; the protection level is the same.
+- **What this commit does NOT do.** No undo / soft delete — once you type the name and confirm, the league record is gone from RTDB. No similar gate on contestant or team deletion (those are scoped to within a league and have less catastrophic blast radius). No "are you sure" interstitial elsewhere — only the league-level delete needed the upgrade.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.20s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.12.0 — 2026-06-01
 **Admin Shows tab restructured to mirror My Leagues** — index of show-record cards, tap to drill into a detail view. Replaces the single dense management form (show selector at top + library + cast + scoring all stacked) with a two-level navigation that matches the mental model of the existing My Leagues home screen.
