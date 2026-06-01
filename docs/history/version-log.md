@@ -32,7 +32,7 @@
 - **Help line above the list** swaps with mode: "Drag a rule by its grip handle to reorder…" in normal mode, "Edit label, points, and category inline…" in bulk-edit mode.
 - **What this commit does NOT do.** No multi-select + bulk operations (delete all selected, set category for selected, ±X points to selected). The inline grid covers the actual "edit 15 rules without 30 clicks" pain; multi-select is a separate UX that can come later if needed. No mass-export of rules as TSV either — only bulk paste IN; the bulk-edit grid replaces the need for export-edit-reimport for most cases.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.80s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `17c5ba9`
 
 ### v2.6.22.1 — 2026-06-01
 **Bulk-add rules via spreadsheet paste.** Admin can paste many rules at once (TSV from Excel/Sheets, or comma-separated lines) instead of clicking through the modal 15+ times.
