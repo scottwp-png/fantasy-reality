@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.43.0
+**Current Production Version:** v2.4.44.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~7,670
+**App.jsx Line Count:** ~7,705
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,17 @@
 ---
 
 ## Version Log
+
+### v2.4.44.0 — 2026-06-01
+Two pre-launch UX fixes from real-tester feedback: (1) the spoiler-protection overlay's reveal panel was only the small button at the bottom — testers (including the user's girlfriend) instinctively tapped the eye emoji or the headline text, which did nothing. On tall tabs like Standings the overlay was vertically centered in the full content height, forcing scroll to find the warning at all. (2) The Polls section on Standings landed on a wall of empty form fields for commissioners, drowning the actual poll list. Both issues addressed without changing any underlying mechanics.
+- **SpoilerBlur is now one big tappable button** at `App.jsx:400-444`. The outer overlay is `<button type="button" onClick={onReveal}>` covering `inset:0`, so tapping anywhere — eye, headline, subtitle, or the gradient pill — reveals. The pill became a styled `<div>` (still gradient `#e94560 → #f5a623`) so we don't have nested buttons. Eye emoji bumped to `52px` (was 28px) so it reads as the primary affordance. Subtitle changed to "Tap anywhere on this panel to reveal results — spoiler protection is on." so the new tap-target is communicated.
+- **Spoiler overlay capped at 70vh + `overflow:hidden`** on the wrapper. Previously the relative wrapper was the full height of the blurred content (sometimes 2000px+), so the absolute overlay's `align-items:center` placed the reveal message ~1000px down. With max-height 70vh the panel is always within one viewport — no scroll required to find the warning. Background opacity raised from `0.6` to `0.78` so the blurred content is more clearly "redacted" behind the reveal panel.
+- **`aria-label` on the SpoilerBlur button** at `App.jsx:413`, derived from `cadenceLabel(league, week)`, so screen-reader users get "Reveal Week 3 scores" instead of an unlabeled button.
+- **Polls section gates the create-poll builder behind an `+ Add` button** at `App.jsx:3401, 3520-3528, 3534`. New local state `showCreate` defaults to `false`. The "Polls" `<h3>` header moved INTO `PollsSection` (was being rendered above the component in StandingsTab) so the Add button can sit on the same row as the title. Tapping `+ Add` expands the existing builder card unchanged; tapping `× Close` (top-right of the card) or successfully posting auto-collapses it back. `handleCreatePoll` wraps the existing `createPoll` so the auto-collapse only fires when there was actually a draft name to submit (avoids closing on no-op clicks).
+- **Empty-state copy updated** at `App.jsx:3604`: "No polls yet. Tap + Add to create one." (was "Create one above.")
+- **What this commit does NOT do.** No change to spoiler grace-period logic, the `userProfile.spoilerRevealed` map, or any of the poll data model — `effectiveGroups`, `createPoll`, `submitPoll`, etc. are untouched. The 70vh cap applies only to the SpoilerBlur wrapper, not to the children — once revealed, the content has its own height back.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.17s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.43.0 — 2026-06-01
 Pre-launch polish on the invite/onboarding flow. Testers reported that the invite-code box on the sign-up form looked visually awkward and that clicking an invite link without an existing account was confusing — they'd land on the login screen with no sign of having been invited. Three changes: (1) sign-up invite-code box removed (was a teal-bordered card between Password and Create Account); (2) AuthScreen renders a prominent "You're invited!" banner above the mode tabs when the URL carries `?join=CODE`, with auto-default to the Sign Up tab; (3) home-screen "Join a League" box renamed "Have an invite code?" with a clarifying line that invite *links* don't require code entry. All 10 regression baselines pass byte-identical, `npm run build` clean.

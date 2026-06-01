@@ -399,27 +399,45 @@ const getEffectiveRoster = (league, team) => {
 
 function SpoilerBlur({ active, children, onReveal, week, league }) {
   if (!active) return children;
+  // v2.4.44.0: cap wrapper at 70vh + overflow hidden so the reveal panel is
+  // always within one viewport — testers had to scroll to find the warning on
+  // tall tabs (Standings, Scoring). The whole overlay is a button so tapping
+  // the eye, the text, or the gradient pill all reveal. Previously only the
+  // small Btn at the bottom worked; users instinctively tapped the eye.
   return (
-    <div style={{ position: "relative" }}>
+    <div style={{ position: "relative", maxHeight: "70vh", overflow: "hidden", borderRadius: 12 }}>
       <div style={{ filter: "blur(8px) grayscale(1)", userSelect: "none", pointerEvents: "none" }}>
         {children}
       </div>
-      <div style={{
-        position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        background: "rgba(10,10,24,0.6)", borderRadius: 12, zIndex: 10
-      }}>
-        <div style={{ textAlign: "center", padding: 24 }}>
-          <div style={{ fontSize: 28, marginBottom: 8 }}>&#128065;</div>
-          <div style={{ color: "#e8e8f0", fontWeight: 700, fontSize: 16, marginBottom: 4 }}>
+      <button
+        type="button"
+        onClick={onReveal}
+        aria-label={`Reveal ${cadenceLabel(league, week)} scores`}
+        style={{
+          position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          background: "rgba(10,10,24,0.78)", borderRadius: 12, zIndex: 10,
+          border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer",
+        }}
+      >
+        <div style={{ textAlign: "center", padding: 24, maxWidth: 360 }}>
+          <div style={{ fontSize: 52, marginBottom: 10, lineHeight: 1 }}>&#128065;&#65039;</div>
+          <div style={{ color: "#e8e8f0", fontWeight: 700, fontSize: 17, marginBottom: 6, fontFamily: "'Anybody',sans-serif" }}>
             {cadenceLabel(league, week)} Scores Finalized
           </div>
-          <div style={{ color: "#8888aa", fontSize: 13, marginBottom: 16 }}>
-            Tap below when you're ready to see results
+          <div style={{ color: "#aaaabf", fontSize: 13, marginBottom: 16, lineHeight: 1.4 }}>
+            Tap anywhere on this panel to reveal results &mdash; spoiler protection is on.
           </div>
-          <Btn onClick={onReveal}>Reveal {cadenceLabel(league, week)}</Btn>
+          <div style={{
+            display: "inline-block", padding: "10px 22px",
+            background: "linear-gradient(135deg, #e94560, #f5a623)",
+            borderRadius: 8, color: "#fff", fontWeight: 700, fontSize: 13,
+            fontFamily: "'Anybody',sans-serif", letterSpacing: "0.02em",
+          }}>
+            Reveal {cadenceLabel(league, week)}
+          </div>
         </div>
-      </div>
+      </button>
     </div>
   );
 }
@@ -1611,9 +1629,10 @@ function StandingsTab({ league, standings, onUpdate, isCommissioner, myTeamId })
         </div>
       )}
       {/* League-wide polls — moved here from My Roster in v2.4.42.0 so they're
-          visible to all managers (Standings is the universal landing tab). */}
+          visible to all managers (Standings is the universal landing tab).
+          v2.4.44.0: header + Add button moved into PollsSection so the create
+          form can collapse cleanly under the title row. */}
       <div style={{ marginTop:24,paddingTop:16,borderTop:"1px solid #1e1e38" }}>
-        <h3 style={{ margin:"0 0 12px",fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Polls</h3>
         <PollsSection league={league} team={(league.teams||[]).find(t => t.id === myTeamId)} onUpdate={onUpdate} isCommissioner={isCommissioner} />
       </div>
       {teamModalTeam && (
@@ -3404,6 +3423,10 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
     { name: "", uniqueWithin: false, questions: [{ text: "", genderFilter: "" }] },
   ]);
   const [drafts, setDrafts] = useState({});
+  // v2.4.44.0: collapse the create-poll builder behind an Add button so the
+  // Polls section reads as the list of existing polls by default — testers
+  // landing on Standings were greeted by a wall of empty form fields.
+  const [showCreate, setShowCreate] = useState(false);
 
   const totalDraftQuestions = draftGroups.reduce((s, g) => s + g.questions.length, 0);
 
@@ -3513,11 +3536,34 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
     }) });
   }
 
+  // Auto-close the builder when a poll posts successfully — createPoll resets
+  // draftName, so detecting "we just submitted" via draftName flip is the
+  // simplest signal without rewiring createPoll's call sites.
+  function handleCreatePoll() {
+    const hadName = !!draftName.trim();
+    createPoll();
+    if (hadName) setShowCreate(false);
+  }
+  function cancelCreate() {
+    setDraftName("");
+    setDraftGroups([{ name:"", uniqueWithin:false, questions:[{ text:"", genderFilter:"" }] }]);
+    setShowCreate(false);
+  }
+
   return (
     <div>
-      {isCommissioner && (
+      <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:12 }}>
+        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Polls</h3>
+        {isCommissioner && !showCreate && (
+          <Btn small onClick={()=>setShowCreate(true)}>+ Add</Btn>
+        )}
+      </div>
+      {isCommissioner && showCreate && (
         <div style={{ marginBottom:16,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-          <div style={{ fontSize:11,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8 }}>Create a Poll</div>
+          <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8 }}>
+            <div style={{ fontSize:11,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em" }}>Create a Poll</div>
+            <button onClick={cancelCreate} title="Cancel" style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#8888aa",fontSize:10,cursor:"pointer",padding:"3px 8px",fontFamily:"'Outfit',sans-serif" }}>× Close</button>
+          </div>
           <input value={draftName} onChange={e=>setDraftName(e.target.value)} placeholder="Poll name (e.g. Snog Marry Pie)"
             style={{ width:"100%",padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
               color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none",boxSizing:"border-box",marginBottom:10 }} />
@@ -3570,7 +3616,7 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
           </div>
           <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:10,gap:6,flexWrap:"wrap" }}>
             <Btn small variant="ghost" onClick={addGroup} disabled={totalDraftQuestions >= MAX_QUESTIONS_PER_POLL}>+ Add Section</Btn>
-            <Btn small onClick={createPoll} disabled={!draftName.trim() || totalDraftQuestions === 0 || !draftGroups.some(g => g.questions.some(q => q.text.trim()))}>Post Poll</Btn>
+            <Btn small onClick={handleCreatePoll} disabled={!draftName.trim() || totalDraftQuestions === 0 || !draftGroups.some(g => g.questions.some(q => q.text.trim()))}>Post Poll</Btn>
           </div>
           <div style={{ fontSize:10,color:"#6a6a8a",marginTop:8,fontStyle:"italic",lineHeight:1.4 }}>
             Each section's "Unique picks" rule applies to questions in that section only. Use sections when different groups of questions need different rules — e.g. SMP covering Boys + Girls (Boys section with Unique on, Girls section with Unique on).
@@ -3579,7 +3625,7 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
       )}
 
       {polls.length === 0 ? (
-        <EmptyState message={isCommissioner ? "No polls yet. Create one above." : "Waiting for the commissioner to post a poll."} />
+        <EmptyState message={isCommissioner ? "No polls yet. Tap + Add to create one." : "Waiting for the commissioner to post a poll."} />
       ) : polls.map(poll => {
         const groups = effectiveGroups(poll);
         const allQuestions = flattenGroupQuestions(groups);
