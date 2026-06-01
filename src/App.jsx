@@ -4283,53 +4283,57 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
                 )}
                 <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
                   {g.questions.map((q, qIdx) => {
-                    const tally = {};
-                    Object.values(allPicks).forEach(tp => {
+                    // v2.6.4.0: consolidated results — one row per picked
+                    // contestant showing rank/count/% bar AND the team-name
+                    // chips of who picked them. Same info as the old separate
+                    // "Picks" + "Tally" sections, but tied together so you
+                    // never have to mentally cross-reference.
+                    const pickersFor = {}; // contestantId → [teamName, ...]
+                    Object.entries(allPicks).forEach(([tid, tp]) => {
                       const cid = tp?.[q.id];
-                      if (cid) tally[cid] = (tally[cid] || 0) + 1;
+                      if (!cid) return;
+                      if (!pickersFor[cid]) pickersFor[cid] = [];
+                      const tName = (league.teams||[]).find(t => t.id === tid)?.name || tid;
+                      pickersFor[cid].push(tName);
                     });
-                    const tallyEntries = Object.entries(tally).map(([id, c]) => ({ id, count: c })).sort((a,b) => b.count - a.count);
+                    const tallyEntries = Object.entries(pickersFor)
+                      .map(([id, pickers]) => ({ id, count: pickers.length, pickers }))
+                      .sort((a,b) => b.count - a.count);
                     const totalPicks = tallyEntries.reduce((s, e) => s + e.count, 0);
+                    const maxCount = tallyEntries[0]?.count || 1;
                     const qGender = effectiveQuestionGender(poll, q);
                     return (
                       <div key={q.id} style={{ paddingTop:qIdx>0?12:0,borderTop:qIdx>0?"1px solid #1e1e38":"none" }}>
-                        <div style={{ display:"flex",gap:6,alignItems:"flex-start",marginBottom:6,flexWrap:"wrap" }}>
+                        <div style={{ display:"flex",gap:6,alignItems:"flex-start",marginBottom:8,flexWrap:"wrap" }}>
                           <span style={{ fontSize:10,fontWeight:700,color:"#f5a623",letterSpacing:"0.04em",flexShrink:0,marginTop:2 }}>Q{qIdx+1}</span>
                           <div style={{ flex:1,fontSize:12,fontWeight:600,color:"#aaaabf",lineHeight:1.4,wordBreak:"break-word",minWidth:0 }}>{q.text}</div>
                           {qGender && <span style={{ fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:99,background:qGender==="Male"?"#4d8aff22":"#ff5da022",color:qGender==="Male"?"#4d8aff":"#ff5da0",letterSpacing:"0.04em",textTransform:"uppercase",flexShrink:0,marginTop:2 }}>{qGender}</span>}
+                          {totalPicks > 0 && <span style={{ fontSize:10,color:"#6a6a8a",fontWeight:600,flexShrink:0,marginTop:2 }}>{totalPicks} pick{totalPicks!==1?"s":""}</span>}
                         </div>
-                        {totalPicks > 0 && (
-                          <div style={{ marginBottom:tallyEntries.length>0?6:0 }}>
-                            <div style={{ fontSize:9,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3 }}>Picks</div>
-                            <div style={{ display:"flex",flexDirection:"column",gap:2 }}>
-                              {(league.teams||[]).map(t => {
-                                const pid = allPicks[t.id]?.[q.id];
-                                if (!pid) return null;
-                                return (
-                                  <div key={t.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"3px 8px",background:"#0d0d18",borderRadius:5 }}>
-                                    <span style={{ fontSize:11,color:"#8888aa",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flexShrink:1,minWidth:0 }}>{t.name}</span>
-                                    <span style={{ fontSize:11,color:"#4a4a6a" }}>→</span>
-                                    <span style={{ fontSize:11,color:"#e8e8f0",fontWeight:600,flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{byId[pid]?.name || "—"}</span>
+                        {tallyEntries.length === 0 ? (
+                          <div style={{ fontSize:11,color:"#4a4a6a",fontStyle:"italic",padding:"6px 0" }}>No picks yet.</div>
+                        ) : (
+                          <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
+                            {tallyEntries.map(e => {
+                              const pct = totalPicks > 0 ? Math.round((e.count / totalPicks) * 100) : 0;
+                              const barPct = Math.max(8, Math.round((e.count / maxCount) * 100));
+                              return (
+                                <div key={e.id} style={{ padding:"6px 8px",background:"#0d0d18",borderRadius:6,border:"1px solid #1a1a30" }}>
+                                  <div style={{ position:"relative",height:24,display:"flex",alignItems:"center",gap:8 }}>
+                                    <div style={{ position:"absolute",inset:0,borderRadius:4,background:"#1a1a30",overflow:"hidden" }}>
+                                      <div style={{ width:`${barPct}%`,height:"100%",background:"linear-gradient(90deg,#f5a62333,#f5a62311)",transition:"width 0.3s ease" }}/>
+                                    </div>
+                                    <span style={{ position:"relative",flex:1,minWidth:0,fontSize:12,fontWeight:700,color:"#e8e8f0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",paddingLeft:6 }}>{byId[e.id]?.name || "—"}</span>
+                                    <span style={{ position:"relative",fontSize:11,color:"#f5a623",fontWeight:700,paddingRight:6,flexShrink:0 }}>{e.count} &middot; {pct}%</span>
                                   </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                        {tallyEntries.length > 0 && (
-                          <div>
-                            <div style={{ fontSize:9,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3 }}>Tally</div>
-                            <div style={{ display:"flex",flexDirection:"column",gap:1 }}>
-                              {tallyEntries.map(e => {
-                                const pct = totalPicks > 0 ? Math.round((e.count / totalPicks) * 100) : 0;
-                                return (
-                                  <div key={e.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"3px 0" }}>
-                                    <span style={{ flex:1,minWidth:0,fontSize:12,fontWeight:600,color:"#e8e8f0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{byId[e.id]?.name || "—"}</span>
-                                    <span style={{ fontSize:11,color:"#f5a623",fontWeight:700,minWidth:50,textAlign:"right" }}>{e.count} ({pct}%)</span>
+                                  <div style={{ display:"flex",flexWrap:"wrap",gap:3,marginTop:5 }}>
+                                    {e.pickers.map((tn, i) => (
+                                      <span key={i} style={{ fontSize:10,padding:"2px 7px",borderRadius:99,background:"#12121f",border:"1px solid #2a2a4a",color:"#8888aa",fontFamily:"'Outfit',sans-serif" }}>{tn}</span>
+                                    ))}
                                   </div>
-                                );
-                              })}
-                            </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
