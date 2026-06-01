@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.2.0
+**Current Production Version:** v2.6.3.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~8,460
+**App.jsx Line Count:** ~8,500
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,19 @@
 ---
 
 ## Version Log
+
+### v2.6.3.0 — 2026-06-01
+**Real show-wide episode scoring + per-league opt-in + admin reorganization + Stats fix.** This was the big "scaffold → working feature" step for the show-wide cascade the user has been asking about all session.
+- **Show-wide episode scoring** now functional in admin Shows tab at `App.jsx:7917-8030` (new `ShowWideScoringSection` component). Admin picks a season key (free-text, typically matches a league's `seasonName` like "Season 50") and an episode number, types contestant names, and increments/decrements rule counts per contestant. Save writes the whole `(season, episode)` payload to RTDB at `showScoring/<showType>/<seasonKey>/<episode>/<contestantName>/<ruleId> = count`.
+- **Per-league opt-in toggle** at `App.jsx:6733-6760` (SettingsTab). New `league.useShowWideScoring` boolean defaults to false. Toggling on writes an audit-log entry (`setting` type). Banner explains how the cascade works in plain English: matching by show + season + contestant name; each league keeps its own point values.
+- **Compute-on-read merge** via new helper `mergeShowWideScoring(league, showScoringData)` at `App.jsx:329-358`. Pure function. For each `(episode, contestantName, ruleId, count)` from the show-wide payload: looks up the league's contestant by case-insensitive trimmed name, looks up the rule from `league.scoringRules`, computes `count × rule.points`, and adds it to `league.weeklyScores[episode][contestantId][ruleId]`. Returns a new league object with `_showWideMerged: true`. Wired into the top-level FantasyRealityTV component at `App.jsx:7560-7581` — `selected` is now derived from `rawSelected` merged with the cached `showWideData`, so every downstream consumer (calcStandings, calcContestantWeekPoints, the cast tab, etc.) sees the augmented scores transparently.
+- **Stats user count bug fix** — root cause was `database.rules.json`. Admin's `loadAllUserProfiles()` does `get(ref(db, "frtv_users"))` at the COLLECTION level, but the rules only allowed `.read` at per-uid paths. Added `.read` at the `frtv_users` parent gated on admin email. Same admin-write / all-read pattern added for new `scoringRuleLibrary` and `showScoring` paths so leagues can pull and admin can write. **Manual deploy required:** `firebase deploy --only database` after this commit lands.
+- **Admin tabs reorganized** at `App.jsx:8118-8120, 8159-8281`. Top level dropped from `Stats / Users / Leagues / Shows / Announce / Manage / Audit Log` to `Stats / Shows / Manage / Audit Log`. The Manage tab now hosts four sub-pills: Users, Leagues, Announce, Tools. Users + Leagues sub-views are the same content as the old top-level tabs; Announce is the same; Tools holds the admin-emails / quick-actions / feature-flags / platform-info that was always under Manage. `manageSubTab` state defaults to "users".
+- **Audit log: rule description changes now logged** at `App.jsx:6353-6370`. v2.6.2.0 incorrectly classified description edits as "cosmetic" — the user pointed out a rule's description IS what defines its meaning ("first kiss between coupled people" vs. "first kiss between any two individuals"), which changes how commissioners score. Now `updateRuleDescription` audit-logs the change with a no-op guard.
+- **Cleanup**: stale "Version: v2.4.1.0" line in admin platform info removed at `App.jsx:8409` (was hardcoded and 30+ versions out of date; we have the version-log for actual tracking).
+- **What this commit does NOT do.** No retroactive backfill of show-wide events into already-finalized weeks (the merge is at render time, but if a week is finalized BEFORE show-wide events are added, the spoiler-protection grace-period clock is already running off the league's local scores). No fuzzy name matching — if a league's contestant is "Aidan R." but admin types "Aidan Reilly", they won't match (commissioner needs to rename to align). No per-league time-series metrics in admin Stats (a future iteration). The `linkedLeagueId` badge in the leagues list was replaced with the new `useShowWideScoring` indicator since linked scoring is hidden.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.33s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.2.0 — 2026-06-01
 Two follow-ups to v2.6.0.0 and v2.6.1.0: (1) the admin Shows tab is now fully editable instead of a scaffold — base rules and library add-ons persist to RTDB at `scoringRuleLibrary/<showType>` and merge into every league's library picker; (2) the per-league audit log is now scoped to only-meaningful events (roster content / order changes, scoring rule additions/removals, point-value changes, scoring updates, lock toggles, finalize) — cosmetic-only saves (team name renames, label tweaks, description edits) no longer appear in the activity feed.

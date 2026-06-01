@@ -29,8 +29,29 @@
       }
     },
 
-    // User profiles — users can read/write their own; admin can read/write all
+    // Global scoring rule library (v2.6.2.0) — keyed by show. Any authenticated
+    // user can read so commissioners' "Add from Library" picker can merge in
+    // admin-added rules; only admin can write.
+    "scoringRuleLibrary": {
+      ".read": "auth != null",
+      ".write": "auth != null && auth.token.email === 'scottwpii@gmail.com'"
+    },
+
+    // Show-wide episode scoring (v2.6.3.0) — admin scores events that cascade
+    // to opted-in leagues. Any authenticated user can read so each league can
+    // merge in the events at render time; only admin can write.
+    "showScoring": {
+      ".read": "auth != null",
+      ".write": "auth != null && auth.token.email === 'scottwpii@gmail.com'"
+    },
+
+    // User profiles — users can read/write their own; admin can read/write all.
+    // v2.6.3.0: added parent-level .read for admin so the admin Stats / Users
+    // tabs can list all profiles via a single get() at the collection level.
+    // (Previously rules only allowed per-uid reads, so loadAllUserProfiles
+    // returned {} for the admin and the Stats user count showed 0.)
     "frtv_users": {
+      ".read": "auth != null && auth.token.email === 'scottwpii@gmail.com'",
       "$uid": {
         ".read": "auth != null && (auth.uid === $uid || auth.token.email === 'scottwpii@gmail.com')",
         ".write": "auth != null && (auth.uid === $uid || auth.token.email === 'scottwpii@gmail.com')"

@@ -341,6 +341,43 @@ function isRosterLocked(league) {
 // Wire this into key write paths: roster lock toggle, depth-chart save,
 // scoring save, team add/remove, week finalize. Not exhaustive by design —
 // "doesn't need to be robust, just a transaction log with timestamps".
+// v2.6.3.0: merge show-wide event counts into a league's weeklyScores so
+// downstream consumers (calcStandings, calcContestantWeekPoints, the cast tab
+// breakdown, etc.) see them as additional per-rule scores on the same shape.
+// Pure function. `showScoringData` is the slice already loaded for this
+// league's `(showType, seasonKey)`. Match contestants by case-insensitive
+// trimmed name. Each league applies its OWN points value per rule (read from
+// league.scoringRules), so a single show-wide event can be worth different
+// totals across leagues.
+function mergeShowWideScoring(league, showScoringData) {
+  if (!league?.useShowWideScoring || !showScoringData) return league;
+  const rulesById = Object.fromEntries((league.scoringRules || []).map(r => [r.id, r]));
+  const contestants = league.contestants || [];
+  const findContestant = (name) => {
+    const norm = String(name || "").toLowerCase().trim();
+    return contestants.find(c => String(c.name || "").toLowerCase().trim() === norm);
+  };
+  const nextWeekly = { ...(league.weeklyScores || {}) };
+  Object.entries(showScoringData).forEach(([episode, perContestant]) => {
+    if (!perContestant) return;
+    const epScores = { ...(nextWeekly[episode] || {}) };
+    Object.entries(perContestant).forEach(([cName, rules]) => {
+      const c = findContestant(cName);
+      if (!c || !rules) return;
+      const cScores = { ...(epScores[c.id] || {}) };
+      Object.entries(rules).forEach(([ruleId, count]) => {
+        const r = rulesById[ruleId];
+        if (!r) return;
+        const pts = Number(count) * Number(r.points || 0);
+        if (pts !== 0) cScores[ruleId] = (Number(cScores[ruleId]) || 0) + pts;
+      });
+      epScores[c.id] = cScores;
+    });
+    nextWeekly[episode] = epScores;
+  });
+  return { ...league, weeklyScores: nextWeekly, _showWideMerged: true };
+}
+
 function appendAudit(league, entry) {
   const next = [
     { time: Date.now(), ...entry },
@@ -6355,7 +6392,21 @@ function ScoringRulesSection({ league, onUpdate, userProfile }) {
   }
 
   function updateRuleDescription(ruleId, description) {
-    onUpdate({ ...league, scoringRules: rules.map(r => r.id === ruleId ? { ...r, description } : r) });
+    const rule = rules.find(r => r.id === ruleId);
+    if (!rule) return;
+    if ((rule.description || "") === (description || "")) return; // no-op guard
+    const nextRules = rules.map(r => r.id === ruleId ? { ...r, description } : r);
+    // v2.6.3.0: description changes ARE meaningful — they change what the rule
+    // counts (e.g. "first kiss between coupled people" vs "first kiss between
+    // any two individuals"), which affects how the commissioner scores. Log it.
+    const actorName = userProfile?.displayName || "Commissioner";
+    const audited = appendAudit(league, {
+      type: "scoring-rule",
+      actorName,
+      desc: `${actorName} updated description for "${rule.label}"`,
+      meta: { ruleId },
+    });
+    onUpdate({ ...audited, scoringRules: nextRules });
   }
 
   function removeRule(ruleId) {
@@ -6712,6 +6763,33 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
           new global admin scoring layer will replace it cleanly. Leaving the
           component code in place so it can be re-enabled in one line.
       <LinkedScoringSection league={league} allLeagues={allLeagues} onUpdate={onUpdate} /> */}
+
+      {/* v2.6.3.0: opt-in for show-wide cascade scoring */}
+      <div style={{ marginBottom:20,padding:"16px",background:league.useShowWideScoring?"#9d5dff11":"#12121f",borderRadius:10,border:league.useShowWideScoring?"1px solid #9d5dff33":"1px solid #1e1e38" }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12 }}>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:4,display:"flex",alignItems:"center",gap:6 }}>
+              {league.useShowWideScoring ? "🌐" : "○"} Use show-wide scoring
+              {league.useShowWideScoring && <Badge color="#9d5dff">ON</Badge>}
+            </div>
+            <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.5 }}>
+              When on, this league picks up events the global admin scores for <strong style={{color:"#e8e8f0"}}>{(SHOW_PRESETS[league.showType]?.name) || league.showName}</strong> &middot; <strong style={{color:"#e8e8f0"}}>{league.seasonName || "this season"}</strong> at render time. Each event count is multiplied by THIS league's point value for that rule, so you keep full control of scoring magnitudes and rule definitions. Contestant names in your league need to match the names the admin uses (case-insensitive trim). You can still score per-league custom rules in the Scoring tab as today.
+            </div>
+          </div>
+          <Btn small variant={league.useShowWideScoring?"danger":"secondary"} onClick={()=>{
+            const next = !league.useShowWideScoring;
+            const actorName = userProfile?.displayName || "Commissioner";
+            const audited = appendAudit(league, {
+              type: "setting", actorName,
+              desc: `${actorName} ${next ? "enabled" : "disabled"} show-wide scoring`,
+              meta: { setting: "useShowWideScoring", value: next },
+            });
+            onUpdate({ ...audited, useShowWideScoring: next });
+          }}>
+            {league.useShowWideScoring ? "Turn Off" : "Turn On"}
+          </Btn>
+        </div>
+      </div>
 
       {/* Episodes per Week */}
       <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
@@ -7479,7 +7557,29 @@ export default function FantasyRealityTV() {
     setView("login");
   };
 
-  const selected = leagues.find(l => l.id === selectedId);
+  const rawSelected = leagues.find(l => l.id === selectedId);
+  // v2.6.3.0: when the selected league has opted into show-wide scoring,
+  // fetch the season's events and merge them into the league's weeklyScores
+  // at render time. The merged league flows through the rest of the app
+  // unchanged — calcStandings, calcContestantWeekPoints, the cast tab, etc.
+  // see the augmented scores as if they were per-league.
+  const [showWideData, setShowWideData] = useState(null);
+  useEffect(() => {
+    if (!rawSelected?.useShowWideScoring) { setShowWideData(null); return; }
+    const showType = rawSelected.showType;
+    const seasonKey = (rawSelected.seasonName || "").trim();
+    if (!showType || !seasonKey) { setShowWideData(null); return; }
+    let cancelled = false;
+    (async () => {
+      const data = await loadData(`showScoring/${showType}/${seasonKey}`, null);
+      if (!cancelled) setShowWideData(data || null);
+    })();
+    return () => { cancelled = true; };
+  }, [rawSelected?.id, rawSelected?.useShowWideScoring, rawSelected?.showType, rawSelected?.seasonName]);
+  const selected = useMemo(
+    () => rawSelected?.useShowWideScoring ? mergeShowWideScoring(rawSelected, showWideData) : rawSelected,
+    [rawSelected, showWideData]
+  );
   const myTeamIn = (lid) => userProfile?.activations?.[lid] || null;
   const visibleLeagues = isAdmin ? leagues : leagues.filter(l => userProfile?.activations?.[l.id] || l.commissionerUid === authUser?.uid);
 
@@ -7916,21 +8016,147 @@ function AdminShowsTab() {
         </div>
       </div>
 
-      {/* Show-Wide Episode Scoring — actual cascade requires linking league
-          contestants to a shared show-wide contestant pool, which is a real
-          data-model commitment (not just UI). Marked clearly so the user
-          knows why it's not yet a one-click feature. */}
-      <div style={{ marginBottom:20,padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,gap:8 }}>
-          <div style={{ flex:1,minWidth:0 }}>
-            <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>Show-Wide Episode Scoring</div>
-            <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>Score events once, cascade to all subscribed leagues</div>
+      <ShowWideScoringSection selectedShow={selectedShow} mergedRules={mergedRules} />
+    </div>
+  );
+}
+
+// v2.6.3.0: Show-Wide Episode Scoring — real MVP. Admin scores events against
+// contestant names per show + season + episode. Stored at RTDB
+// `showScoring/<showType>/<seasonKey>/<episode>/<contestantName>/<ruleId>` = count.
+// Leagues with `useShowWideScoring: true` and a matching seasonName pick up
+// the events at render time (see mergeShowWideScoring in App.jsx). Name match
+// is case-insensitive trim — if league contestant names diverge from what
+// admin types here, they won't match; the commissioner can rename their
+// league's contestants to align.
+function ShowWideScoringSection({ selectedShow, mergedRules }) {
+  const [seasonKey, setSeasonKey] = useState("");
+  const [episode, setEpisode] = useState("1");
+  const [contestants, setContestants] = useState([]); // [{ name, scores: {ruleId: count} }]
+  const [newName, setNewName] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState(null);
+
+  // Load events for selected season + episode
+  useEffect(() => {
+    if (!seasonKey.trim()) { setContestants([]); setLoaded(true); return; }
+    let cancelled = false;
+    setLoaded(false);
+    (async () => {
+      const data = await loadData(`showScoring/${selectedShow}/${seasonKey.trim()}/${episode}`, {});
+      if (cancelled) return;
+      const list = Object.entries(data || {}).map(([name, scores]) => ({ name, scores: scores || {} }));
+      setContestants(list);
+      setLoaded(true);
+      setSavedAt(null);
+    })();
+    return () => { cancelled = true; };
+  }, [selectedShow, seasonKey, episode]);
+
+  function addContestant() {
+    const n = newName.trim();
+    if (!n) return;
+    if (contestants.some(c => c.name.toLowerCase() === n.toLowerCase())) return;
+    setContestants(prev => [...prev, { name: n, scores: {} }]);
+    setNewName("");
+  }
+  function removeContestant(name) {
+    setContestants(prev => prev.filter(c => c.name !== name));
+  }
+  function setCount(name, ruleId, count) {
+    setContestants(prev => prev.map(c => c.name !== name ? c : {
+      ...c,
+      scores: { ...c.scores, [ruleId]: Math.max(0, Number(count) || 0) },
+    }));
+  }
+
+  async function saveAll() {
+    if (!seasonKey.trim()) return;
+    setSaving(true);
+    // Build the payload object: { [contestantName]: { [ruleId]: count } }
+    const payload = {};
+    contestants.forEach(c => {
+      const trimmed = {};
+      Object.entries(c.scores || {}).forEach(([rid, n]) => {
+        if (Number(n) > 0) trimmed[rid] = Number(n);
+      });
+      if (Object.keys(trimmed).length > 0) payload[c.name] = trimmed;
+    });
+    await saveData(`showScoring/${selectedShow}/${seasonKey.trim()}/${episode}`, payload);
+    setSavedAt(Date.now());
+    setSaving(false);
+  }
+
+  return (
+    <div style={{ marginBottom:20,padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,gap:8,flexWrap:"wrap" }}>
+        <div style={{ flex:1,minWidth:0 }}>
+          <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>Show-Wide Episode Scoring</div>
+          <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>Score events once; opted-in leagues consume at render time</div>
+        </div>
+        {savedAt && <span style={{ fontSize:11,color:"#4ecdc4" }}>Saved</span>}
+        <Btn small onClick={saveAll} disabled={saving || !seasonKey.trim()}>{saving?"Saving...":"Save"}</Btn>
+      </div>
+
+      <div style={{ display:"flex",gap:8,marginBottom:12 }}>
+        <div style={{ flex:2 }}>
+          <Input label="Season key" placeholder={`e.g. "Season 50"`} value={seasonKey} onChange={e=>setSeasonKey(e.target.value)} />
+        </div>
+        <div style={{ flex:1 }}>
+          <Input label="Episode" type="number" min="1" value={episode} onChange={e=>setEpisode(String(Number(e.target.value) || 1))} />
+        </div>
+      </div>
+
+      {!seasonKey.trim() ? (
+        <div style={{ padding:"14px",textAlign:"center",background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a",color:"#8888aa",fontSize:12,lineHeight:1.6 }}>
+          Enter a season key (e.g. "Season 50") to start scoring. Leagues opt in via Settings &rsaquo; Roster &rsaquo; "Use show-wide scoring" and match by their own <code style={{color:"#aaaabf"}}>seasonName</code> field.
+        </div>
+      ) : !loaded ? (
+        <div style={{ padding:"20px",textAlign:"center",color:"#6a6a8a",fontSize:13 }}>Loading...</div>
+      ) : (
+        <>
+          <div style={{ display:"flex",gap:6,marginBottom:10 }}>
+            <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Contestant name (matches across leagues by name)" onKeyDown={e=>{if(e.key==="Enter")addContestant()}} style={{ flex:1,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none" }} />
+            <Btn small onClick={addContestant} disabled={!newName.trim()}>+ Add</Btn>
           </div>
-          <Badge color="#f5a623">Needs season setup</Badge>
-        </div>
-        <div style={{ padding:"14px",background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a",color:"#8888aa",fontSize:12,lineHeight:1.6 }}>
-          Cascade scoring is built on top of the rule library above — once it's in place, scoring an event in this UI multiplies each league's own point value against the count and adds it at render time. The blocker is the contestant pool: today each league owns its own contestant list, so a "show-wide event" needs a way to identify the contestant across leagues. The simplest path is a per-show <code style={{color:"#aaaabf"}}>seasons/&lt;showType&gt;/&lt;seasonId&gt;/contestants[]</code> registry that commissioners link their league to at create time. Once that data model lands, this section becomes the scoring UI. Until then, commissioners score per-league in the Scoring tab.
-        </div>
+          {contestants.length === 0 ? (
+            <div style={{ padding:"14px",textAlign:"center",color:"#6a6a8a",fontSize:12,background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a" }}>
+              No contestants yet for episode {episode}. Add names above.
+            </div>
+          ) : (
+            <div style={{ display:"flex",flexDirection:"column",gap:10,maxHeight:480,overflowY:"auto" }}>
+              {contestants.map(c => (
+                <div key={c.name} style={{ padding:"10px 12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38" }}>
+                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
+                    <div style={{ fontSize:13,fontWeight:700,color:"#e8e8f0" }}>{c.name}</div>
+                    <button onClick={()=>removeContestant(c.name)} title="Remove" style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#e94560",height:24,padding:"0 8px",cursor:"pointer",fontSize:11,fontFamily:"'Outfit',sans-serif" }}>Remove</button>
+                  </div>
+                  <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
+                    {mergedRules.map(r => {
+                      const count = Number(c.scores?.[r.id]) || 0;
+                      return (
+                        <div key={r.id} style={{ display:"flex",alignItems:"center",gap:8 }}>
+                          <div style={{ flex:1,minWidth:0 }}>
+                            <div style={{ color:count>0?"#e8e8f0":"#6a6a8a",fontSize:12,fontWeight:600 }}>{r.label}</div>
+                            <div style={{ color:r.points>=0?"#4ecdc4":"#e94560",fontSize:10 }}>{r.points>=0?"+":""}{r.points} pts &middot; default for this show</div>
+                          </div>
+                          <button onClick={()=>setCount(c.name, r.id, Math.max(0, count-1))} disabled={count===0} style={{ background:"#1a1a30",border:"1px solid #2a2a4a",borderRadius:6,color:"#8888aa",width:24,height:24,cursor:count===0?"not-allowed":"pointer",fontSize:14,opacity:count===0?0.4:1 }}>&minus;</button>
+                          <span style={{ minWidth:24,textAlign:"center",fontWeight:700,fontSize:13,color:count>0?"#4ecdc4":"#6a6a8a",fontFamily:"'Anybody',sans-serif" }}>{count}</span>
+                          <button onClick={()=>setCount(c.name, r.id, count+1)} style={{ background:"#1a1a30",border:"1px solid #2a2a4a",borderRadius:6,color:"#4ecdc4",width:24,height:24,cursor:"pointer",fontSize:14 }}>+</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      <div style={{ marginTop:10,fontSize:10,color:"#6a6a8a",fontStyle:"italic",lineHeight:1.4 }}>
+        Each league applies its OWN point value to these counts (the rule's points in <em>that</em> league's <code style={{color:"#aaaabf"}}>scoringRules</code>, not the default shown here). Name match is case-insensitive trim — contestant names in opted-in leagues need to match what's typed here.
       </div>
     </div>
   );
@@ -7973,7 +8199,11 @@ function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }
   const totalContestants = leagues.reduce((sum, l) => sum + (l.contestants||[]).length, 0);
   const activeLeagues = leagues.filter(l => Object.keys(l.weeklyScores||{}).length > 0).length;
 
-  const tabs = [{id:"stats",label:"Stats"},{id:"users",label:"Users"},{id:"leagues",label:"Leagues"},{id:"shows",label:"Shows"},{id:"announce",label:"Announce"},{id:"manage",label:"Manage"},{id:"audit",label:"Audit Log"}];
+  // v2.6.3.0: Users + Leagues + Announce moved INTO the Manage tab (sub-views)
+  // so the top level is just the high-leverage admin surfaces: Stats, Shows,
+  // Manage, Audit Log.
+  const tabs = [{id:"stats",label:"Stats"},{id:"shows",label:"Shows"},{id:"manage",label:"Manage"},{id:"audit",label:"Audit Log"}];
+  const [manageSubTab, setManageSubTab] = useState("users");
 
   return (
     <div style={{ padding:20 }}>
@@ -8012,72 +8242,6 @@ function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }
         </div>
       )}
 
-      {/* Users Tab */}
-      {tab==="users" && (
-        <div>
-          {!users ? <div style={{color:"#6a6a8a",fontSize:13}}>Loading users...</div> : (
-            <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
-              {Object.entries(users).map(([uid, profile]) => (
-                <div key={uid} style={{ padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
-                  <div>
-                    <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>{profile.displayName || "Unnamed"}</div>
-                    <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>
-                      {Object.keys(profile.activations||{}).length} league{Object.keys(profile.activations||{}).length!==1?"s":""}
-                      {profile.banned && <span style={{ color:"#e94560",marginLeft:8 }}>BANNED</span>}
-                    </div>
-                    <div style={{ fontSize:10,color:"#4a4a6a",marginTop:2,fontFamily:"monospace" }}>{uid.slice(0,12)}...</div>
-                  </div>
-                  <Btn small variant={profile.banned?"secondary":"danger"} onClick={async ()=>{
-                    const action = profile.banned ? "unban" : "ban";
-                    if(!confirm(action.charAt(0).toUpperCase()+action.slice(1)+" "+( profile.displayName||"this user")+"?")) return;
-                    const { saveUserProfile } = await import("./firebase.js");
-                    const updated = {...profile, banned: !profile.banned};
-                    await saveUserProfile(uid, updated);
-                    setUsers(prev => ({...prev, [uid]: updated}));
-                  }}>{profile.banned ? "Unban" : "Ban"}</Btn>
-                </div>
-              ))}
-              {Object.keys(users).length === 0 && <div style={{color:"#6a6a8a",fontSize:13}}>No users yet.</div>}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Leagues Tab */}
-      {tab==="leagues" && (
-        <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
-          {leagues.map(league => (
-            <div key={league.id} style={{ padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
-                <div>
-                  <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>{league.name}</div>
-                  <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>
-                    {league.seasonName} · {league.format} · {(league.teams||[]).length} teams · {(league.contestants||[]).length} contestants · {cadenceShort(league)} {league.currentWeek||1}
-                  </div>
-                  <div style={{ fontSize:10,color:"#4a4a6a",marginTop:2 }}>
-                    {Object.keys(league.weeklyScores||{}).length} {cadenceWord(league).toLowerCase()}s scored
-                    {league.linkedLeagueId && <span style={{ color:"#4ecdc4",marginLeft:8 }}>Linked</span>}
-                    {league.commissionerUid && <span style={{ color:"#f5a623",marginLeft:8 }}>Has commissioner</span>}
-                  </div>
-                </div>
-                <div style={{ display:"flex",gap:6 }}>
-                  <Btn small variant="ghost" onClick={()=>{
-                    const data = JSON.stringify(league, null, 2);
-                    const blob = new Blob([data], {type:"application/json"});
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = (league.name||"league").replace(/[^a-z0-9]/gi,"_") + "_backup.json";
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  }}>Export</Btn>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* Shows Tab — v2.6.0.0 scaffolding. Houses (1) Scoring Rule Library
           management, (2) per-show base-rule editing, (3) Show-Wide episode
           scoring. The first two are read-only stubs in this commit (the
@@ -8086,33 +8250,6 @@ function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }
           is a clear "coming soon" placeholder so commissioners and the admin
           can see what's planned. */}
       {tab==="shows" && <AdminShowsTab />}
-
-      {/* Announcement Tab */}
-      {tab==="announce" && (
-        <div>
-          <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:10,lineHeight:1.4 }}>
-            Set a site-wide banner that all users see at the top of the home screen. Leave blank to hide.
-          </div>
-          <textarea value={announcement} onChange={e=>setAnnouncement(e.target.value)}
-            placeholder="e.g. Survivor scoring for Week 4 is live! Check your standings."
-            rows={3} style={{
-              width:"100%",padding:"10px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:8,
-              color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",resize:"vertical",marginBottom:10
-            }} />
-          <div style={{ display:"flex",gap:8 }}>
-            <Btn small onClick={saveAnnouncement} disabled={announcement===savedAnnouncement}>
-              {announcement===savedAnnouncement ? "Saved" : "Save Announcement"}
-            </Btn>
-            {savedAnnouncement && <Btn small variant="danger" onClick={clearAnnouncement}>Clear</Btn>}
-          </div>
-          {savedAnnouncement && (
-            <div style={{ marginTop:12,padding:"10px 14px",background:"#f5a62311",borderRadius:8,border:"1px solid #f5a62333" }}>
-              <div style={{ fontSize:11,fontWeight:600,color:"#f5a623" }}>Currently showing:</div>
-              <div style={{ fontSize:12,color:"#e8e8f0",marginTop:4 }}>{savedAnnouncement}</div>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Audit Log Tab */}
       {tab==="audit" && (
@@ -8155,8 +8292,118 @@ function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }
         </div>
       )}
 
-      {/* Manage Tab */}
+      {/* Manage Tab — v2.6.3.0: now hosts sub-views for Users + Leagues +
+          Tools (the former top-level tabs collapsed into Manage). */}
       {tab==="manage" && (
+        <div>
+          <div style={{ display:"flex",gap:4,marginBottom:16,padding:4,background:"#0d0d18",border:"1px solid #1e1e38",borderRadius:99,maxWidth:460,flexWrap:"wrap" }}>
+            {[
+              { id: "users", label: "Users" },
+              { id: "leagues", label: "Leagues" },
+              { id: "announce", label: "Announce" },
+              { id: "tools", label: "Tools" },
+            ].map(s => (
+              <button key={s.id} onClick={()=>setManageSubTab(s.id)} style={{
+                flex:1,padding:"6px 10px",borderRadius:99,border:"none",cursor:"pointer",
+                background: manageSubTab===s.id ? "#f5a62333" : "transparent",
+                color: manageSubTab===s.id ? "#f5a623" : "#7a7a9a",
+                fontSize:12,fontWeight:manageSubTab===s.id?700:600,fontFamily:"'Outfit',sans-serif",
+              }}>{s.label}</button>
+            ))}
+          </div>
+
+          {manageSubTab === "users" && (
+            <div>
+              {!users ? <div style={{color:"#6a6a8a",fontSize:13}}>Loading users...</div> : (
+                <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
+                  {Object.entries(users).map(([uid, profile]) => (
+                    <div key={uid} style={{ padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                      <div>
+                        <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>{profile.displayName || "Unnamed"}</div>
+                        <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>
+                          {Object.keys(profile.activations||{}).length} league{Object.keys(profile.activations||{}).length!==1?"s":""}
+                          {profile.banned && <span style={{ color:"#e94560",marginLeft:8 }}>BANNED</span>}
+                        </div>
+                        <div style={{ fontSize:10,color:"#4a4a6a",marginTop:2,fontFamily:"monospace" }}>{uid.slice(0,12)}...</div>
+                      </div>
+                      <Btn small variant={profile.banned?"secondary":"danger"} onClick={async ()=>{
+                        const action = profile.banned ? "unban" : "ban";
+                        if(!confirm(action.charAt(0).toUpperCase()+action.slice(1)+" "+( profile.displayName||"this user")+"?")) return;
+                        const { saveUserProfile } = await import("./firebase.js");
+                        const updated = {...profile, banned: !profile.banned};
+                        await saveUserProfile(uid, updated);
+                        setUsers(prev => ({...prev, [uid]: updated}));
+                      }}>{profile.banned ? "Unban" : "Ban"}</Btn>
+                    </div>
+                  ))}
+                  {Object.keys(users).length === 0 && <div style={{color:"#6a6a8a",fontSize:13}}>No users yet.</div>}
+                </div>
+              )}
+            </div>
+          )}
+
+          {manageSubTab === "leagues" && (
+            <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
+              {leagues.map(league => (
+                <div key={league.id} style={{ padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
+                    <div>
+                      <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>{league.name}</div>
+                      <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>
+                        {league.seasonName} · {league.format} · {(league.teams||[]).length} teams · {(league.contestants||[]).length} contestants · {cadenceShort(league)} {league.currentWeek||1}
+                      </div>
+                      <div style={{ fontSize:10,color:"#4a4a6a",marginTop:2 }}>
+                        {Object.keys(league.weeklyScores||{}).length} {cadenceWord(league).toLowerCase()}s scored
+                        {league.useShowWideScoring && <span style={{ color:"#9d5dff",marginLeft:8 }}>Show-wide opt-in</span>}
+                        {league.commissionerUid && <span style={{ color:"#f5a623",marginLeft:8 }}>Has commissioner</span>}
+                      </div>
+                    </div>
+                    <div style={{ display:"flex",gap:6 }}>
+                      <Btn small variant="ghost" onClick={()=>{
+                        const data = JSON.stringify(league, null, 2);
+                        const blob = new Blob([data], {type:"application/json"});
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = (league.name||"league").replace(/[^a-z0-9]/gi,"_") + "_backup.json";
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}>Export</Btn>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {leagues.length === 0 && <div style={{color:"#6a6a8a",fontSize:13}}>No leagues yet.</div>}
+            </div>
+          )}
+
+          {manageSubTab === "announce" && (
+            <div>
+              <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:10,lineHeight:1.4 }}>
+                Set a site-wide banner that all users see at the top of the home screen. Leave blank to hide.
+              </div>
+              <textarea value={announcement} onChange={e=>setAnnouncement(e.target.value)}
+                placeholder="e.g. Survivor scoring for Week 4 is live! Check your standings."
+                rows={3} style={{
+                  width:"100%",padding:"10px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:8,
+                  color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",resize:"vertical",marginBottom:10
+                }} />
+              <div style={{ display:"flex",gap:8 }}>
+                <Btn small onClick={saveAnnouncement} disabled={announcement===savedAnnouncement}>
+                  {announcement===savedAnnouncement ? "Saved" : "Save Announcement"}
+                </Btn>
+                {savedAnnouncement && <Btn small variant="danger" onClick={clearAnnouncement}>Clear</Btn>}
+              </div>
+              {savedAnnouncement && (
+                <div style={{ marginTop:12,padding:"10px 14px",background:"#f5a62311",borderRadius:8,border:"1px solid #f5a62333" }}>
+                  <div style={{ fontSize:11,fontWeight:600,color:"#f5a623" }}>Currently showing:</div>
+                  <div style={{ fontSize:12,color:"#e8e8f0",marginTop:4 }}>{savedAnnouncement}</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {manageSubTab === "tools" && (
         <div>
           <div style={{ marginBottom:20 }}>
             <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>Admin Emails</div>
@@ -8243,13 +8490,14 @@ function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }
           <div>
             <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>Platform Info</div>
             <div style={{ display:"flex",flexDirection:"column",gap:4,fontSize:12,color:"#6a6a8a" }}>
-              <div>Version: v2.4.1.0</div>
               <div>Stack: Vite + React + Firebase</div>
               <div>Hosting: Netlify (auto-deploy from GitHub)</div>
               <div>Database: Firebase Realtime Database</div>
               <div>Auth: Firebase Authentication (Email + Google)</div>
             </div>
           </div>
+        </div>
+          )}
         </div>
       )}
     </div>
