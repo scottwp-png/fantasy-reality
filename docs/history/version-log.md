@@ -34,7 +34,7 @@
 - **What this commit does NOT do.** No RTDB writes from this tab. No changes to `calcContestantWeekPoints` in `src/scoring.js`. No `league.showSeasonId` field added yet. League library picker still reads compiled-in `DEFAULT_SCORING_RULES`. The scaffolding gives the admin visibility and aligns the design before the data-model commitment.
 - **Why ship a scaffold rather than punt entirely:** the user surfaced this is needed for "real adoption" and explicitly asked to see it in the admin screen. The scaffold makes the structure tangible — admin opens Shows tab and sees the rule list for the show they're scoring, the placeholder for episode scoring, and the architecture explainer. That validates the design before we commit to the data model. The next iteration plugs real data in without restructuring the UI.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.59s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `dfa3a28`
 
 ### v2.5.3.0 — 2026-06-01
 **Automated roster lock based on show airtime.** Most reality shows air at a regular cadence — Survivor Wednesdays at 8pm, Top Chef Mondays at 7pm, etc. Until now commissioners had to remember to manually lock rosters before each episode and unlock after scoring. Auto-lock derives lock state from the show's airtime in the viewer's local timezone, with the manual button kept as an override for edge cases.
