@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.14.0
+**Current Production Version:** v2.6.15.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~9,070
+**App.jsx Line Count:** ~9,135
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,16 @@
 ---
 
 ## Version Log
+
+### v2.6.15.0 — 2026-06-01
+**Admin Show detail restructured: episode scoring uses the cast directly, rule list is simple-with-edit, template language differentiates from library.** Three changes the user asked for in one commit since they all touch the same screen.
+- **Episode scoring uses the cast** at `App.jsx:8502-8694` (`ShowWideScoringSection` rewritten). The "type a contestant name + Add" pattern is gone. The section now loads `showCast/<show>/season_N/contestants` (the same list the admin already populated in the Show Cast section above) and renders the in-league `ScoringTab`'s pattern: rules grouped by category at the top, click a rule to enter assign view, and the assign view shows the full cast as a list with photo + name + gender/tribe and per-contestant +/- counters. Back button returns to the rules list. If the cast is empty, the section now points the admin at the Show Cast section above instead of asking them to type names manually.
+- **Rule list: simple-with-edit pattern** at `App.jsx:8278-8344`. Each rule renders as a single row: label + (small badges: Custom / Override / Elim) + points (right-aligned, color-coded) + an "Edit" button. Clicking Edit expands the row in place to reveal the full editor (label / category / points / description + Reset/Delete buttons). Clicking "Done" collapses it. Only one rule is expanded at a time (controlled by `expandedRuleId` state) — keeps the list compact.
+- **Section renamed: "Rules" → "Base Scoring Template"** at `App.jsx:8278-8284`. The intro explainer now reads: "The default rules + point values that auto-load when someone creates a league for {ShowName}. Commissioners can still override per-league." Removed the older standalone explainer box that talked about "Show-Wide Rule Library" — the template section's intro now carries that context. Sets up the differentiation between the *template* (per-show default set with points) and the broader *library* concept; the data model can be split cleanly in a future iteration.
+- **Add Custom Rule form moved behind a toggle button** at `App.jsx:8347-8362`. Was always-visible below the rule list; now collapsed by default with a `+ New` button on a small header row. Click → form expands; Cancel collapses. Matches the simple-by-default pattern of the rule list itself.
+- **What this commit does NOT do.** No actual library/template data model split — both still live at `scoringRuleLibrary/<showType>`. The UI clarifies the language without changing storage. A future iteration could move to `scoringLibrary/<ruleId>` (cross-show definitions) + `scoringTemplate/<showType>/<ruleId>` (per-show usage with points) — that would need a one-time migration. No bulk move-rules-between-shows feature. The Cast tab's Import button still exists as a recovery path (per v2.6.11.0 / v2.6.6.0); episode scoring no longer depends on names being typed correctly because they come from the same cast file.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.11s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.14.0 — 2026-06-01
 **Robust Stats dashboard for soft-launch metrics.** Replaces the 5-card headline-only Stats tab with a full company-viability dashboard. Aim: real signals on whether this turns into a business — growth velocity, engagement intensity, network-effect penetration, activation rate, retention via DAU/MAU.
