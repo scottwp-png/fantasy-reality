@@ -28,7 +28,7 @@ The CreateLeagueScreen's League Name field had a static placeholder "e.g. Top Ch
 - **Dynamic League Name placeholder** at `App.jsx:1083`. Was hardcoded `"e.g. Top Chef Fantasy 2026"`; now `` `e.g. Fantasy ${preset?.name || "Show"} ${new Date().getFullYear()}` ``. Pattern matches the user's example ("Fantasy Survivor 2026"). Falls back to "Fantasy Show {year}" when preset is missing (custom show before showName is set). Year is computed at render time via `new Date().getFullYear()` so the placeholder stays fresh next January without a code change.
 - **What this commit does NOT do.** Season Name placeholder stays as "e.g. Season 22" — that's already generic-enough across shows. No localization. No suggested-name auto-fill into the input (placeholder only).
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (5.04s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `cce7743`
 
 ### v2.4.52.0 — 2026-06-01
 Two changes: (1) Home → My Leagues now has explicit `+ Join League` and `+ Create League` buttons; the invite-code box is collapsed behind Join instead of always-on. (2) Cast tab filter pills reordered (Active first, default) with Eliminated removed; sort dropdown refined with `<optgroup>` instead of disabled-separator rows.
