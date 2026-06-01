@@ -29,7 +29,7 @@
 - This is purely diagnostic — no behavior change on the happy path. The save still commits the same data to the same path. If everything is working, `[Library Save]` log lines confirm it; if something's silently dropping the write, the user gets an alert with a pointer to Firebase Console.
 - **Not extended to** show cast or per-episode scoring saves yet — keeping the diagnostic narrow to the reported path. If the issue turns out to be SDK-wide, we'll widen.
 - `node _snapshots/diff-against-baseline.mjs` deferred (cosmetic diagnostic; no scoring logic touched). `npm run build` clean. `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `91c4378`
 
 ### v2.6.22.2 — 2026-06-01
 **Bulk-edit toggle for the rule library + per-row delete button.** Addresses two complaints: editing many existing rules required opening the modal once per rule, and deletion was only available inside the modal.
