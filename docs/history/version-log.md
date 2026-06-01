@@ -33,7 +33,7 @@
 - **Drive-by fix**: removed a dead `setExpandedRuleId(null)` call in the view-toggle button at `App.jsx:8728` (a leftover from v2.6.21.0's modal refactor — would have thrown ReferenceError if anyone clicked the Base Template/Rule Library toggle while the toggle was in scope of that variable). Replaced with `setEditingRuleId(null)` which is the actual current state setter.
 - **What this commit does NOT do.** No touch / mobile DnD — admin workflow is desktop. No reordering of categories themselves — they stay alphabetical (rarely needed; can be added if asked). No per-rule cross-show moves (each show's library is independent). The Base Template view doesn't show the grip handle since it's read-only.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.76s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `c04c282`
 
 ### v2.6.21.2 — 2026-06-01
 **Hotfix bundle: missing RTDB rule for `scoringLibrary`, stuck Save buttons, delete-episode admin affordance.**
