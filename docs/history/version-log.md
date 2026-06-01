@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.9.0
+**Current Production Version:** v2.6.10.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~8,685
+**App.jsx Line Count:** ~8,690
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,17 @@
 ---
 
 ## Version Log
+
+### v2.6.10.0 — 2026-06-01
+**Carry contestant bios through the show-cast pipeline.** The v2.6.7.0 auto-import, the v2.6.6.0 Cast tab Import button, and the v2.6.6.0 admin Show Cast editor were all stripping `bio` — empty in admin storage, empty on import. Fixed all four touchpoints.
+- **Admin Show Cast UI** at `App.jsx:8157` — added a `<textarea>` for bio under the photo URL input. 3 rows by default with `lineHeight:1.4`. Helper text notes that bios cascade to imports and that `Label: value` lines auto-format with bold labels (matching ContestantPhotoLightbox's pretty-printing).
+- **`addContestant` seeds `bio: ""`** at `App.jsx:8089` so the field exists on the object from creation, not added on first edit.
+- **`CreateLeagueScreen` auto-import preserves bio** at `App.jsx:1133` — was hard-coded to `bio: ""`, now reads `sc.bio || ""`.
+- **`ContestantsTab` Import Cast button preserves bio** at `App.jsx:2410-2417` — same fix. Also added the `photoCropY` passthrough that was already present in the create flow but missing here (small consistency win — photo cropping survives the import too).
+- **One-time RTDB backfill re-run**: re-exported `/frtv/league_mpu4onvos07eq/contestants` with bios included this time (12 / 12 contestants have bios in that league), wrote 659.8 KB payload to `/showCast/love_island/season_13`. Bios + photos + crops are all present for any future imports.
+- **What this commit does NOT do.** No retroactive bio sync to leagues that imported BEFORE this fix — commissioners would need to re-run Import Cast on the Cast tab (the v2.6.6.0 button dedupes by name, but doesn't update fields on existing matches — that's a future iteration if needed). For most leagues this isn't an issue since the auto-import only just landed.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.34s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.9.0 — 2026-06-01
 **Bug fix: admin-shared RTDB paths were being written under the wrong prefix.** All scoring-library / show-wide-scoring / show-cast reads + writes in v2.6.0.0→v2.6.7.0 went through `loadData` / `saveData`, which prefix every key with `"frtv/"`. The new rule blocks I added in v2.6.3.0 (`scoringRuleLibrary`, `showScoring`, `showCast`) are at the ROOT level — outside `frtv/`. Result: the admin Shows tab was writing to `frtv/showCast/...` (covered by the permissive `frtv/$league_key` rule, which accidentally allowed any auth user to write), while the rule-protected `/showCast/...` path stayed empty. The Love Island Series 13 backfill I ran via `firebase database:set "/showCast/love_island/season_13"` correctly wrote to root, but the app code couldn't see it. Hence the "I don't see any of the love island contestants in the admin section" report.

@@ -1133,7 +1133,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
             gender: sc.gender || "",
             tribe: sc.tribe || null,
             status: "active",
-            bio: "",
+            bio: sc.bio || "",
           }));
         }
       } catch { /* fall through with empty contestants */ }
@@ -2406,10 +2406,11 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                 id: generateId(),
                 name: sc.name,
                 photoUrl: sc.photoUrl || "",
+                ...(sc.photoCropY != null ? { photoCropY: sc.photoCropY } : {}),
                 gender: sc.gender || "",
                 tribe: sc.tribe || null,
                 status: "active",
-                bio: "",
+                bio: sc.bio || "",
               }));
               if (toAdd.length === 0) { alert(`All ${incoming.length} contestants from the show cast are already in this league.`); return; }
               if (!confirm(`Import ${toAdd.length} contestant${toAdd.length===1?"":"s"} from ${SHOW_PRESETS[league.showType]?.name || league.showType} Season ${league.seasonNumber}?`)) return;
@@ -8158,7 +8159,7 @@ function ShowCastSection({ selectedShow }) {
     if (!n) return;
     if (castList.some(c => c.name.toLowerCase() === n.toLowerCase())) return;
     const id = "sc_" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-    setCastList(prev => [...prev, { id, name: n, photoUrl: "", gender: "", tribe: "" }]);
+    setCastList(prev => [...prev, { id, name: n, photoUrl: "", gender: "", tribe: "", bio: "" }]);
     setNewName("");
   }
   function updateContestant(id, patch) {
@@ -8223,7 +8224,8 @@ function ShowCastSection({ selectedShow }) {
                     <input value={c.tribe || ""} onChange={e=>updateContestant(c.id, { tribe: e.target.value })} placeholder="Tribe (opt)" style={{ width:100,padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#8888aa",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none" }} />
                     <button onClick={()=>removeContestant(c.id)} title="Remove" style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#e94560",width:28,height:28,cursor:"pointer",fontSize:14,flexShrink:0 }}>&times;</button>
                   </div>
-                  <input value={c.photoUrl || ""} onChange={e=>updateContestant(c.id, { photoUrl: e.target.value })} placeholder="Photo URL (optional)" style={{ width:"100%",padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#aaaabf",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none",boxSizing:"border-box" }} />
+                  <input value={c.photoUrl || ""} onChange={e=>updateContestant(c.id, { photoUrl: e.target.value })} placeholder="Photo URL (optional)" style={{ width:"100%",padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#aaaabf",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none",boxSizing:"border-box",marginBottom:6 }} />
+                  <textarea value={c.bio || ""} onChange={e=>updateContestant(c.id, { bio: e.target.value })} placeholder="Bio (cascades to imports; supports 'Label: value' lines)" rows={3} style={{ width:"100%",padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#aaaabf",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none",boxSizing:"border-box",resize:"vertical",lineHeight:1.4 }} />
                 </div>
               ))}
             </div>
