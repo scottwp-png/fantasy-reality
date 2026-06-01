@@ -28,7 +28,7 @@
 - **Suppress the "set initial roster freely" banner when locked** at `App.jsx:5058-5066`. The Episode 1 banner only renders when `!isRosterLocked(league)`. The lock banner immediately below is the source of truth and unchanged. Logical fix: there's no "freely" if rosters are locked.
 - **What this commit does NOT do.** No restructure of the My Roster banner stack — other banners (swap-limit, lock-in grace period, etc.) keep their existing show/hide logic. Just this one contradiction resolved.
 - `npm run build` clean. Not pushed.
-- **Commit:** `_pending_`
+- **Commit:** `966ddd0`
 
 ### v2.6.18.0 — 2026-06-01
 **Two fixes from real-use feedback on the v2.6.16.0 + v2.6.17.0 features.**
@@ -37,7 +37,7 @@
 - **Why dedup-by-name in the cascade**: contestants and the cast pool share the case-insensitive trimmed name as their cross-namespace identifier. Same approach used in the v2.6.11.0 cast cascade. Captain/coCaptain/regulars all flow through the same name resolution.
 - **What this commit does NOT do.** No backfill of audit-log entries from before this commit — old "X changed Team Bob's roster" entries stay unmoddified (would require parsing old league snapshots, not worth it). No tooltip on the diff badges showing fuller context (just the inline summary). The auto-stamp doesn't retroactively patch the existing team.uid value if it's wrong — only writes when it's missing or for a different uid (which would only happen if someone manually edited the league JSON).
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.30s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `e952256`
 
 ### v2.6.17.0 — 2026-06-01
 **Two-tier commissioner permissions.** v2.6.16.0 gave co-commissioners full parity with the primary, which exposed two genuinely risky surfaces: a rogue co-com could (a) transfer the primary role away from the real commissioner, or (b) demote the primary's other trusted co-coms / promote their own friends. Locked both to primary only.
