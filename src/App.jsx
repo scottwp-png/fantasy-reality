@@ -3403,6 +3403,186 @@ function arraysEqualUnordered(a, b) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // DEPTH CHART TAB (Captains format)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Side-game polling surface that lives inside the My Roster tab. Each manager
+// picks 3 contestants per round — one to Snog (most attractive), one to Marry
+// (best personality), one to Pie (least liked). No scoring impact; picks are
+// visible to everyone in the league as soon as they're submitted. Stored at
+// league.smpRounds = [{ id, name, createdAt, picks: { [teamId]: {snog,marry,pie} } }].
+function SnogMarryPieSection({ league, team, onUpdate, isCommissioner }) {
+  const rounds = league.smpRounds || [];
+  const [activeRoundId, setActiveRoundId] = useState(rounds.length > 0 ? rounds[rounds.length-1].id : null);
+  // Keep the active round selection synced when rounds change (e.g., commissioner adds one).
+  useEffect(() => {
+    if (rounds.length === 0) { setActiveRoundId(null); return; }
+    if (!rounds.find(r => r.id === activeRoundId)) setActiveRoundId(rounds[rounds.length-1].id);
+  }, [rounds.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const activeRound = rounds.find(r => r.id === activeRoundId);
+
+  const [snog, setSnog] = useState("");
+  const [marry, setMarry] = useState("");
+  const [pie, setPie] = useState("");
+  // Pre-fill the form with existing picks for this manager + round so they can edit in place.
+  useEffect(() => {
+    const p = activeRound?.picks?.[team?.id];
+    setSnog(p?.snog || ""); setMarry(p?.marry || ""); setPie(p?.pie || "");
+  }, [activeRoundId, team?.id, activeRound?.picks]);
+
+  const contestants = league.contestants || [];
+  const byId = Object.fromEntries(contestants.map(c => [c.id, c]));
+  const activeContestants = contestants.filter(c => c.status !== "eliminated");
+  const myPicks = activeRound?.picks?.[team?.id];
+  const allChosen = snog && marry && pie;
+  const allDistinct = new Set([snog, marry, pie].filter(Boolean)).size === 3;
+  const dirty = !myPicks || myPicks.snog !== snog || myPicks.marry !== marry || myPicks.pie !== pie;
+  const canSubmit = allChosen && allDistinct && team && dirty;
+
+  function startNewRound() {
+    const num = rounds.length + 1;
+    const name = (prompt("Round name:", `Round ${num}`) || "").trim() || `Round ${num}`;
+    const newRound = { id: generateId(), name, createdAt: Date.now(), picks: {} };
+    onUpdate({ ...league, smpRounds: [...rounds, newRound] });
+    setActiveRoundId(newRound.id);
+  }
+  function deleteRound(roundId) {
+    if (!confirm("Delete this round? All picks will be lost.")) return;
+    onUpdate({ ...league, smpRounds: rounds.filter(r => r.id !== roundId) });
+  }
+  function submitPicks() {
+    if (!canSubmit || !activeRound) return;
+    const updated = rounds.map(r => r.id === activeRoundId ? {
+      ...r, picks: { ...(r.picks||{}), [team.id]: { snog, marry, pie } },
+    } : r);
+    onUpdate({ ...league, smpRounds: updated });
+  }
+  function clearMyPicks() {
+    if (!myPicks || !activeRound) return;
+    if (!confirm("Clear your picks for this round?")) return;
+    const newPicks = { ...(activeRound.picks||{}) };
+    delete newPicks[team.id];
+    onUpdate({ ...league, smpRounds: rounds.map(r => r.id === activeRoundId ? { ...r, picks: newPicks } : r) });
+  }
+
+  // Per-contestant aggregate counts across all submitted picks this round.
+  const counts = useMemo(() => {
+    const c = {};
+    if (!activeRound) return c;
+    Object.values(activeRound.picks || {}).forEach(p => {
+      [["snog", p.snog], ["marry", p.marry], ["pie", p.pie]].forEach(([cat, id]) => {
+        if (!id) return;
+        if (!c[id]) c[id] = { snog:0, marry:0, pie:0 };
+        c[id][cat]++;
+      });
+    });
+    return c;
+  }, [activeRound]);
+  const tallyEntries = Object.entries(counts)
+    .map(([id, c]) => ({ id, ...c, total: c.snog + c.marry + c.pie }))
+    .sort((a, b) => b.total - a.total);
+
+  const optsFor = (excludeIds = []) => [
+    { value: "", label: "— pick —" },
+    ...activeContestants
+      .filter(c => !excludeIds.includes(c.id))
+      .map(c => ({ value: c.id, label: c.name })),
+  ];
+
+  return (
+    <div>
+      {/* Round selector + commissioner controls */}
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-end",gap:8,flexWrap:"wrap",marginBottom:14 }}>
+        <div style={{ flex:1,minWidth:200 }}>
+          {rounds.length > 0 ? (
+            <Select label="Round" value={activeRoundId || ""} onChange={e=>setActiveRoundId(e.target.value)}
+              options={rounds.map(r => ({ value: r.id, label: r.name }))} />
+          ) : (
+            <div style={{ fontSize:12,color:"#6a6a8a",fontStyle:"italic" }}>No rounds yet</div>
+          )}
+        </div>
+        {isCommissioner && (
+          <div style={{ display:"flex",gap:6 }}>
+            {activeRound && <Btn small variant="ghost" onClick={()=>deleteRound(activeRound.id)} title="Delete this round">Delete Round</Btn>}
+            <Btn small onClick={startNewRound}>+ New Round</Btn>
+          </div>
+        )}
+      </div>
+
+      {!activeRound ? (
+        <EmptyState message={isCommissioner ? "Start a round to begin — pick someone to Snog (most attractive), Marry (best personality), and Pie (least liked)." : "Waiting for the commissioner to start a round."} />
+      ) : (
+        <>
+          {/* Picks form */}
+          {team && (
+            <div style={{ marginBottom:18,padding:"14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+              <div style={{ fontSize:11,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:10 }}>
+                {myPicks ? `${team.name}'s picks — tap a field to edit` : `${team.name} — make your picks`}
+              </div>
+              <Select label="💋 Snog (most attractive)" value={snog} onChange={e=>setSnog(e.target.value)} options={optsFor([marry, pie])} />
+              <Select label="💍 Marry (best personality)" value={marry} onChange={e=>setMarry(e.target.value)} options={optsFor([snog, pie])} />
+              <Select label="🥧 Pie (least liked)" value={pie} onChange={e=>setPie(e.target.value)} options={optsFor([snog, marry])} />
+              {allChosen && !allDistinct && (
+                <div style={{ fontSize:11,color:"#e94560",fontWeight:600,marginBottom:8 }}>Pick three different contestants.</div>
+              )}
+              <div style={{ display:"flex",gap:6,marginTop:4 }}>
+                <Btn onClick={submitPicks} disabled={!canSubmit}>{myPicks ? "Update Picks" : "Submit Picks"}</Btn>
+                {myPicks && <Btn variant="ghost" onClick={clearMyPicks}>Clear</Btn>}
+              </div>
+            </div>
+          )}
+
+          {/* Everyone's picks */}
+          <div style={{ marginBottom:18 }}>
+            <div style={{ fontSize:11,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8 }}>Picks</div>
+            <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
+              {(league.teams||[]).map(t => {
+                const p = activeRound.picks?.[t.id];
+                return (
+                  <div key={t.id} style={{ padding:"10px 12px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+                    <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:p?6:0 }}>
+                      <div style={{ fontSize:12,fontWeight:700,color:"#e8e8f0" }}>{t.name} <span style={{ color:"#6a6a8a",fontWeight:500,fontSize:11 }}>· {t.owner}</span></div>
+                      {!p && <span style={{ fontSize:10,color:"#6a6a8a",fontStyle:"italic" }}>not submitted</span>}
+                    </div>
+                    {p && (
+                      <div style={{ display:"grid",gridTemplateColumns:"repeat(3, 1fr)",gap:8 }}>
+                        {[
+                          { cat:"snog", emoji:"💋", label:"Snog", id:p.snog, color:"#e94560" },
+                          { cat:"marry", emoji:"💍", label:"Marry", id:p.marry, color:"#4ecdc4" },
+                          { cat:"pie", emoji:"🥧", label:"Pie", id:p.pie, color:"#f5a623" },
+                        ].map(slot => (
+                          <div key={slot.cat} style={{ padding:"6px 8px",background:"#0d0d18",borderRadius:6,border:`1px solid ${slot.color}33` }}>
+                            <div style={{ fontSize:9,fontWeight:700,color:slot.color,letterSpacing:"0.04em",textTransform:"uppercase",marginBottom:2 }}>{slot.emoji} {slot.label}</div>
+                            <div style={{ fontSize:12,color:"#e8e8f0",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{byId[slot.id]?.name || "—"}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Aggregate tally */}
+          {tallyEntries.length > 0 && (
+            <div>
+              <div style={{ fontSize:11,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8 }}>Tally</div>
+              <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
+                {tallyEntries.map(e => (
+                  <div key={e.id} style={{ display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#12121f",borderRadius:8,border:"1px solid #1e1e38" }}>
+                    <div style={{ flex:1,minWidth:0,fontSize:13,fontWeight:600,color:"#e8e8f0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{byId[e.id]?.name || "—"}</div>
+                    <span title="Snog" style={{ fontSize:11,color:"#e94560",fontWeight:700 }}>💋 {e.snog}</span>
+                    <span title="Marry" style={{ fontSize:11,color:"#4ecdc4",fontWeight:700 }}>💍 {e.marry}</span>
+                    <span title="Pie" style={{ fontSize:11,color:"#f5a623",fontWeight:700 }}>🥧 {e.pie}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isCommissioner, spoilerActive, myTeamId }) {
   // Finale-week swap: when the commissioner has flipped on finale mode, render
   // the couple picker instead of the depth chart for the current week. Early-return
@@ -3428,6 +3608,11 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
   const [customColor, setCustomColor] = useState("");
   const [customAvatar, setCustomAvatar] = useState("");
   const [customName, setCustomName] = useState("");
+  // Pill bar inside My Roster — three views: depth chart editor (the existing
+  // primary UI), team game log (formerly "Team History"), and Snog Marry Pie
+  // (side-game poll, see SnogMarryPieSection above). The pill bar sits below
+  // the team selector so switching modes doesn't lose the selected team.
+  const [myRosterMode, setMyRosterMode] = useState("depth");
   const [editingWeek, setEditingWeek] = useState(null); // null = current week, number = past week
 
   const team = (league.teams||[]).find(t=>t.id===selectedTeam);
@@ -3984,6 +4169,24 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
         </div>
       )}
 
+      {/* Pill bar: switch between Depth Chart editor, Game Log, and Snog Marry Pie */}
+      <div style={{ display:"flex",gap:6,marginBottom:14,flexWrap:"wrap" }}>
+        {[
+          { id:"depth", label:"Depth Chart" },
+          { id:"log", label:"Game Log" },
+          { id:"smp", label:"Snog Marry Pie" },
+        ].map(m => (
+          <button key={m.id} onClick={()=>setMyRosterMode(m.id)} style={{
+            padding:"6px 14px",borderRadius:99,border:myRosterMode===m.id?"1px solid #e9456044":"1px solid #1e1e38",
+            background:myRosterMode===m.id?"#e9456018":"transparent",color:myRosterMode===m.id?"#e94560":"#7a7a9a",
+            fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"'Outfit',sans-serif",transition:"all .15s",
+          }}>{m.label}</button>
+        ))}
+      </div>
+
+      {myRosterMode === "smp" && <SnogMarryPieSection league={league} team={team} onUpdate={onUpdate} isCommissioner={isCommissioner} />}
+
+      {myRosterMode === "depth" && <>
       {/* Roster table */}
       <div style={{ background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",overflow:"hidden",
         opacity:(league.rostersLocked && !isCommissioner) ? 0.5 : 1,pointerEvents:(league.rostersLocked && !isCommissioner) ? "none" : "auto" }}>
@@ -4148,11 +4351,12 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
         );
       })()}
       </div>
+      </>}
 
-      {/* ─── TEAM HISTORY — Per-Week Breakdown ─── */}
-      {weeks.length > 0 && team && (
-        <div style={{ marginTop:24 }}>
-          <h4 style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:15,color:"#e8e8f0",marginBottom:12,margin:"0 0 12px" }}>Team History</h4>
+      {/* ─── GAME LOG (per-week breakdown of past depth charts) ─── */}
+      {myRosterMode === "log" && weeks.length > 0 && team && (
+        <div>
+          <h4 style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:15,color:"#e8e8f0",marginBottom:12,margin:"0 0 12px" }}>Game Log</h4>
           {[...weeks].reverse().map(w => {
             const weekChart = team.weeklyDepthCharts?.[w] || (w === String(currentWeek) ? team.depthChart : null);
             if (!weekChart) return null;
@@ -4210,7 +4414,11 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
         </div>
       )}
 
-      {hasChanges && (
+      {myRosterMode === "log" && weeks.length === 0 && (
+        <EmptyState message="No weeks scored yet. The game log will populate as scoring happens." />
+      )}
+
+      {myRosterMode === "depth" && hasChanges && (
         <div style={{ position:"sticky",bottom:16,marginTop:12,padding:"14px 16px",background:"linear-gradient(135deg,#0a1a18,#12121f)",borderRadius:14,border:`1px solid ${genderConstraintMet ? "#4ecdc4" : "#e94560"}`,
           display:"flex",flexDirection:"column",gap:8,alignItems:"stretch",boxShadow:`0 -4px 24px ${genderConstraintMet ? "rgba(78,205,196,0.15)" : "rgba(233,69,96,0.15)"}` }}>
           {!genderConstraintMet && (

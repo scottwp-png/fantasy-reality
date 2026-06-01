@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.34.0
-**Last Deploy Date:** 2026-05-31
-**App.jsx Line Count:** ~7,210
+**Current Production Version:** v2.4.35.0
+**Last Deploy Date:** 2026-06-01
+**App.jsx Line Count:** ~7,420
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,21 @@
 ---
 
 ## Version Log
+
+### v2.4.35.0 — 2026-06-01
+My Roster (DepthChartTab) reorganized into three views via a pill bar — **Depth Chart**, **Game Log**, and the new **Snog Marry Pie** side-game. Pill bar sits below the team selector so switching modes preserves the active team. Existing depth-chart editor + Hot Picks + Most Rostered + the sticky Save Roster bar live under Depth Chart; the old "Team History" section is renamed Game Log and lives under its own pill (empty-state message when no weeks scored yet); SMP is brand-new and described below. All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **`SnogMarryPieSection` component** at `App.jsx:3406-3556`, defined just above `DepthChartTab`. Self-contained — owns its own state, reads `league.smpRounds` and writes via `onUpdate`. Each round is `{ id, name, createdAt, picks: { [teamId]: { snog, marry, pie } } }`; rounds array is stored at `league.smpRounds`. Picks are visible to everyone in the league the moment they're submitted (per the user's reveal-on-submit design choice — no waiting for everyone). A manager can submit, then edit (the form pre-fills from their existing picks), or clear their picks entirely. Same contestant can't be picked for two categories on the same submission — the three category dropdowns mutually exclude each other.
+- **Picks display + aggregate tally.** Below the form: a per-team list showing each manager's three picks side-by-side in a 3-column mini-grid (with `💋 Snog`, `💍 Marry`, `🥧 Pie` label chips colored coral / teal / orange). Below that: a per-contestant aggregate tally — each row shows the contestant's name with snogged-/married-/pied-count badges, sorted by total mentions descending. Aggregate is computed via `useMemo` so it only recomputes when the round's picks change.
+- **Commissioner controls.** Only the commissioner can start a new round (`+ New Round` button, prompts for a name with `Round N` default) or delete the active round (with confirm). Non-commissioners see the picker and form but no round-CRUD buttons. When no rounds exist, an `EmptyState` shows a different message depending on whether the viewer is the commissioner (prompt to start) or a manager (waiting copy).
+- **Round selector.** Multiple rounds per season are supported — the round selector at the top of SMP defaults to the latest round and lets users page back to past rounds to see how the picks evolved. Picks are stored per (round, team) so history is preserved.
+- **Pill bar** at `App.jsx:3994-4006`. Three pills (Depth Chart / Game Log / Snog Marry Pie) using the same styling as the Manage Contestants and Settings section pills (existing pattern). Sits below the team selector + customize panel so the active team carries through mode switches. Default mode is `depth` so users see the depth chart editor on first open.
+- **Conditional rendering** at `App.jsx:4008` (smp branch) + `App.jsx:4010-4140` (depth branch — wraps roster table, Final Lock-In, Hot Picks + Most Rostered) + `App.jsx:4142-4214` (log branch — wraps the renamed Game Log) + `App.jsx:4222` (sticky Save Roster bar gated on `myRosterMode === "depth"`). The save bar's `position:"sticky"` is unaffected by being wrapped in a conditional — sticky positioning is relative to the scroll container.
+- **Header rename.** "Team History" → "Game Log" at the top of that section so the label matches the pill. Empty-state message added for the case when no weeks have been scored yet ("No weeks scored yet. The game log will populate as scoring happens.").
+- **No data-model migration.** `league.smpRounds` is a new field that defaults to `undefined` → falsy → empty array in the helper logic. Existing leagues see "No rounds yet" until the commissioner starts one. Adding/removing/clearing rounds writes via the existing `saveLeague` path — no scoring engine involvement (`src/scoring.js` untouched, SMP is purely a side-game poll with no impact on standings).
+- **What this commit does NOT do.** No SMP on non-Captains formats (other formats have their own tab patterns; could be added later if there's demand). No notifications when someone submits a pick. No "all submitted" celebration (since picks reveal individually, this would be a sub-feature). No anonymous mode — picks are always attributed to the team that submitted them.
+- **Not yet smoke-tested in browser** — recommended smoke: (a) open My Roster, verify the pill bar shows Depth Chart / Game Log / Snog Marry Pie and the default view is Depth Chart with the existing editor + Hot Picks + Most Rostered + save bar; (b) switch to Game Log, verify the per-week breakdown renders with the new header; (c) switch to Snog Marry Pie as commissioner, click + New Round, fill out the three dropdowns, submit, verify the picks appear immediately in the picks list and the tally; (d) switch teams via the selector and submit picks as a different manager, verify both submissions show side-by-side; (e) as a non-commissioner viewer, verify the New Round and Delete Round buttons are hidden.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.28s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.34.0 — 2026-05-31
 Polish on the AppHome header buttons after v2.4.33.0's Support addition. "My Account" → **Account** (shorter, balances visual width with the new neighboring Support button). Trailing whitespace inside the buttons flex container removed (was creating subtle layout jitter). Outer header gets `flexWrap:"wrap"` + `gap:12` so the welcome text and the buttons row wrap to two lines on narrow viewports instead of squishing. Buttons inside the right-side cluster get `flexShrink:0` so they never compress below their text width. Inner button gap tightens from `8px` → `6px` so the three buttons (Admin / Support / Account) feel like one cohesive cluster rather than three independent items. All 10 regression baselines pass byte-identical, `npm run build` clean.
