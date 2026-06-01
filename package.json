@@ -1,7 +1,7 @@
 {
   "name": "fantasy-reality",
   "private": true,
-  "version": "2.6.10.0",
+  "version": "2.6.11.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

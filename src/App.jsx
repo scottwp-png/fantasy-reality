@@ -7680,6 +7680,51 @@ export default function FantasyRealityTV() {
     })();
     return () => { cancelled = true; };
   }, [rawSelected?.id, rawSelected?.useShowWideScoring, rawSelected?.showType, rawSelected?.seasonNumber]);
+
+  // v2.6.11.0: cast cascade. When admin adds a new contestant to
+  // showCast/<showType>/season_<N>, opted-in leagues auto-receive them on
+  // next load. Gates on the league having a seasonNumber (the structured
+  // key) — once set, the show cast is treated as the source of truth for
+  // additions. Existing matches by case-insensitive name are NEVER
+  // overwritten (so commissioner edits to a contestant's photo / bio /
+  // tribe survive). Only NEW contestants are added. Persists the additions
+  // immediately so contestant IDs are stable across renders.
+  useEffect(() => {
+    if (!rawSelected) return;
+    const showType = rawSelected.showType;
+    const seasonNum = Number(rawSelected.seasonNumber);
+    if (!showType || !seasonNum || seasonNum < 1) return;
+    let cancelled = false;
+    (async () => {
+      const data = await loadRootData(`showCast/${showType}/season_${seasonNum}`, null);
+      if (cancelled) return;
+      const incoming = Array.isArray(data?.contestants) ? data.contestants : [];
+      if (incoming.length === 0) return;
+      const existing = new Set((rawSelected.contestants || []).map(c => (c.name || "").toLowerCase().trim()));
+      const additions = incoming
+        .filter(sc => !existing.has((sc.name || "").toLowerCase().trim()))
+        .map(sc => ({
+          id: generateId(),
+          name: sc.name,
+          photoUrl: sc.photoUrl || "",
+          ...(sc.photoCropY != null ? { photoCropY: sc.photoCropY } : {}),
+          ...(sc.photoCropZoom != null ? { photoCropZoom: sc.photoCropZoom } : {}),
+          gender: sc.gender || "",
+          tribe: sc.tribe || null,
+          status: "active",
+          bio: sc.bio || "",
+        }));
+      if (additions.length === 0) return;
+      const merged = {
+        ...rawSelected,
+        contestants: [...(rawSelected.contestants || []), ...additions],
+      };
+      // Persist directly — same path as a manual edit.
+      try { await saveLeague(merged); } catch {}
+      setLeagues(prev => prev.map(l => l.id === merged.id ? merged : l));
+    })();
+    return () => { cancelled = true; };
+  }, [rawSelected?.id, rawSelected?.showType, rawSelected?.seasonNumber]);
   const selected = useMemo(
     () => rawSelected?.useShowWideScoring ? mergeShowWideScoring(rawSelected, showWideData) : rawSelected,
     [rawSelected, showWideData]
@@ -8132,11 +8177,15 @@ function AdminShowsTab() {
 // RTDB `showCast/<showType>/season_<N>/contestants[]`.
 function ShowCastSection({ selectedShow }) {
   const [seasonNumber, setSeasonNumber] = useState("");
-  const [castList, setCastList] = useState([]); // [{ id, name, photoUrl, gender, tribe }]
+  const [castList, setCastList] = useState([]); // [{ id, name, photoUrl, photoCropY, photoCropZoom, gender, tribe, bio, status }]
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
-  const [newName, setNewName] = useState("");
+  // v2.6.11.0: open the existing AddContestantModal against a fake league
+  // backed by castList — gives admin the full editor (photo upload + paste,
+  // crop sliders, bulk paste) without duplicating ~250 lines of UI code.
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorTarget, setEditorTarget] = useState(null); // null = adding; object = editing
 
   const seasonKey = seasonNumber ? `season_${seasonNumber}` : "";
 
@@ -8154,14 +8203,6 @@ function ShowCastSection({ selectedShow }) {
     return () => { cancelled = true; };
   }, [selectedShow, seasonKey]);
 
-  function addContestant() {
-    const n = newName.trim();
-    if (!n) return;
-    if (castList.some(c => c.name.toLowerCase() === n.toLowerCase())) return;
-    const id = "sc_" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-    setCastList(prev => [...prev, { id, name: n, photoUrl: "", gender: "", tribe: "", bio: "" }]);
-    setNewName("");
-  }
   function updateContestant(id, patch) {
     setCastList(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
   }
@@ -8174,6 +8215,13 @@ function ShowCastSection({ selectedShow }) {
     await saveRootData(`showCast/${selectedShow}/${seasonKey}`, { contestants: castList });
     setSavedAt(Date.now());
     setSaving(false);
+  }
+  // v2.6.11.0: open the existing AddContestantModal against a fake league so
+  // admin gets the full editor (photo file upload, paste-image, crop sliders,
+  // bulk-paste) without re-implementing it inline.
+  const fakeLeague = useMemo(() => ({ contestants: castList }), [castList]);
+  function handleFakeUpdate(updated) {
+    setCastList(updated.contestants || []);
   }
 
   return (
@@ -8196,41 +8244,56 @@ function ShowCastSection({ selectedShow }) {
 
       {!seasonKey ? (
         <div style={{ padding:"14px",textAlign:"center",background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a",color:"#8888aa",fontSize:12,lineHeight:1.6 }}>
-          Pick a season number to manage the cast. Leagues with the same Season # see an Import Cast button on their Cast tab.
+          Pick a season number to manage the cast. Any league with the same showType + Season # auto-receives new contestants on next load (no Import button needed).
         </div>
       ) : !loaded ? (
         <div style={{ padding:"20px",textAlign:"center",color:"#6a6a8a",fontSize:13 }}>Loading...</div>
       ) : (
         <>
-          <div style={{ display:"flex",gap:6,marginBottom:10 }}>
-            <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Contestant name" onKeyDown={e=>{if(e.key==="Enter")addContestant()}} style={{ flex:1,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none" }} />
-            <Btn small onClick={addContestant} disabled={!newName.trim()}>+ Add</Btn>
+          <div style={{ display:"flex",gap:6,marginBottom:10,flexWrap:"wrap" }}>
+            <Btn small onClick={()=>{ setEditorTarget(null); setEditorOpen(true); }}><Icon name="plus" size={12}/> Add Contestant</Btn>
           </div>
           {castList.length === 0 ? (
             <div style={{ padding:"14px",textAlign:"center",color:"#6a6a8a",fontSize:12,background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a" }}>
-              No contestants yet. Add names above.
+              No contestants yet. Tap "Add Contestant" or use the modal's "Bulk paste" tab to add many at once.
             </div>
           ) : (
-            <div style={{ display:"flex",flexDirection:"column",gap:8,maxHeight:480,overflowY:"auto" }}>
+            <div style={{ display:"flex",flexDirection:"column",gap:6,maxHeight:520,overflowY:"auto" }}>
               {castList.map(c => (
-                <div key={c.id} style={{ padding:"10px 12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38" }}>
-                  <div style={{ display:"flex",gap:6,alignItems:"center",marginBottom:6 }}>
-                    <input value={c.name} onChange={e=>updateContestant(c.id, { name: e.target.value })} style={{ flex:1,padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",minWidth:0 }} />
-                    <select value={c.gender || ""} onChange={e=>updateContestant(c.id, { gender: e.target.value })} style={{ width:80,padding:"6px 8px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#8888aa",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none" }}>
-                      <option value="">—</option>
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                    </select>
-                    <input value={c.tribe || ""} onChange={e=>updateContestant(c.id, { tribe: e.target.value })} placeholder="Tribe (opt)" style={{ width:100,padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#8888aa",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none" }} />
-                    <button onClick={()=>removeContestant(c.id)} title="Remove" style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#e94560",width:28,height:28,cursor:"pointer",fontSize:14,flexShrink:0 }}>&times;</button>
+                <button key={c.id} onClick={()=>{ setEditorTarget(c); setEditorOpen(true); }} style={{
+                  display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38",cursor:"pointer",textAlign:"left",width:"100%",fontFamily:"'Outfit',sans-serif",
+                }}>
+                  {c.photoUrl ? (
+                    <img src={c.photoUrl} alt="" style={{ width:36,height:36,borderRadius:8,objectFit:"cover",objectPosition:`center ${c.photoCropY||20}%`,flexShrink:0 }} />
+                  ) : (
+                    <div style={{ width:36,height:36,borderRadius:8,background:"#1a1a30",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:"#8888aa",flexShrink:0 }}>{(c.name||"?")[0]}</div>
+                  )}
+                  <div style={{ flex:1,minWidth:0 }}>
+                    <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>{c.name}</div>
+                    <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>
+                      {c.gender || "—"}{c.tribe ? ` · ${c.tribe}` : ""}{c.bio ? ` · bio` : ""}{c.photoUrl ? ` · photo` : ""}
+                    </div>
                   </div>
-                  <input value={c.photoUrl || ""} onChange={e=>updateContestant(c.id, { photoUrl: e.target.value })} placeholder="Photo URL (optional)" style={{ width:"100%",padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#aaaabf",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none",boxSizing:"border-box",marginBottom:6 }} />
-                  <textarea value={c.bio || ""} onChange={e=>updateContestant(c.id, { bio: e.target.value })} placeholder="Bio (cascades to imports; supports 'Label: value' lines)" rows={3} style={{ width:"100%",padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#aaaabf",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none",boxSizing:"border-box",resize:"vertical",lineHeight:1.4 }} />
-                </div>
+                  <Icon name="chevron" size={14}/>
+                </button>
               ))}
             </div>
           )}
         </>
+      )}
+      {/* v2.6.11.0: full-feature editor for show cast. The "fake league"
+          (memo'd from castList) lets AddContestantModal write back through
+          handleFakeUpdate. Tribe is preserved by the modal even though it
+          doesn't expose an input (admin can still edit tribe by hand in the
+          per-league Cast tab; ShowCastSection persists what's there). */}
+      {editorOpen && (
+        <AddContestantModal
+          open={editorOpen}
+          onClose={()=>{ setEditorOpen(false); setEditorTarget(null); }}
+          league={fakeLeague}
+          onUpdate={updated => { handleFakeUpdate(updated); }}
+          editing={editorTarget}
+        />
       )}
     </div>
   );

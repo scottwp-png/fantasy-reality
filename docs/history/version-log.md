@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.10.0
+**Current Production Version:** v2.6.11.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~8,690
+**App.jsx Line Count:** ~8,735
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,17 @@
 ---
 
 ## Version Log
+
+### v2.6.11.0 — 2026-06-01
+**Show-cast updates auto-cascade to opted-in leagues + admin gets the full contestant editor.** Two related improvements. (1) Mid-season cast additions (Love Island's Casa Amor bombshells, late Survivor returnees) no longer require commissioners to hit Import Cast — when admin adds a new contestant at the show level, every league with that show + season picks it up on next load. (2) The admin Show Cast section now opens the existing `AddContestantModal` (the same rich editor commissioners use in their leagues) instead of bare inline inputs, so admin gets photo file upload, image paste, crop sliders, and bulk-paste of many contestants at once.
+- **Auto-cascade effect** at `App.jsx:7574-7610` (top-level FantasyRealityTV component). When the selected league has both `showType` AND `seasonNumber`, fetches `showCast/<showType>/season_<N>` and diffs by case-insensitive trimmed name against `league.contestants`. Any contestants present in show cast but missing from league get appended with fresh league-local IDs (preserving photoUrl, photoCropY, photoCropZoom, gender, tribe, bio). Persists via `saveLeague` immediately so IDs are stable across renders. Existing matches are NEVER touched — commissioner edits to photo / bio / tribe survive untouched. The cascade fires per-league-load, not in real time.
+- **Why dedup by name (not by id)**: admin and league live in separate ID namespaces — show cast IDs (`sc_*`) and league contestant IDs (`generateId()`) never overlap. Name is the natural cross-namespace key. Case-insensitive trim handles the easy spelling variations; spell-divergence (e.g. league renames "Robyn" → "Robyn Smith") would create a duplicate, which is acceptable for MVP — commissioner can delete one. A future iteration could carry the admin-side id as a `sourceId` on the league contestant for a more robust match.
+- **`ShowCastSection` reuses `AddContestantModal`** via a "fake league" wrapper at `App.jsx:8128-8132, 8204-8214`. The `fakeLeague` is `useMemo(() => ({ contestants: castList }), [castList])`; the modal's `onUpdate(updated)` writes `updated.contestants` back into `castList`. AddContestantModal's whole feature set lights up: photo file upload + paste-from-clipboard, photoCropY + photoCropZoom slider, bulk-paste of multiple contestants via `BulkAddBody`. Net code added in ShowCastSection: ~30 lines; net duplication avoided: ~200+ lines.
+- **Per-row UI** at `App.jsx:8189-8201` switched from a stack of inline `<input>`s to a single clickable button row showing a 36px photo / initial avatar, name, and a meta line (`Male · Tribe · bio · photo`). Tap to open the editor modal in edit mode. Visual is closer to the Cast tab's contestant cards (familiarity bonus).
+- **Tribe preservation**: AddContestantModal doesn't expose a tribe input in its UI but does preserve `editing.tribe` on save (line 7235 — `tribe: editing?.tribe || ""`). For show cast, admin can still see/edit tribe via the meta line label; this matches existing in-league behavior where tribe is edited from the Cast tab's tribe-management panel, not the AddContestant modal.
+- **What this commit does NOT do.** No real-time push of cast updates to active league sessions — a commissioner mid-roster-edit when admin adds a bombshell won't see them until they reload the league view. No update propagation for existing contestants (the cascade is additive only). No `sourceId` cross-namespace key for fuzzy matching across renames. No bulk-import-with-overwrite mode on the Cast tab's Import button. The Import button itself stays as a recovery tool — duplicates the auto-cascade logic but can be triggered explicitly.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.89s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.10.0 — 2026-06-01
 **Carry contestant bios through the show-cast pipeline.** The v2.6.7.0 auto-import, the v2.6.6.0 Cast tab Import button, and the v2.6.6.0 admin Show Cast editor were all stripping `bio` — empty in admin storage, empty on import. Fixed all four touchpoints.
