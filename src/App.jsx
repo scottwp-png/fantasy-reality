@@ -5055,7 +5055,10 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
         </div>
       )}
 
-      {currentWeek <= 1 && (
+      {/* v2.6.18.0: suppress the "set initial roster freely" banner when
+          rosters are locked — they're contradictory, and the lock banner
+          immediately below is the source of truth. */}
+      {currentWeek <= 1 && !isRosterLocked(league) && (
         <div style={{ padding:"10px 14px",background:"#f5a62311",borderRadius:8,border:"1px solid #f5a62333",marginBottom:14 }}>
           <div style={{ fontSize:12,color:"#f5a623",lineHeight:1.5 }}>{cadenceLabel(league, 1)} — set your initial roster freely.</div>
         </div>

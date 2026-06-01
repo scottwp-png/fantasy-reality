@@ -1,7 +1,7 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.18.0
+**Current Production Version:** v2.6.18.1
 **Last Deploy Date:** 2026-06-01
 **App.jsx Line Count:** ~9,275
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
@@ -22,6 +22,13 @@
 ---
 
 ## Version Log
+
+### v2.6.18.1 — 2026-06-01
+**Hotfix: contradictory banners on My Roster.** Reported alongside the v2.6.18.0 batch — when a league had its rosters locked AND was on Episode 1, the My Roster page rendered two banners stacked: a yellow "Episode 1 — set your initial roster freely." and a red "Rosters are locked." Reader had to guess which was true (it's the lock).
+- **Suppress the "set initial roster freely" banner when locked** at `App.jsx:5058-5066`. The Episode 1 banner only renders when `!isRosterLocked(league)`. The lock banner immediately below is the source of truth and unchanged. Logical fix: there's no "freely" if rosters are locked.
+- **What this commit does NOT do.** No restructure of the My Roster banner stack — other banners (swap-limit, lock-in grace period, etc.) keep their existing show/hide logic. Just this one contradiction resolved.
+- `npm run build` clean. Not pushed.
+- **Commit:** `_pending_`
 
 ### v2.6.18.0 — 2026-06-01
 **Two fixes from real-use feedback on the v2.6.16.0 + v2.6.17.0 features.**
