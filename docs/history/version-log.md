@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.15.0
+**Current Production Version:** v2.6.16.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~9,135
+**App.jsx Line Count:** ~9,230
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,20 @@
 ---
 
 ## Version Log
+
+### v2.6.16.0 — 2026-06-01
+**Settings/menu cleanup + co-commissioner role + show-dependent category minimums + Roster section reorder.** Four asks bundled.
+- **Show-dependent tribe option in CategoryMinimumsEditor** at `App.jsx:6699-6717`. The Tribe category button only renders for shows that conceptually have tribes (Survivor, The Challenge). Other shows (Love Island, Top Chef, Bachelor, etc.) only see Gender. Previously the Tribe button appeared everywhere with an "unavailable" treatment when tribes weren't set up — confusing for shows that don't use them at all.
+- **Settings &gt; Roster reordered** at `App.jsx:6929-6968`. Was Finale Mode → Roster Lock → Final Lock-In. Now Roster Lock → Final Lock-In → Finale Mode. Lock state is the most-used during a normal season; Finale Mode is end-of-season only.
+- **Activity tab folded into Settings** at `App.jsx:1676, 1745`. Removed the top-level Activity tab; added an "Activity" section inside Settings (visible to all league members; commissioner-only sections still gated). Non-commissioners landing on Settings default to the Activity section since that's the only one they can see.
+- **Settings tab accessible to all members** at `App.jsx:1677`. Previously `access: "commissioner"`. Per-section gating via the new `commish` flag on each section entry — non-commissioners see only Activity.
+- **Spoiler section folded into Danger Zone** at `App.jsx:7146-7148`. Was its own Settings section; now `SpoilerProtectionEditor` renders at the top of Danger Zone alongside Transfer Commissioner / Delete League etc. Same content, fewer sections in the nav.
+- **Co-commissioner role** — new `league.coCommissioners: [uid]` array. The top-level `isCommissioner` derivation at `App.jsx:7869` now ORs in `(selected?.coCommissioners||[]).includes(authUser?.uid)`. The `visibleLeagues` filter at `App.jsx:7789` also includes co-commissioners so they see the league on Home even if they don't have an activation yet. The whole permission inheritance just works because every commissioner-gated UI/action reads from the same `isCommissioner` prop.
+- **`CoCommissionersEditor` component** at `App.jsx:6815-6884` (~75 lines). Renders in Settings &gt; Invite &amp; Teams. Lists current co-commissioners (showing their team owner name) with a Remove button per entry. Below: a dropdown of eligible team owners (must have `team.uid` stamped, must not be the primary commissioner, must not already be a co-com) and a Promote button. Promotions and demotions both write audit-log entries so the league sees the role change. Empty / blocked states explain why no team owners are eligible ("ask them to save a roster once" if `team.uid` isn't stamped yet — applies to pre-v2.6.6.0 teams).
+- **Co-commissioner has full commissioner powers EXCEPT** transferring the primary role (that lives in Transfer Commissioner under Danger Zone and gates on the primary uid). They can edit scoring, lock rosters, finalize weeks, manage rules, manage cast, delete-with-confirm, run polls, etc.
+- **What this commit does NOT do.** No invite-by-email for non-team-owners (must already have a team in the league to be promotable — keeps the rule "co-commissioners are league members"). No different permission tiers among co-commissioners — all have the same powers as the primary. No co-commissioner can demote the primary; only the primary (or admin) can transfer. The Activity log section in Settings is read-only for non-commissioners (same as the standalone tab was).
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.91s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.15.0 — 2026-06-01
 **Admin Show detail restructured: episode scoring uses the cast directly, rule list is simple-with-edit, template language differentiates from library.** Three changes the user asked for in one commit since they all touch the same screen.

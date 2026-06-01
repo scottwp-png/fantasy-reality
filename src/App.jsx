@@ -1673,8 +1673,10 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
       { id:"predict",label:"Predict",icon:"star",access:"all" },
       { id:"manage-questions",label:"Questions",icon:"settings",access:"commissioner" },
     ] : []),
-    { id:"activity",label:"Activity",icon:"clock",access:"all" },
-    { id:"settings",label:"Settings",icon:"settings",access:"commissioner" },
+    // v2.6.16.0: top-level Activity tab removed — moved into Settings as a
+    // section accessible to all members. Settings itself is now access:"all"
+    // (the commissioner-only sections inside Settings stay gated).
+    { id:"settings",label:"Settings",icon:"settings",access:"all" },
   ];
 
   const tabs = allTabs.filter(t => t.access === "all" || isCommissioner);
@@ -1740,8 +1742,7 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
         {tab === "set-prices" && isCommissioner && <SalaryCapPricesTab league={league} onUpdate={onUpdate} />}
         {tab === "predict" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><PredictionsPlayerTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} /></SpoilerBlur>}
         {tab === "manage-questions" && isCommissioner && <PredictionsCommishTab league={league} onUpdate={onUpdate} />}
-        {tab === "activity" && <LeagueActivityTab league={league} />}
-        {tab === "settings" && isCommissioner && <SettingsTab league={league} onUpdate={onUpdate} allLeagues={allLeagues} setModal={setModal} setEditing={setEditingItem} userProfile={userProfile} />}
+        {tab === "settings" && <SettingsTab league={league} onUpdate={onUpdate} allLeagues={allLeagues} setModal={setModal} setEditing={setEditingItem} userProfile={userProfile} isCommissioner={isCommissioner} />}
       </div>
 
       {isCommissioner && (
@@ -6698,10 +6699,13 @@ function CategoryMinimumsEditor({ league, onUpdate }) {
         <div style={{ marginTop:10 }}>
           <div style={{ display:"flex",gap:8,marginBottom:10,flexWrap:"wrap" }}>
             <span style={{ fontSize:11,fontWeight:600,color:"#8888aa",alignSelf:"center" }}>Category:</span>
+            {/* v2.6.16.0: Tribe category is only meaningful for shows that
+                use tribe/team divisions (Survivor primarily; Challenge sometimes).
+                Hiding the option for Love Island, Top Chef, Bachelor, etc. */}
             {[
-              { id: "gender", label: "Gender", available: true },
-              { id: "tribe", label: "Tribe", available: tribeNames.length > 0 },
-            ].map(opt => (
+              { id: "gender", label: "Gender", available: true, show: true },
+              { id: "tribe", label: "Tribe", available: tribeNames.length > 0, show: ["survivor", "the_challenge"].includes(league.showType) },
+            ].filter(opt => opt.show).map(opt => (
               <button key={opt.id} disabled={!opt.available} onClick={()=>setCategory(opt.id)} title={!opt.available ? "Add tribes on the Cast tab first" : ""} style={{
                 padding:"5px 12px",borderRadius:99,fontSize:11,fontWeight:600,cursor:opt.available?"pointer":"not-allowed",
                 background:category===opt.id?"#f5a62322":"transparent",
@@ -6738,7 +6742,101 @@ function CategoryMinimumsEditor({ league, onUpdate }) {
   );
 }
 
-function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userProfile }) {
+// v2.6.16.0: co-commissioners list + add/remove. Co-commissioners are
+// identified by uid (Firebase Auth). The easiest add flow is promoting an
+// existing team owner — their uid is on team.uid (stamped at join time in
+// v2.6.6.0). Pre-v2.6.6.0 teams without uid get a "Save roster once" prompt
+// so they get stamped. Admin auto-counts as commissioner via the isAdmin
+// check; this UI is for non-admin commissioners.
+function CoCommissionersEditor({ league, onUpdate, userProfile }) {
+  const co = Array.isArray(league.coCommissioners) ? league.coCommissioners : [];
+  const teams = league.teams || [];
+  const primaryUid = league.commissionerUid;
+  // Build a uid → team-with-uid map for showing names
+  const teamByUid = {};
+  teams.forEach(t => { if (t.uid) teamByUid[t.uid] = t; });
+  const eligible = teams.filter(t => t.uid && t.uid !== primaryUid && !co.includes(t.uid));
+  const [pickTeamId, setPickTeamId] = useState("");
+
+  function promote() {
+    const team = teams.find(t => t.id === pickTeamId);
+    if (!team || !team.uid) return;
+    if (co.includes(team.uid)) return;
+    const actorName = userProfile?.displayName || "Commissioner";
+    const audited = appendAudit(league, {
+      type: "setting", actorName,
+      desc: `${actorName} promoted ${team.owner || team.name} to co-commissioner`,
+      meta: { teamId: team.id, uid: team.uid },
+    });
+    onUpdate({ ...audited, coCommissioners: [...co, team.uid] });
+    setPickTeamId("");
+  }
+  function demote(uid) {
+    const t = teamByUid[uid];
+    if (!confirm(`Remove ${t?.owner || "this user"}'s co-commissioner role?`)) return;
+    const actorName = userProfile?.displayName || "Commissioner";
+    const audited = appendAudit(league, {
+      type: "setting", actorName,
+      desc: `${actorName} removed ${t?.owner || "a user"} as co-commissioner`,
+      meta: { uid },
+    });
+    onUpdate({ ...audited, coCommissioners: co.filter(u => u !== uid) });
+  }
+
+  return (
+    <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+      <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:4 }}>Co-Commissioners</div>
+      <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:10,lineHeight:1.5 }}>
+        Promote a team owner to share commissioner powers — scoring, lock toggles, settings, everything except transferring the primary commissioner role. Co-commissioners show up in the Activity log just like you do.
+      </div>
+
+      {co.length === 0 ? (
+        <div style={{ padding:"10px 12px",background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a",color:"#6a6a8a",fontSize:12,marginBottom:10 }}>
+          No co-commissioners yet.
+        </div>
+      ) : (
+        <div style={{ display:"flex",flexDirection:"column",gap:6,marginBottom:10 }}>
+          {co.map(uid => {
+            const t = teamByUid[uid];
+            return (
+              <div key={uid} style={{ display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38" }}>
+                <div style={{ flex:1,minWidth:0 }}>
+                  <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>{t?.owner || "Unknown user"}</div>
+                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:1 }}>{t ? `Team ${t.name}` : `uid: ${uid.slice(0,12)}…`}</div>
+                </div>
+                <Badge color="#9d5dff">Co-Commissioner</Badge>
+                <Btn small variant="danger" onClick={()=>demote(uid)}>Remove</Btn>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {eligible.length > 0 ? (
+        <div style={{ display:"flex",gap:8 }}>
+          <select value={pickTeamId} onChange={e=>setPickTeamId(e.target.value)} style={{
+            flex:1,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",
+            borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none",
+          }}>
+            <option value="">— Pick a team owner to promote —</option>
+            {eligible.map(t => <option key={t.id} value={t.id}>{t.owner} (Team {t.name})</option>)}
+          </select>
+          <Btn small onClick={promote} disabled={!pickTeamId}>Promote</Btn>
+        </div>
+      ) : (
+        <div style={{ padding:"8px 10px",background:"#0d0d18",borderRadius:6,border:"1px solid #1e1e38",fontSize:11,color:"#6a6a8a",lineHeight:1.5 }}>
+          {teams.length === 0
+            ? "Add team owners to the league first."
+            : teams.some(t => !t.uid)
+              ? "Some team owners haven't been linked to a user account yet (no `uid` on their team). Ask them to log in and save a roster once — their uid stamps automatically — and they'll appear here."
+              : "All eligible team owners are already co-commissioners or the primary commissioner."}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userProfile, isCommissioner = false }) {
   const [editingInfo, setEditingInfo] = useState(false);
   const [leagueInfo, setLeagueInfo] = useState({
     name: league.name || "",
@@ -6746,16 +6844,29 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
     seasonName: league.seasonName || "",
     seasonNumber: league.seasonNumber ? String(league.seasonNumber) : "",
   });
-  const [section, setSection] = useState("general");
+  // v2.6.16.0: Settings tab is now accessible to all league members. Non-
+  // commissioners land on Activity (the read-only audit log). Commissioner-
+  // only sections are filtered out via the `commish` flag. Default section
+  // for commissioners is still General.
+  const [section, setSection] = useState(isCommissioner ? "general" : "activity");
   const [pendingCommissioner, setPendingCommissioner] = useState(null);
-  const sections = [
-    { id: "general", label: "General" },
-    { id: "scoring", label: "Scoring Rules" },
-    { id: "roster", label: "Roster" },
-    { id: "invite", label: "Invite & Teams" },
-    { id: "spoiler", label: "Spoiler" },
-    { id: "danger", label: "Danger Zone" },
+  // v2.6.16.0 menu cleanup:
+  // - Activity moved IN from a top-level tab; visible to all members
+  // - Spoiler folded into Danger Zone (no separate section)
+  const allSections = [
+    { id: "general", label: "General", commish: true },
+    { id: "scoring", label: "Scoring Rules", commish: true },
+    { id: "roster", label: "Roster", commish: true },
+    { id: "invite", label: "Invite & Teams", commish: true },
+    { id: "activity", label: "Activity", commish: false },
+    { id: "danger", label: "Danger Zone", commish: true },
   ];
+  const sections = allSections.filter(s => !s.commish || isCommissioner);
+  // Safety: if the current section becomes inaccessible (e.g. isCommissioner
+  // flips), bounce to a safe one.
+  useEffect(() => {
+    if (!sections.some(s => s.id === section)) setSection(sections[0]?.id || "activity");
+  }, [isCommissioner]); // eslint-disable-line
 
   function saveLeagueInfo() {
     const sn = Number(leagueInfo.seasonNumber);
@@ -6922,28 +7033,11 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
       {/* ─── SCORING RULES SECTION ─── */}
       {section === "scoring" && <ScoringRulesSection league={league} onUpdate={onUpdate} userProfile={userProfile} />}
 
-      {/* ─── ROSTER SECTION ─── */}
+      {/* ─── ROSTER SECTION ───
+          v2.6.16.0: reordered. Order is now Roster Lock → Final Lock-In →
+          Finale Mode → (other roster controls). Lock state first since it's
+          the most-used during a normal season; Finale Mode is end-of-season. */}
       {section === "roster" && <>
-      {/* Finale Mode — only meaningful for captains format. Moved here from
-          General in v2.4.49.0 because it's a roster-shape override (depth chart
-          → couples picker), not a general league setting. */}
-      {league.format === "captains" && (
-        <div style={{ marginBottom:20,padding:"16px",background:league.finaleActive?"#e9456011":"#12121f",borderRadius:10,border:league.finaleActive?"1px solid #e9456033":"1px solid #1e1e38",transition:"all 0.2s ease" }}>
-          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12 }}>
-            <div style={{ flex:1 }}>
-              <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:4,display:"flex",alignItems:"center",gap:6 }}>
-                {league.finaleActive ? "♥" : "○"} Finale Mode {league.finaleActive && <Badge color="#e94560">ACTIVE</Badge>}
-              </div>
-              <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.5 }}>
-                Flip this on for the finale {cadenceWord(league).toLowerCase()} only — managers' depth charts swap to a couple picker (Hero couple ×2, Sidekick couple ×1.5). Affects the current {cadenceWord(league).toLowerCase()}; turn off after the finale to return to the normal depth chart. Requires couples on the Manage Contestants → Couples tab.
-              </div>
-            </div>
-            <Btn small variant={league.finaleActive?"danger":"secondary"} onClick={()=>onUpdate({...league, finaleActive: !league.finaleActive})}>
-              {league.finaleActive ? "Turn Off" : "Turn On"}
-            </Btn>
-          </div>
-        </div>
-      )}
       {(() => {
         // v2.5.3.0: banner reflects effective lock state (manual OR auto).
         // The toggle still flips the manual override only; the explainer below
@@ -7002,6 +7096,27 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
       {/* ─── Final Lock-In (Heroes only) ─── */}
       {isLockInEligible(league) && (
         <FinalLockInCommishPanel league={league} onUpdate={onUpdate} />
+      )}
+
+      {/* Finale Mode — only meaningful for captains format. Roster-shape
+          override (depth chart → couples picker). Moved BELOW Final Lock-In
+          in v2.6.16.0 since it's end-of-season. */}
+      {league.format === "captains" && (
+        <div style={{ marginBottom:20,padding:"16px",background:league.finaleActive?"#e9456011":"#12121f",borderRadius:10,border:league.finaleActive?"1px solid #e9456033":"1px solid #1e1e38",transition:"all 0.2s ease" }}>
+          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12 }}>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:4,display:"flex",alignItems:"center",gap:6 }}>
+                {league.finaleActive ? "♥" : "○"} Finale Mode {league.finaleActive && <Badge color="#e94560">ACTIVE</Badge>}
+              </div>
+              <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.5 }}>
+                Flip this on for the finale {cadenceWord(league).toLowerCase()} only — managers' depth charts swap to a couple picker (Hero couple ×2, Sidekick couple ×1.5). Affects the current {cadenceWord(league).toLowerCase()}; turn off after the finale to return to the normal depth chart. Requires couples on the Manage Contestants → Couples tab.
+              </div>
+            </div>
+            <Btn small variant={league.finaleActive?"danger":"secondary"} onClick={()=>onUpdate({...league, finaleActive: !league.finaleActive})}>
+              {league.finaleActive ? "Turn Off" : "Turn On"}
+            </Btn>
+          </div>
+        </div>
       )}
 
       <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
@@ -7096,15 +7211,23 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
           </div>
         )}
       </div>
+
+      {/* v2.6.16.0: Co-commissioners — additional users with commissioner
+          powers on this league. They show up alongside team owners. Promote
+          existing team owners; cannot remove the primary commissioner (use
+          Transfer Commissioner in Danger Zone instead). */}
+      <CoCommissionersEditor league={league} onUpdate={onUpdate} userProfile={userProfile} />
       </>}
 
-      {/* ─── SPOILER SECTION ─── */}
-      {section === "spoiler" && <>
-      <SpoilerProtectionEditor league={league} onUpdate={onUpdate} />
-      </>}
+      {/* ─── ACTIVITY SECTION ─── v2.6.16.0: moved in from a top-level tab
+          so league members read the audit log inside Settings (visible to all). */}
+      {section === "activity" && <LeagueActivityTab league={league} />}
 
-      {/* ─── DANGER ZONE SECTION ─── */}
+      {/* ─── DANGER ZONE SECTION ─── v2.6.16.0: Spoiler protection settings
+          folded in here (was its own section). */}
       {section === "danger" && <>
+      {/* Spoiler Protection */}
+      <SpoilerProtectionEditor league={league} onUpdate={onUpdate} />
       {/* Transfer Commissioner */}
       {(league.teams||[]).length > 0 && (
         <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
@@ -7755,7 +7878,7 @@ export default function FantasyRealityTV() {
     [rawSelected, showWideData]
   );
   const myTeamIn = (lid) => userProfile?.activations?.[lid] || null;
-  const visibleLeagues = isAdmin ? leagues : leagues.filter(l => userProfile?.activations?.[l.id] || l.commissionerUid === authUser?.uid);
+  const visibleLeagues = isAdmin ? leagues : leagues.filter(l => userProfile?.activations?.[l.id] || l.commissionerUid === authUser?.uid || (l.coCommissioners || []).includes(authUser?.uid));
 
   if (authLoading) {
     return (
@@ -7834,8 +7957,8 @@ export default function FantasyRealityTV() {
           persistLeague(u, updated);
         }}
         onBack={()=>{refreshLeagues();setView("home")}}
-        loggedInTeamId={(isAdmin || selected?.commissionerUid === authUser?.uid) ? (selected.adminTeamId || myTeamIn(selected.id)) : myTeamIn(selected.id)}
-        isCommissioner={isAdmin || selected?.commissionerUid === authUser?.uid || (selected?.commissionerTeamId && userProfile?.activations?.[selected.id] === selected.commissionerTeamId)}
+        loggedInTeamId={(isAdmin || selected?.commissionerUid === authUser?.uid || (selected?.coCommissioners||[]).includes(authUser?.uid)) ? (selected.adminTeamId || myTeamIn(selected.id)) : myTeamIn(selected.id)}
+        isCommissioner={isAdmin || selected?.commissionerUid === authUser?.uid || (selected?.coCommissioners||[]).includes(authUser?.uid) || (selected?.commissionerTeamId && userProfile?.activations?.[selected.id] === selected.commissionerTeamId)}
         userProfile={userProfile}
         onRevealSpoiler={handleRevealSpoiler}
         />}
