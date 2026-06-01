@@ -6742,7 +6742,7 @@ export default function FantasyRealityTV() {
           .app-root { max-width: 900px; }
         }
       `}</style>
-      {view==="login" && <AuthScreen onJoinViaCode={handleJoinViaCode} />}
+      {view==="login" && <AuthScreen onJoinViaCode={handleJoinViaCode} pendingJoinCode={pendingJoinCode} />}
       {view==="settings" && authUser && <UserSettingsScreen user={authUser} onBack={()=>setView("home")} onLogout={handleLogout} userProfile={userProfile} onUpdateProfile={async (updated) => { await saveUserProfile(authUser.uid, updated); setUserProfile(updated); }} />}
       {view==="faq" && <FAQPage onBack={()=>setView(authUser?"home":"login")} />}
       {view==="admin" && isAdmin && <AdminPanel leagues={leagues} onBack={()=>setView("home")} onUpdate={persist} featureFlags={featureFlags} setFeatureFlags={setFeatureFlags} />}
@@ -7272,12 +7272,14 @@ function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // AUTH SCREEN (Login / Sign Up / Join via Code)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function AuthScreen({ onJoinViaCode }) {
-  const [mode, setMode] = useState("login"); // login | signup | forgot
+function AuthScreen({ onJoinViaCode, pendingJoinCode }) {
+  // If the user arrived via an invite link (?join=CODE), default to Sign Up —
+  // most invitees won't have an account yet, and skipping the extra tab tap
+  // smooths the onboarding flow.
+  const [mode, setMode] = useState(pendingJoinCode ? "signup" : "login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -7313,9 +7315,9 @@ function AuthScreen({ onJoinViaCode }) {
     setBusy(true); setError("");
     try {
       await signUp(email.trim(), password, displayName.trim());
-      if (inviteCode.length >= 6) {
-        localStorage.setItem("frtv_pending_invite", inviteCode);
-      }
+      // Invite code (if present) was captured into URL state at app boot and
+      // is auto-applied by AppHome's onMount effect once the user lands there.
+      // No need to stash it in localStorage from the signup form anymore.
     } catch (e) {
       setError(e.code === "auth/email-already-in-use" ? "An account with this email already exists. Try logging in." :
                e.code === "auth/weak-password" ? "Password must be at least 6 characters." :
@@ -7358,6 +7360,17 @@ function AuthScreen({ onJoinViaCode }) {
         <p style={{ color:"#6a6a8a",fontSize:14,margin:0 }}>Draft. Score. Dominate.</p>
       </div>
       <div style={{ padding:"0 20px 20px" }}>
+        {/* Invite banner — shown when the user landed here via a ?join=CODE link */}
+        {pendingJoinCode && (
+          <div style={{ marginBottom:16,padding:"14px 16px",background:"linear-gradient(135deg,#e9456018,#f5a62318)",border:"1px solid #e9456044",borderRadius:10 }}>
+            <div style={{ fontSize:11,fontWeight:700,color:"#f5a623",letterSpacing:"0.05em",textTransform:"uppercase",marginBottom:4 }}>You're invited!</div>
+            <div style={{ fontSize:13,color:"#e8e8f0",lineHeight:1.5 }}>
+              You've been invited to join a Fantasy Reality TV league. {mode === "signup" ? "Create an account below" : "Log in below"} and you'll be added to the league automatically.
+            </div>
+            <div style={{ marginTop:6,fontSize:11,color:"#8888aa",fontFamily:"monospace",letterSpacing:"0.15em" }}>Invite code: <span style={{ color:"#4ecdc4",fontWeight:700 }}>{pendingJoinCode}</span></div>
+          </div>
+        )}
+
         {/* Mode tabs */}
         <div style={{ display:"flex",gap:6,marginBottom:20 }}>
           {[{id:"login",label:"Log In"},{id:"signup",label:"Sign Up"}].map(t=>(
@@ -7403,12 +7416,6 @@ function AuthScreen({ onJoinViaCode }) {
             <input type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} style={inputStyle} />
             <input type="password" placeholder="Password (6+ characters)" value={password} onChange={e=>setPassword(e.target.value)}
               onKeyDown={e=>{if(e.key==="Enter")handleSignup()}} style={inputStyle} />
-            <div style={{ marginTop:8,padding:"10px 14px",background:"#4ecdc411",borderRadius:8,border:"1px solid #4ecdc433",marginBottom:12 }}>
-              <div style={{ fontSize:11,color:"#4ecdc4",marginBottom:6 }}>Have an invite code? (optional)</div>
-              <input placeholder="Invite code" value={inviteCode} maxLength={8}
-                onChange={e=>setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,""))}
-                style={{ ...inputStyle, fontSize:16,textAlign:"center",letterSpacing:"0.15em",fontFamily:"monospace",marginBottom:0 }} />
-            </div>
             {error && <div style={{ color:"#e94560",fontSize:12,marginBottom:10 }}>{error}</div>}
             <button onClick={handleSignup} disabled={busy} style={{
               width:"100%",padding:"12px",borderRadius:8,border:"none",cursor:"pointer",fontSize:14,fontWeight:700,
@@ -7527,12 +7534,15 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
         </div>
       )}
       <div style={{ padding:"10px 20px 20px" }}>
-        {/* Join a league */}
+        {/* Join a league via invite code. Note: invite LINKS (?join=CODE in
+            URL) bypass this form entirely — they're auto-applied at app boot.
+            This box is for when someone texts you a bare code instead. */}
         <div style={{ marginBottom:20,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-          <div style={{ fontSize:12,fontWeight:600,color:"#8888aa",marginBottom:6 }}>Join a League</div>
+          <div style={{ fontSize:12,fontWeight:600,color:"#8888aa",marginBottom:2 }}>Have an invite code?</div>
+          <div style={{ fontSize:11,color:"#6a6a8a",marginBottom:8,lineHeight:1.4 }}>If someone shared an invite link, just tap it — no code entry needed.</div>
           <div style={{ display:"flex",gap:6 }}>
             <input value={inviteCode} onChange={e=>setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,""))}
-              placeholder="Invite code" maxLength={8} onKeyDown={e=>{if(e.key==="Enter")handleJoin()}}
+              placeholder="Enter code" maxLength={8} onKeyDown={e=>{if(e.key==="Enter")handleJoin()}}
               style={{ flex:1,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
                 color:"#e8e8f0",fontSize:16,fontFamily:"monospace",letterSpacing:"0.15em",textAlign:"center" }} />
             <Btn small onClick={handleJoin} disabled={inviteCode.length<6 || joining}>

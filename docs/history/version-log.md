@@ -1,7 +1,7 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.42.0
+**Current Production Version:** v2.4.43.0
 **Last Deploy Date:** 2026-06-01
 **App.jsx Line Count:** ~7,670
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
@@ -22,6 +22,18 @@
 ---
 
 ## Version Log
+
+### v2.4.43.0 — 2026-06-01
+Pre-launch polish on the invite/onboarding flow. Testers reported that the invite-code box on the sign-up form looked visually awkward and that clicking an invite link without an existing account was confusing — they'd land on the login screen with no sign of having been invited. Three changes: (1) sign-up invite-code box removed (was a teal-bordered card between Password and Create Account); (2) AuthScreen renders a prominent "You're invited!" banner above the mode tabs when the URL carries `?join=CODE`, with auto-default to the Sign Up tab; (3) home-screen "Join a League" box renamed "Have an invite code?" with a clarifying line that invite *links* don't require code entry. All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **Sign-up invite-code box removed** at `App.jsx:7405-7411`. Previously a standalone teal-bordered `4ecdc433`-border card with "Have an invite code? (optional)" label + monospace input. Visually overweight for an optional field, and **always-redundant**: URL-based invite codes (`?join=CODE`) are already captured into app state at boot and auto-applied by AppHome's mount effect once the user lands on Home. The form-input path was a second redundant code-capture mechanism stashing into `localStorage` post-signup. Both paths converged at the same `onJoinViaCode` call, so removing the form leaves URL handling untouched and the code-via-text-share workflow falls back to the home-screen Join box (also kept). `setBusy(false)` flow in `handleSignup` simplified — no localStorage write anymore.
+- **"You're invited!" banner on AuthScreen** at `App.jsx:7372-7382`. When `pendingJoinCode` (URL-captured) is set, a gradient-bordered card renders above the mode tabs showing "You've been invited to join a Fantasy Reality TV league. Create an account below and you'll be added to the league automatically." plus the invite code itself in monospace teal. Tells the user immediately what's happening — they're not just looking at a generic login screen.
+- **Default tab → Sign Up** when invited. At `App.jsx:7280`: `const [mode, setMode] = useState(pendingJoinCode ? "signup" : "login");`. Most invitees won't have an account yet, and saving the extra tap to switch tabs smooths onboarding. Returning users with an account can still flip to Log In manually.
+- **AppHome "Join a League" → "Have an invite code?"** at `App.jsx:7532-7544`. Renamed the box and added a one-line clarifier: *"If someone shared an invite link, just tap it — no code entry needed."* The box is now reserved for the case where someone shared a bare code via text/Discord without a link. Reduces the "do I enter this here?" cognitive friction for link-recipients.
+- **Prop threading** at `App.jsx:6745`: `<AuthScreen onJoinViaCode={handleJoinViaCode} pendingJoinCode={pendingJoinCode} />` — adds the URL-captured `pendingJoinCode` to the auth screen so it can render the banner and pick the right default tab. `pendingJoinCode` state already existed in LeagueDashboard from prior commits; no new state hooks.
+- **What this commit does NOT do.** No change to the actual join-pipeline logic in `handleJoinViaCode` / `confirmJoin` — only the entry-point UX. No deep-linking back to a specific league after signup (Home's mount-time auto-apply is what closes the loop). No tracking/analytics on conversion rate. No A/B testing infrastructure.
+- **Not yet smoke-tested in browser** — recommended smoke: (a) open `app.fantasyrealitytv.com?join=ABCDEFGH` in a logged-out incognito window, verify the banner renders above the mode tabs with the invite code shown and the form defaults to Sign Up; (b) complete signup, verify the Home screen auto-applies the code and you land on the join-confirm screen; (c) on Home, verify the box now says "Have an invite code?" with the link clarification; (d) on the Sign Up tab without a pending code, verify the (removed) invite box is gone.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.21s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.42.0 — 2026-06-01
 Two related cleanups: (1) **`WeeklyBreakdownSection` removed** from the bottom of the Standings tab and the component itself deleted (~50 lines). It was largely duplicating the top-of-tab standings list with the same per-team numbers in a less informative format. (2) **`PollsSection` relocated from My Roster (DepthChartTab) to the Standings tab** in the same place. Polls are league-wide social content — Standings is the universal landing tab so everyone sees polls without having to navigate to a format-specific tab. The My Roster pill bar drops the Polls pill (now: Depth Chart + Team History only). All 10 regression baselines pass byte-identical, `npm run build` clean.
