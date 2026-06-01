@@ -34,7 +34,7 @@ Two follow-ups to v2.6.0.0 and v2.6.1.0: (1) the admin Shows tab is now fully ed
 - **`updateRulePoints` no-op guard**: `if (newPts === oldPts) return;` early-out prevents spurious audit entries when the input loses focus without actually changing the value.
 - **What this commit does NOT do.** ScoringRulesSection's library picker still reads from compiled-in `DEFAULT_SCORING_RULES` rather than merging in RTDB overrides — that's the next iteration (depends on a global library-load that propagates to every league instance). CreateLeagueScreen also still seeds from compiled defaults. The admin Shows tab writes are functional; the consume-the-overrides side is the follow-up.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.26s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `25df5e3`
 
 ### v2.6.1.0 — 2026-06-01
 **Per-league activity log, visible to ALL league members.** The intent is detection of commissioner abuse — if a commissioner edits someone else's roster while rosters are "locked", every league member can see the receipt with a timestamp and a red FLAGGED badge. Same idea as the admin Audit Log tab, but scoped to one league and exposed to all members.
