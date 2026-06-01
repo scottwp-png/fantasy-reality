@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.45.0
+**Current Production Version:** v2.4.46.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~7,775
+**App.jsx Line Count:** ~7,825
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,19 @@
 ---
 
 ## Version Log
+
+### v2.4.46.0 — 2026-06-01
+Two fixes: (1) every scoring rule now has an optional `description` field that explains what the rule actually counts — shorthand labels like "Plays Idol Incorrectly" or "Correct Vote" were causing confusion during the live Survivor league because players inferred different meanings. (2) The Cast-tab tribe-merge banner was rendering escape sequences as literal text instead of the flag emoji and em-dash; wrapped the literals in JSX expression containers so JS string-literal escape interpretation happens.
+- **`description` field added to all 31 Survivor preset rules** in `DEFAULT_SCORING_RULES` at `App.jsx:15-79`. Each description is a single sentence (~60–150 chars) clarifying when the rule applies — e.g. "Receives a Vote" is now annotated *"Received any vote against them at tribal council. Score per individual vote — three votes = three units of this rule."* and "Correct Vote" is *"Cast a vote for the contestant who was eliminated at that tribal (voted with the successful majority)."* Other-show presets (Top Chef, Love Island, etc.) keep `description: undefined` for now — the field is optional and the UI gracefully omits the line when absent. These are the priority fix because Survivor is the show with the live testing league.
+- **Scoring tab event list shows description** at `App.jsx:2796-2799`. Each rule button gains a 11px `#8888aa` line below the label, between the label and the points indicator. Layout switched the right column to `flex:1,minWidth:0,marginRight:8` so long descriptions wrap correctly without pushing the count pill off-screen.
+- **Scoring tab assign view shows description** at `App.jsx:2835-2839`. When commissioner is on the per-contestant scoring screen for a rule, the description renders in the colored header card under the label and above the points/occurrence line. Sits inside the tinted card so it's visually tied to the rule, not the surrounding chrome.
+- **Settings rule editor: per-row description textarea** at `App.jsx:5957-5979`. Each rule's row expanded from one line into a two-line layout: row 1 keeps the existing `[label] [category] [points] [×]` controls; row 2 is a 2-line `<textarea>` for the description. Commissioners can now edit descriptions of any rule — default rules can be customized for league-specific interpretation. `updateRuleDescription(ruleId, description)` saves via `onUpdate` like the other field updaters.
+- **Add Custom Rule form: Description input** at `App.jsx:6011-6018`. New 2-line textarea below the Label/Points/Category trio. Stored on the new rule as `{ ..., description }` (omitted when blank to keep RTDB writes minimal). `setNewDescription` resets on cancel/submit alongside the other fields.
+- **Library picker shows description** at `App.jsx:6039-6048`. Each rule card switched from `alignItems:center` to `flex-start` so the description (a third info line beneath label + category) doesn't break vertical alignment with the points number. Description renders in 10px `#8888aa` italic-feel light text.
+- **Cast-tab tribe-merge banner render fix** at `App.jsx:2012`. Previously `🏴 Merged into {name} — individual game` — the emoji and em-dash were rendering as literal text `🏴` / `—` on testers' browsers (cause: file encoding interaction with JSX text-node escape handling, varying by terminal/IDE that saved the file). Fix: wrap both special chars in JSX expression containers with quoted JS strings — `{"🏴"}` and `{"—"}` — so JS evaluates the escape sequences (or the literal Unicode chars, whichever the file ended up storing) at parse time, guaranteeing correct rendering regardless of how the file is stored on disk.
+- **What this commit does NOT do.** Descriptions for Top Chef / Love Island / Bachelor / Bake Off / Traitors / Big Brother / Challenge / Drag Race / Amazing Race / Love is Blind preset rules — those stay un-described for now (UI shows nothing, no breakage). Adding them is a content-only follow-up. No filter or search by description in the library picker.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.58s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.45.0 — 2026-06-01
 Two pre-launch fixes both centered on what users actually see on the Standings tab and during commissioner setup. (1) The contestant-leaderboard half of the old `WeeklyBreakdownSection` (deleted in v2.4.42.0) had no replacement — managers wanted a "who's scoring what" view sortable by season-total or per-week. Restored as **Cast Standings**. (2) The "Add from Library" picker in scoring rules showed every default rule across every show (133 available in a Survivor league), which testers correctly read as "most of this is irrelevant to my show." Now defaults to the league's own show with a dropdown to switch.

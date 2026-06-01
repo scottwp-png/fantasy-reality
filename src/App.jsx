@@ -14,37 +14,72 @@ const IMPORTED_LEAGUES = [];
 // ─── Data Layer ───
 const DEFAULT_SCORING_RULES = [
   // ─── Survivor (from your live league) ───
-  { id: "loses_vote_due_to_risk", label: "Loses Vote Due to Risk", points: -2, category: "Strategy/Social" },
-  { id: "volunteers_for_journey___risk", label: "Volunteers for Journey / Risk", points: 1, category: "Strategy/Social" },
-  { id: "gains_advantage___idol", label: "Gains Advantage / Idol", points: 2, category: "Strategy/Social" },
-  { id: "finds_hidden_immunity_idol", label: "Finds Hidden Immunity Idol", points: 3, category: "Strategy/Social" },
-  { id: "successfully_splits_vote", label: "Successfully Splits Vote", points: 3, category: "Strategy/Social" },
-  { id: "uses_extra_vote_successfully", label: "Uses Extra Vote Successfully", points: 3, category: "Strategy/Social" },
-  { id: "steals_vote_successfully", label: "Steals Vote Successfully", points: 4, category: "Strategy/Social" },
-  { id: "successfully_executes_blindside", label: "Successfully Executes Blindside", points: 5, category: "Strategy/Social" },
-  { id: "1st_to_make_fire_for_their_tribe", label: "1st To Make Fire for Their Tribe", points: 5, category: "Strategy/Social" },
-  { id: "wins_shot_in_the_dark", label: "Wins Shot in the Dark", points: 20, category: "Strategy/Social" },
-  { id: "blamed_for_team_loss", label: "Blamed for Team Loss", points: -2, category: "Challenge Performance" },
-  { id: "last_place_team_immunity", label: "Last Place Team Immunity", points: -1, category: "Challenge Performance" },
-  { id: "last_place_team_reward", label: "Last Place Team Reward", points: -0.5, category: "Challenge Performance" },
-  { id: "first_place_team_reward", label: "First Place Team Reward", points: 0.5, category: "Challenge Performance" },
-  { id: "first_place_team_immunity", label: "First Place Team Immunity", points: 1, category: "Challenge Performance" },
-  { id: "picked_to_go_with_winner_of_individual_reward", label: "Picked to Go with Reward Winner", points: 0.5, category: "Challenge Performance" },
-  { id: "wins_individual_reward", label: "Wins Individual Reward", points: 2, category: "Challenge Performance" },
-  { id: "wins_individual_immunity", label: "Wins Individual Immunity", points: 4, category: "Challenge Performance" },
-  { id: "eliminated_with_idol_advantage", label: "Eliminated with Idol/Advantage", points: -15, category: "Tribal" },
-  { id: "sv_eliminated", label: "Eliminated", points: -10, category: "Tribal" },
-  { id: "plays_hidden_immunity_idol_incorrectly", label: "Plays Idol Incorrectly", points: -3, category: "Tribal" },
-  { id: "receives_a_vote", label: "Receives a Vote", points: -1, category: "Tribal" },
-  { id: "receives_zero_votes_at_tribal", label: "Receives Zero Votes at Tribal", points: 2, category: "Tribal" },
-  { id: "correct_vote", label: "Correct Vote", points: 3, category: "Tribal" },
-  { id: "saved_by_advantage", label: "Saved by Advantage", points: 3, category: "Tribal" },
-  { id: "plays_hidden_immunity_idol_successfully", label: "Plays Idol Successfully", points: 6, category: "Tribal" },
-  { id: "1st_member_of_the_jury", label: "1st Member of the Jury", points: 5, category: "Endgame" },
-  { id: "wins_final_4_fire_making_challenge", label: "Wins Fire-Making Challenge", points: 5, category: "Endgame" },
-  { id: "final_5", label: "Final 5", points: 10, category: "Endgame" },
-  { id: "final_4", label: "Final 4", points: 15, category: "Endgame" },
-  { id: "sv_winner", label: "Winner of the Show", points: 50, category: "Endgame" },
+  // v2.4.46.0: `description` field added to disambiguate shorthand rule names —
+  // testers playing the live Survivor league were confused about what several
+  // rules actually counted. Descriptions are displayed in the Scoring tab (event
+  // list + assign view) and in the library picker / rule editor.
+  { id: "loses_vote_due_to_risk", label: "Loses Vote Due to Risk", points: -2, category: "Strategy/Social",
+    description: "Drew 'not safe' from Shot in the Dark (or equivalent risk mechanic) — their vote at that tribal didn't count." },
+  { id: "volunteers_for_journey___risk", label: "Volunteers for Journey / Risk", points: 1, category: "Strategy/Social",
+    description: "Took the Journey opportunity (risked losing vote / belongings for a chance at an advantage)." },
+  { id: "gains_advantage___idol", label: "Gains Advantage / Idol", points: 2, category: "Strategy/Social",
+    description: "Won or earned any advantage or idol from a journey, on-island game, or host gift — distinct from finding a hidden idol on the beach." },
+  { id: "finds_hidden_immunity_idol", label: "Finds Hidden Immunity Idol", points: 3, category: "Strategy/Social",
+    description: "Found a hidden immunity idol while searching on the beach (not given by host, not won at a journey)." },
+  { id: "successfully_splits_vote", label: "Successfully Splits Vote", points: 3, category: "Strategy/Social",
+    description: "Was in on a vote-split plan and the plan worked (intended target was eliminated). All co-conspirators score." },
+  { id: "uses_extra_vote_successfully", label: "Uses Extra Vote Successfully", points: 3, category: "Strategy/Social",
+    description: "Played an extra vote at tribal and the intended target was eliminated." },
+  { id: "steals_vote_successfully", label: "Steals Vote Successfully", points: 4, category: "Strategy/Social",
+    description: "Played a steal-a-vote at tribal and the intended target was eliminated." },
+  { id: "successfully_executes_blindside", label: "Successfully Executes Blindside", points: 5, category: "Strategy/Social",
+    description: "Voted with a majority that eliminated a target who held an unplayed idol or didn't see it coming. All blindsiders score." },
+  { id: "1st_to_make_fire_for_their_tribe", label: "1st To Make Fire for Their Tribe", points: 5, category: "Strategy/Social",
+    description: "First person on their tribe to start fire from flint or friction. One-time award per tribe, per season." },
+  { id: "wins_shot_in_the_dark", label: "Wins Shot in the Dark", points: 20, category: "Strategy/Social",
+    description: "Drew 'safe' from Shot in the Dark — voids any votes against them at that tribal council." },
+  { id: "blamed_for_team_loss", label: "Blamed for Team Loss", points: -2, category: "Challenge Performance",
+    description: "The episode framed this contestant as the reason their tribe lost the challenge (drops the puzzle, falls off the beam, etc.)." },
+  { id: "last_place_team_immunity", label: "Last Place Team Immunity", points: -1, category: "Challenge Performance",
+    description: "Their tribe finished last in the immunity challenge." },
+  { id: "last_place_team_reward", label: "Last Place Team Reward", points: -0.5, category: "Challenge Performance",
+    description: "Their tribe finished last in the reward challenge." },
+  { id: "first_place_team_reward", label: "First Place Team Reward", points: 0.5, category: "Challenge Performance",
+    description: "Their tribe finished first in the reward challenge." },
+  { id: "first_place_team_immunity", label: "First Place Team Immunity", points: 1, category: "Challenge Performance",
+    description: "Their tribe finished first in the immunity challenge." },
+  { id: "picked_to_go_with_winner_of_individual_reward", label: "Picked to Go with Reward Winner", points: 0.5, category: "Challenge Performance",
+    description: "The individual reward winner chose this contestant to accompany them (not picked by host or random)." },
+  { id: "wins_individual_reward", label: "Wins Individual Reward", points: 2, category: "Challenge Performance",
+    description: "Won an individual reward challenge (post-merge)." },
+  { id: "wins_individual_immunity", label: "Wins Individual Immunity", points: 4, category: "Challenge Performance",
+    description: "Won an individual immunity challenge (post-merge)." },
+  { id: "eliminated_with_idol_advantage", label: "Eliminated with Idol/Advantage", points: -15, category: "Tribal",
+    description: "Voted out at tribal while holding at least one unplayed idol or advantage." },
+  { id: "sv_eliminated", label: "Eliminated", points: -10, category: "Tribal",
+    description: "Voted out at tribal council. Applies once per contestant, in the episode they are eliminated." },
+  { id: "plays_hidden_immunity_idol_incorrectly", label: "Plays Idol Incorrectly", points: -3, category: "Tribal",
+    description: "Played a hidden immunity idol at tribal but received zero votes (idol was wasted)." },
+  { id: "receives_a_vote", label: "Receives a Vote", points: -1, category: "Tribal",
+    description: "Received any vote against them at tribal council. Score per individual vote — three votes = three units of this rule." },
+  { id: "receives_zero_votes_at_tribal", label: "Receives Zero Votes at Tribal", points: 2, category: "Tribal",
+    description: "Attended a tribal council and received no votes against them." },
+  { id: "correct_vote", label: "Correct Vote", points: 3, category: "Tribal",
+    description: "Cast a vote for the contestant who was eliminated at that tribal (voted with the successful majority)." },
+  { id: "saved_by_advantage", label: "Saved by Advantage", points: 3, category: "Tribal",
+    description: "Avoided elimination because someone played an advantage that protected them (shield, immunity gift, etc.)." },
+  { id: "plays_hidden_immunity_idol_successfully", label: "Plays Idol Successfully", points: 6, category: "Tribal",
+    description: "Played a hidden immunity idol at tribal and received at least one vote that would have counted against them." },
+  { id: "1st_member_of_the_jury", label: "1st Member of the Jury", points: 5, category: "Endgame",
+    description: "First eliminated juror (the bridge eliminee that makes the jury for that season)." },
+  { id: "wins_final_4_fire_making_challenge", label: "Wins Fire-Making Challenge", points: 5, category: "Endgame",
+    description: "Won the Final 4 fire-making challenge to advance to Final 3." },
+  { id: "final_5", label: "Final 5", points: 10, category: "Endgame",
+    description: "Outlasted the field to be one of the last five contestants standing." },
+  { id: "final_4", label: "Final 4", points: 15, category: "Endgame",
+    description: "Outlasted the field to be one of the last four contestants standing." },
+  { id: "sv_winner", label: "Winner of the Show", points: 50, category: "Endgame",
+    description: "Received the majority of jury votes at Final Tribal Council — Sole Survivor." },
 
   // ─── Top Chef (from your live league) ───
   { id: "money_earned_per_1k", label: "Money Earned (per $1K)", points: 0.2, category: "Competition" },
@@ -2009,7 +2044,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
         </div>
       </div>
       {isMerged&&(<div style={{padding:"8px 12px",background:"#f5a62311",borderRadius:8,border:"1px solid #f5a62333",marginBottom:12,fontSize:12,color:"#f5a623",display:"flex",alignItems:"center",gap:6}}>
-        \ud83c\udff4 Merged into {league.mergedTribeName||"one tribe"} \u2014 individual game
+        {"\ud83c\udff4"} Merged into {league.mergedTribeName||"one tribe"} {"\u2014"} individual game
       </div>)}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:6}}>
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
@@ -2791,9 +2826,12 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
                       cursor:"pointer",fontFamily:"'Outfit',sans-serif",transition:"all 0.1s ease",
                       textAlign:"left",
                     }} onMouseEnter={e=>{e.currentTarget.style.borderColor="#3a3a5a"}} onMouseLeave={e=>{e.currentTarget.style.borderColor="#1e1e38"}}>
-                      <div>
+                      <div style={{ flex:1,minWidth:0,marginRight:8 }}>
                         <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>{r.label}</div>
-                        <div style={{ fontSize:11,color:r.points>=0?"#4ecdc4":"#e94560",marginTop:2 }}>
+                        {r.description && (
+                          <div style={{ fontSize:11,color:"#8888aa",marginTop:3,lineHeight:1.4 }}>{r.description}</div>
+                        )}
+                        <div style={{ fontSize:11,color:r.points>=0?"#4ecdc4":"#e94560",marginTop:3 }}>
                           {r.points>0?"+":""}{formatPts(r.points, league)} pts{r.points===-1||r.points===1?" each":""}
                         </div>
                       </div>
@@ -2830,7 +2868,10 @@ function ScoringTab({ league, onUpdate, isCommissioner = true }) {
             border:rule.points>=0?"1px solid #4ecdc433":"1px solid #e9456033",
           }}>
             <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:16,fontFamily:"'Anybody',sans-serif" }}>{rule.label}</div>
-            <div style={{ color:rule.points>=0?"#4ecdc4":"#e94560",fontSize:13,marginTop:2 }}>
+            {rule.description && (
+              <div style={{ color:"#aaaabf",fontSize:12,marginTop:6,lineHeight:1.5 }}>{rule.description}</div>
+            )}
+            <div style={{ color:rule.points>=0?"#4ecdc4":"#e94560",fontSize:13,marginTop:6 }}>
               {rule.points>0?"+":""}{formatPts(rule.points, league)} pts per occurrence
             </div>
           </div>
@@ -5826,6 +5867,7 @@ function ScoringRulesSection({ league, onUpdate }) {
   const [newLabel, setNewLabel] = useState("");
   const [newPoints, setNewPoints] = useState(0);
   const [newCategory, setNewCategory] = useState("");
+  const [newDescription, setNewDescription] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
   // v2.4.45.0: library was showing all 133 default rules across every show
   // preset — Survivor commissioners saw Top Chef / Bake Off / Drag Race
@@ -5874,6 +5916,10 @@ function ScoringRulesSection({ league, onUpdate }) {
     onUpdate({ ...league, scoringRules: rules.map(r => r.id === ruleId ? { ...r, category } : r) });
   }
 
+  function updateRuleDescription(ruleId, description) {
+    onUpdate({ ...league, scoringRules: rules.map(r => r.id === ruleId ? { ...r, description } : r) });
+  }
+
   function removeRule(ruleId) {
     const rule = rules.find(r => r.id === ruleId);
     if (!rule) return;
@@ -5888,9 +5934,14 @@ function ScoringRulesSection({ league, onUpdate }) {
     const baseId = "custom_" + label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/_+$/, "");
     let id = baseId; let n = 2;
     while (existingIds.has(id)) { id = `${baseId}_${n++}`; }
-    const rule = { id, label, points: Number(newPoints) || 0, category: newCategory.trim() || "Custom" };
+    const desc = newDescription.trim();
+    const rule = {
+      id, label, points: Number(newPoints) || 0,
+      category: newCategory.trim() || "Custom",
+      ...(desc ? { description: desc } : {}),
+    };
     onUpdate({ ...league, scoringRules: [...rules, rule] });
-    setNewLabel(""); setNewPoints(0); setNewCategory(""); setAdding(false);
+    setNewLabel(""); setNewPoints(0); setNewCategory(""); setNewDescription(""); setAdding(false);
   }
 
   function addFromLibrary(rule) {
@@ -5914,23 +5965,29 @@ function ScoringRulesSection({ league, onUpdate }) {
         <div key={cat} style={{ marginBottom:16,padding:"14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
           <div style={{ fontSize:12,fontWeight:700,color:"#e8e8f0",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.05em" }}>{cat}</div>
           {grouped.g[cat].map(rule => (
-            <div key={rule.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid #1a1a30" }}>
-              <input value={rule.label} onChange={e=>updateRuleLabel(rule.id, e.target.value)} style={{
-                flex:1,padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
-                color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",minWidth:0,
+            <div key={rule.id} style={{ padding:"8px 0",borderBottom:"1px solid #1a1a30" }}>
+              <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+                <input value={rule.label} onChange={e=>updateRuleLabel(rule.id, e.target.value)} style={{
+                  flex:1,padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                  color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",minWidth:0,
+                }} />
+                <input value={rule.category || ""} onChange={e=>updateRuleCategory(rule.id, e.target.value)} placeholder="Category" style={{
+                  width:110,padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                  color:"#8888aa",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none",
+                }} />
+                <input type="number" value={rule.points} step="0.5" onChange={e=>updateRulePoints(rule.id, e.target.value)} style={{
+                  width:70,padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                  color:rule.points>=0?"#4ecdc4":"#e94560",fontSize:12,fontWeight:700,fontFamily:"'Outfit',sans-serif",outline:"none",textAlign:"right",
+                }} />
+                <button onClick={()=>removeRule(rule.id)} title="Remove rule" style={{
+                  background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#e94560",
+                  width:28,height:28,cursor:"pointer",fontSize:14,flexShrink:0,
+                }}>×</button>
+              </div>
+              <textarea value={rule.description || ""} onChange={e=>updateRuleDescription(rule.id, e.target.value)} placeholder="Description (what this rule actually counts — shown to players in the Scoring tab)" rows={2} style={{
+                width:"100%",marginTop:6,padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                color:"#aaaabf",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none",resize:"vertical",boxSizing:"border-box",lineHeight:1.4,
               }} />
-              <input value={rule.category || ""} onChange={e=>updateRuleCategory(rule.id, e.target.value)} placeholder="Category" style={{
-                width:110,padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
-                color:"#8888aa",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none",
-              }} />
-              <input type="number" value={rule.points} step="0.5" onChange={e=>updateRulePoints(rule.id, e.target.value)} style={{
-                width:70,padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
-                color:rule.points>=0?"#4ecdc4":"#e94560",fontSize:12,fontWeight:700,fontFamily:"'Outfit',sans-serif",outline:"none",textAlign:"right",
-              }} />
-              <button onClick={()=>removeRule(rule.id)} title="Remove rule" style={{
-                background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#e94560",
-                width:28,height:28,cursor:"pointer",fontSize:14,flexShrink:0,
-              }}>×</button>
             </div>
           ))}
         </div>
@@ -5951,6 +6008,13 @@ function ScoringRulesSection({ league, onUpdate }) {
               <div style={{ flex:1 }}>
                 <Input label="Category" placeholder="e.g. Moments" value={newCategory} onChange={e=>setNewCategory(e.target.value)} />
               </div>
+            </div>
+            <div style={{ marginBottom:10 }}>
+              <div style={{ fontSize:11,fontWeight:600,color:"#8888aa",marginBottom:4 }}>Description <span style={{ color:"#5a5a7a",fontWeight:400 }}>(what this rule counts — shown to players)</span></div>
+              <textarea value={newDescription} onChange={e=>setNewDescription(e.target.value)} placeholder="e.g. Kissed another contestant on a date or in private moments shown on camera." rows={2} style={{
+                width:"100%",padding:"8px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",resize:"vertical",boxSizing:"border-box",lineHeight:1.4,
+              }} />
             </div>
             <Btn small onClick={addCustomRule} disabled={!newLabel.trim()}>Add Rule</Btn>
           </div>
@@ -5976,12 +6040,15 @@ function ScoringRulesSection({ league, onUpdate }) {
         {pickerOpen && libraryAvailable.length > 0 && (
           <div style={{ maxHeight:300,overflow:"auto",background:"#0d0d18",borderRadius:6,padding:8 }}>
             {libraryAvailable.map(rule => (
-              <div key={rule.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"6px 4px",borderBottom:"1px solid #1a1a30" }}>
+              <div key={rule.id} style={{ display:"flex",alignItems:"flex-start",gap:8,padding:"8px 4px",borderBottom:"1px solid #1a1a30" }}>
                 <div style={{ flex:1,minWidth:0 }}>
-                  <div style={{ color:"#e8e8f0",fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{rule.label}</div>
-                  <div style={{ color:"#6a6a8a",fontSize:10 }}>{rule.category || "Other"}</div>
+                  <div style={{ color:"#e8e8f0",fontSize:12,fontWeight:600 }}>{rule.label}</div>
+                  <div style={{ color:"#6a6a8a",fontSize:10,marginTop:2 }}>{rule.category || "Other"}</div>
+                  {rule.description && (
+                    <div style={{ color:"#8888aa",fontSize:10,marginTop:4,lineHeight:1.4 }}>{rule.description}</div>
+                  )}
                 </div>
-                <div style={{ width:50,textAlign:"right",fontSize:12,fontWeight:700,color:rule.points>=0?"#4ecdc4":"#e94560" }}>{rule.points>=0?"+":""}{rule.points}</div>
+                <div style={{ width:50,textAlign:"right",fontSize:12,fontWeight:700,color:rule.points>=0?"#4ecdc4":"#e94560",paddingTop:1 }}>{rule.points>=0?"+":""}{rule.points}</div>
                 <button onClick={()=>addFromLibrary(rule)} style={{
                   background:"#1a1a30",border:"1px solid #2a2a4a",borderRadius:6,color:"#4ecdc4",
                   padding:"4px 10px",cursor:"pointer",fontSize:11,fontWeight:600,
