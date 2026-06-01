@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.18.1
+**Current Production Version:** v2.6.19.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~9,275
+**App.jsx Line Count:** ~9,380
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,21 @@
 ---
 
 ## Version Log
+
+### v2.6.19.0 — 2026-06-01
+**Rule library / base template split + admin-authored descriptions.** Restructure of the admin Shows section per the user ask:
+- New RTDB path: **`scoringLibrary/<showType>/<ruleId>`** = `{ label, description, points, category, isElimination, isBase }`. Each entry is a full rule with its own `isBase` flag. The library replaces the previous override-only `scoringRuleLibrary` path.
+- Admin Shows detail now has a **toggle pill at the top** of the rule section: **Base Template** / **Rule Library**. Default view is the read-only Base Template list.
+  - **Base Template view** at `App.jsx:8512-8530`: read-only list of every library rule where `isBase: true`. Shows label, description, category, points. No edit buttons here — just the snapshot of what new leagues will auto-load.
+  - **Rule Library view** at `App.jsx:8532-8606`: full editor for every rule. Each row has a one-click `Base / Off` toggle pill (left-side, amber when base), label + category + points (inline editable when expanded), and an Edit/Done expand button. The expanded editor surfaces a description textarea, isElimination checkbox, and Delete button. New rules via `+ New Rule` form (includes an "Include in Base Template" checkbox).
+- **Seed-on-first-load** logic at `App.jsx:8357-8392`: if the new `scoringLibrary/<show>` path is empty, populate it from compile-time `DEFAULT_SCORING_RULES` filtered by `SHOW_PRESETS[show].scoringDefaults` (all isBase: true). Also migrates any custom rules + preset overrides from the old `scoringRuleLibrary/<show>` path so prior admin edits survive. One-time write happens when the admin first opens that show's detail; idempotent thereafter.
+- **CreateLeagueScreen seeds from the new library** at `App.jsx:1069-1099`. When the commissioner picks a show, an async `loadRootData("scoringLibrary/<show>")` runs and replaces the compile-time defaults with the admin-managed isBase entries (including their authored descriptions). Compile-time seed runs first so the form isn't blank during the round trip, then the library result replaces it.
+- **Per-league Settings &gt; Scoring Rules &gt; Add from Library** at `App.jsx:6487-6510` also reads from `scoringLibrary/<show>` now. Commissioners pulling library rules into their league pick up admin's latest descriptions automatically. Falls back to compile-time defaults when the library is empty.
+- **Why the toggle pattern over two separate sections**: the user explicitly said "we don't need an edit button for every rule, just generally to edit the base template itself." The toggle preserves that — Base Template view has zero edit buttons; Rule Library view is where editing happens. One section, two roles.
+- **Descriptions flow from admin to commissioner to manager**: admin authors in Rule Library (or imports from the existing compile-time defaults). New leagues seed with those descriptions. Commissioners can edit per-league in Settings > Scoring Rules > Edit. Players see the description in the Scoring tab event list and assign view (per v2.4.46.0).
+- **What this commit does NOT do.** No deletion of the old `scoringRuleLibrary/<show>` RTDB nodes — they stay as historical data; the new code reads from `scoringLibrary/<show>` only. No cross-show rule sharing (each show's library is independent). No version history on library edits. The Show-Wide Episode Scoring section still receives `mergedRules` as before (whole library, no isBase filter) because admin scores any event regardless of base inclusion.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.94s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.18.1 — 2026-06-01
 **Hotfix: contradictory banners on My Roster.** Reported alongside the v2.6.18.0 batch — when a league had its rosters locked AND was on Episode 1, the My Roster page rendered two banners stacked: a yellow "Episode 1 — set your initial roster freely." and a red "Rosters are locked." Reader had to guess which was true (it's the lock).

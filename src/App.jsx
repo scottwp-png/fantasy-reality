@@ -1068,19 +1068,38 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
 
   useEffect(() => {
     const preset = SHOW_PRESETS[showType];
-    if (preset) {
-      // v2.5.0.0: only Heroes (captains) is selectable at launch. Force the
-      // format regardless of preset.defaultFormat so picking Love Island /
-      // Bachelor / Bake Off (which default to "standard" in the preset table)
-      // doesn't silently switch to a format that's not yet shipped. Remove
-      // this override when other formats launch.
-      setFormat("captains");
-      setScoringRules(DEFAULT_SCORING_RULES.filter(r => preset.scoringDefaults.includes(r.id)));
-      // Episodes-per-week cascades from showType. Manual override via the
-      // number input persists until the user changes showType again, at
-      // which point the preset wins.
-      setEpisodesPerWeek(preset.episodesPerWeek || 1);
-    }
+    if (!preset) return;
+    // v2.5.0.0: only Heroes (captains) is selectable at launch. Force the
+    // format regardless of preset.defaultFormat so picking Love Island /
+    // Bachelor / Bake Off (which default to "standard" in the preset table)
+    // doesn't silently switch to a format that's not yet shipped.
+    setFormat("captains");
+    // Episodes-per-week cascades from showType. Manual override via the
+    // number input persists until the user changes showType again, at
+    // which point the preset wins.
+    setEpisodesPerWeek(preset.episodesPerWeek || 1);
+    // v2.6.19.0: seed scoringRules from the admin-managed library (isBase
+    // entries) at scoringLibrary/<showType>. Falls back to compile-time
+    // defaults when the admin hasn't visited this show yet OR the library
+    // is empty. Async — the loadRootData returns null on no-data; an
+    // immediate compile-time seed runs first so the form isn't blank during
+    // the round trip, then gets replaced by the admin library if richer.
+    setScoringRules(DEFAULT_SCORING_RULES.filter(r => preset.scoringDefaults.includes(r.id)));
+    let cancelled = false;
+    (async () => {
+      const lib = await loadRootData("scoringLibrary/" + showType, null);
+      if (cancelled || !lib || Object.keys(lib).length === 0) return;
+      const baseRules = Object.entries(lib)
+        .filter(([, r]) => r?.isBase !== false)
+        .map(([id, r]) => ({
+          id, label: r.label, points: Number(r.points) || 0,
+          category: r.category || "Other",
+          ...(r.description ? { description: r.description } : {}),
+          ...(r.isElimination ? { isElimination: true } : {}),
+        }));
+      if (baseRules.length > 0) setScoringRules(baseRules);
+    })();
+    return () => { cancelled = true; };
   }, [showType]);
 
   function addTeam() {
@@ -6461,14 +6480,33 @@ function ScoringRulesSection({ league, onUpdate, userProfile }) {
   }, [rules]);
 
   const existingIds = new Set(rules.map(r => r.id));
-  // v2.6.8.0: library is locked to THIS league's show — no cross-show picker.
-  // Rules from other shows aren't meaningful for this league's scoring; the
-  // selector was cognitive noise. Custom rules (commissioner-added) live in
-  // league.scoringRules already and aren't show-bound.
+  // v2.6.8.0: library is locked to THIS league's show.
+  // v2.6.19.0: load admin-managed library from RTDB (scoringLibrary/<show>).
+  // Includes admin-authored descriptions. Falls back to compile-time defaults
+  // when admin hasn't visited the show yet.
+  const [adminLibrary, setAdminLibrary] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const data = await loadRootData("scoringLibrary/" + league.showType, null);
+      if (!cancelled) setAdminLibrary(data || null);
+    })();
+    return () => { cancelled = true; };
+  }, [league.showType]);
   const libraryAvailable = useMemo(() => {
+    if (adminLibrary && Object.keys(adminLibrary).length > 0) {
+      return Object.entries(adminLibrary)
+        .filter(([id]) => !existingIds.has(id))
+        .map(([id, r]) => ({
+          id, label: r.label, points: Number(r.points) || 0,
+          category: r.category || "Other",
+          ...(r.description ? { description: r.description } : {}),
+          ...(r.isElimination ? { isElimination: true } : {}),
+        }));
+    }
     const showIds = new Set(SHOW_PRESETS[league.showType]?.scoringDefaults || []);
     return DEFAULT_SCORING_RULES.filter(r => !existingIds.has(r.id) && showIds.has(r.id));
-  }, [league.showType, existingIds]);
+  }, [league.showType, existingIds, adminLibrary]);
 
   function updateRulePoints(ruleId, nextPts) {
     const rule = rules.find(r => r.id === ruleId);
@@ -8329,31 +8367,69 @@ function AdminShowsTab() {
 function AdminShowDetail({ record, onBack }) {
   const selectedShow = record.showType;
   const lockedSeason = record.seasonNumber;
-  const [overrides, setOverrides] = useState({}); // { [ruleId]: { label, points, category, description, isElimination, _custom? } }
-  // v2.6.15.0: simple-list-with-edit pattern — rule rows render as one-line
-  // summaries (label + points) until admin clicks Edit, which expands the
-  // full editor (label/category/points/description + reset/delete) in place.
-  const [expandedRuleId, setExpandedRuleId] = useState(null);
-  // Show the Add Custom Rule form behind a button toggle so the page stays
-  // clean by default.
-  const [addingCustom, setAddingCustom] = useState(false);
+  // v2.6.19.0: library is now a full map of rule objects. Each entry has its
+  // own label, description, points, category, isElimination, and isBase flag.
+  // isBase: true means the rule auto-seeds into new leagues for this show.
+  // Path: scoringLibrary/<showType>/<ruleId> = { label, description, points,
+  // category, isElimination, isBase }. Seeded from compile-time defaults on
+  // first load if RTDB is empty.
+  const [library, setLibrary] = useState({});
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
-  const [newRule, setNewRule] = useState({ id:"", label:"", points:0, category:"Custom", description:"" });
+  // Section state: "template" = read-only base list, "library" = full editor.
+  // "manage-base" = inclusion picker for which library rules go into the base.
+  const [view, setView] = useState("template");
+  const [expandedRuleId, setExpandedRuleId] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [newRule, setNewRule] = useState({ label:"", points:0, category:"Custom", description:"", isBase:true });
 
   const preset = SHOW_PRESETS[selectedShow] || {};
-  const presetIds = new Set(preset.scoringDefaults || []);
-  const presetRules = DEFAULT_SCORING_RULES.filter(r => presetIds.has(r.id));
 
-  // Load overrides for the selected show whenever it changes.
+  // Load library (or seed from compile-time defaults on first load).
   useEffect(() => {
     let cancelled = false;
     setLoaded(false);
     (async () => {
-      const data = await loadRootData("scoringRuleLibrary/" + selectedShow, {});
+      let data = await loadRootData("scoringLibrary/" + selectedShow, null);
+      if (!data || Object.keys(data).length === 0) {
+        // Seed: every compile-time rule that's in this show's preset becomes
+        // a base library entry. Also migrate old scoringRuleLibrary custom rules.
+        const seed = {};
+        const presetIds = new Set(preset.scoringDefaults || []);
+        DEFAULT_SCORING_RULES.filter(r => presetIds.has(r.id)).forEach(r => {
+          seed[r.id] = {
+            label: r.label, description: r.description || "", points: r.points,
+            category: r.category || "Other", isElimination: !!r.isElimination, isBase: true,
+          };
+        });
+        // Backwards-compat: pull in any custom rules from the old per-show overrides.
+        const oldOverrides = await loadRootData("scoringRuleLibrary/" + selectedShow, {});
+        Object.entries(oldOverrides || {}).forEach(([rid, ov]) => {
+          if (ov?._custom) {
+            seed[rid] = {
+              label: ov.label || rid, description: ov.description || "",
+              points: Number(ov.points) || 0, category: ov.category || "Custom",
+              isElimination: !!ov.isElimination, isBase: true,
+            };
+          } else if (seed[rid]) {
+            // Old preset overrides → apply on top of the seeded base rule
+            if (ov.label !== undefined) seed[rid].label = ov.label;
+            if (ov.description !== undefined) seed[rid].description = ov.description;
+            if (ov.points !== undefined) seed[rid].points = ov.points;
+            if (ov.category !== undefined) seed[rid].category = ov.category;
+            if (ov.isElimination !== undefined) seed[rid].isElimination = ov.isElimination;
+          }
+        });
+        data = seed;
+      }
       if (!cancelled) {
-        setOverrides(data || {});
+        // Normalize: ensure every entry has an isBase flag
+        const normalized = {};
+        Object.entries(data).forEach(([rid, r]) => {
+          normalized[rid] = { ...r, isBase: r.isBase !== false };
+        });
+        setLibrary(normalized);
         setLoaded(true);
         setSavedAt(null);
       }
@@ -8361,78 +8437,52 @@ function AdminShowDetail({ record, onBack }) {
     return () => { cancelled = true; };
   }, [selectedShow]);
 
-  // Compute the merged view: presetRules with overrides applied, plus pure-
-  // custom rules (no preset row). Custom rules show first so they're visible.
-  const mergedRules = useMemo(() => {
-    const result = [];
-    Object.entries(overrides).forEach(([rid, ov]) => {
-      if (ov?._custom) result.push({ id: rid, ...ov });
-    });
-    presetRules.forEach(r => {
-      const ov = overrides[r.id] || {};
-      result.push({
-        ...r,
-        ...ov,
-        id: r.id,
-        _isPresetBase: true,
-        _overridden: Object.keys(ov).length > 0 && !ov._custom,
+  const libraryList = useMemo(() => {
+    return Object.entries(library).map(([id, r]) => ({ id, ...r }))
+      .sort((a, b) => {
+        // Show base rules first, then by category, then by label
+        if (a.isBase !== b.isBase) return a.isBase ? -1 : 1;
+        const ca = a.category || "Other", cb = b.category || "Other";
+        if (ca !== cb) return ca.localeCompare(cb);
+        return (a.label || "").localeCompare(b.label || "");
       });
-    });
-    return result;
-  }, [presetRules, overrides]);
+  }, [library]);
+  const baseRules = libraryList.filter(r => r.isBase);
+
+  // For ShowWideScoringSection: it still expects mergedRules in the old shape.
+  const mergedRules = useMemo(() => libraryList, [libraryList]);
 
   function patchRule(ruleId, patch) {
-    setOverrides(prev => {
-      const existing = prev[ruleId] || {};
-      const isPreset = presetIds.has(ruleId);
-      const baseDefault = isPreset ? DEFAULT_SCORING_RULES.find(r => r.id === ruleId) : null;
-      const next = { ...existing, ...patch };
-      // For preset rules, only store fields that DIFFER from the compiled default —
-      // so an unmodified rule has no override entry and can pick up future default
-      // tweaks. For custom rules, store everything.
-      if (isPreset && baseDefault) {
-        const trimmed = {};
-        ["label","points","category","description","isElimination"].forEach(k => {
-          if (k in next && next[k] !== undefined && next[k] !== baseDefault[k]) trimmed[k] = next[k];
-        });
-        if (Object.keys(trimmed).length === 0) {
-          const { [ruleId]: _, ...rest } = prev;
-          return rest;
-        }
-        return { ...prev, [ruleId]: trimmed };
-      }
-      return { ...prev, [ruleId]: next };
-    });
+    setLibrary(prev => ({ ...prev, [ruleId]: { ...prev[ruleId], ...patch } }));
   }
-
-  function deleteCustomRule(ruleId) {
-    if (!confirm(`Remove custom rule "${overrides[ruleId]?.label || ruleId}" from the ${preset.name} library?`)) return;
-    setOverrides(prev => { const { [ruleId]: _, ...rest } = prev; return rest; });
+  function toggleBase(ruleId) {
+    setLibrary(prev => ({ ...prev, [ruleId]: { ...prev[ruleId], isBase: !prev[ruleId]?.isBase } }));
   }
-
-  function resetPresetRule(ruleId) {
-    setOverrides(prev => { const { [ruleId]: _, ...rest } = prev; return rest; });
+  function deleteRule(ruleId) {
+    if (!confirm(`Permanently remove "${library[ruleId]?.label || ruleId}" from the ${preset.name} library? Existing leagues that have this rule keep their copy; only the library entry goes away.`)) return;
+    setLibrary(prev => { const { [ruleId]: _, ...rest } = prev; return rest; });
   }
-
-  function addCustomRule() {
+  function addNewRule() {
     const label = newRule.label.trim();
     if (!label) return;
     const baseId = "lib_" + selectedShow + "_" + label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/_+$/,"");
     let id = baseId; let n = 2;
-    while (overrides[id] || presetIds.has(id)) { id = `${baseId}_${n++}`; }
-    setOverrides(prev => ({ ...prev, [id]: {
-      _custom: true,
+    while (library[id]) { id = `${baseId}_${n++}`; }
+    setLibrary(prev => ({ ...prev, [id]: {
       label,
+      description: newRule.description.trim(),
       points: Number(newRule.points) || 0,
       category: newRule.category.trim() || "Custom",
-      description: newRule.description.trim() || undefined,
+      isElimination: false,
+      isBase: !!newRule.isBase,
     }}));
-    setNewRule({ id:"", label:"", points:0, category:"Custom", description:"" });
+    setNewRule({ label:"", points:0, category:"Custom", description:"", isBase:true });
+    setAdding(false);
   }
 
   async function saveAll() {
     setSaving(true);
-    await saveRootData("scoringRuleLibrary/" + selectedShow, overrides);
+    await saveRootData("scoringLibrary/" + selectedShow, library);
     setSavedAt(Date.now());
     setSaving(false);
   }
@@ -8460,7 +8510,9 @@ function AdminShowDetail({ record, onBack }) {
           <div style={{ flex:1,minWidth:0 }}>
             <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>Base Scoring Template &middot; {preset.name}</div>
             <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2,lineHeight:1.5 }}>
-              The default rules + point values that auto-load when someone creates a league for {preset.name}. Commissioners can still override per-league. {mergedRules.length} rule{mergedRules.length!==1?"s":""} ({presetRules.length} preset + {mergedRules.length - presetRules.length} custom).
+              {view === "library"
+                ? `Manage every rule that exists for ${preset.name}. Toggle "Base" on a rule to include it in the default template that auto-loads when a league is created.`
+                : `The default rules + point values that auto-load when a league is created for ${preset.name}. Commissioners can still override per-league. ${baseRules.length} of ${libraryList.length} library rules are in the base template.`}
             </div>
           </div>
           <div style={{ display:"flex",gap:8,alignItems:"center" }}>
@@ -8468,70 +8520,121 @@ function AdminShowDetail({ record, onBack }) {
             <Btn small onClick={saveAll} disabled={saving || !loaded}>{saving?"Saving...":"Save"}</Btn>
           </div>
         </div>
+
+        {/* v2.6.19.0: view toggle pill between Base Template (read-only) and
+            Rule Library (full editor). Two roles in one section so admins
+            don't bounce between pages. */}
+        <div style={{ display:"flex",gap:4,marginBottom:12,padding:4,background:"#0d0d18",border:"1px solid #1e1e38",borderRadius:99,maxWidth:380 }}>
+          {[
+            { id:"template", label:"Base Template" },
+            { id:"library", label:"Rule Library" },
+          ].map(v => (
+            <button key={v.id} onClick={()=>{ setView(v.id); setExpandedRuleId(null); }} style={{
+              flex:1,padding:"6px 10px",borderRadius:99,border:"none",cursor:"pointer",
+              background: view===v.id ? "#f5a62333" : "transparent",
+              color: view===v.id ? "#f5a623" : "#7a7a9a",
+              fontSize:12,fontWeight:view===v.id?700:600,fontFamily:"'Outfit',sans-serif",
+            }}>{v.label}</button>
+          ))}
+        </div>
+
         {!loaded ? (
           <div style={{ padding:"20px",textAlign:"center",color:"#6a6a8a",fontSize:13 }}>Loading...</div>
-        ) : (
-          <div style={{ display:"flex",flexDirection:"column",gap:4,maxHeight:520,overflowY:"auto" }}>
-            {mergedRules.map(r => {
-              const isExpanded = expandedRuleId === r.id;
-              const accent = r._custom || r._overridden;
-              return (
-                <div key={r.id} style={{ background:"#0d0d18",borderRadius:8,border:accent?"1px solid #f5a62333":"1px solid #1e1e38",overflow:"hidden" }}>
-                  {/* Collapsed row: label + small badges + points + Edit button */}
-                  <div style={{ display:"flex",alignItems:"center",gap:8,padding:"10px 12px" }}>
-                    <div style={{ flex:1,minWidth:0 }}>
-                      <div style={{ display:"flex",alignItems:"center",gap:6,flexWrap:"wrap" }}>
-                        <span style={{ fontSize:13,color:"#e8e8f0",fontWeight:600 }}>{r.label || "(no label)"}</span>
-                        {r._custom && <Badge color="#9d5dff">Custom</Badge>}
-                        {r._overridden && <Badge color="#f5a623">Override</Badge>}
-                        {r.isElimination && <Badge color="#e94560">Elim</Badge>}
-                      </div>
-                      <div style={{ fontSize:10,color:"#6a6a8a",marginTop:2 }}>{r.category || "Other"}</div>
-                    </div>
-                    <div style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:14,color:(r.points||0)>=0?"#4ecdc4":"#e94560",minWidth:48,textAlign:"right" }}>
-                      {(r.points||0)>=0?"+":""}{r.points ?? 0}
-                    </div>
-                    <button onClick={()=>setExpandedRuleId(isExpanded ? null : r.id)} title={isExpanded?"Collapse":"Edit"} style={{ background:isExpanded?"#e9456022":"#1a1a30",border:"1px solid #2a2a4a",borderRadius:6,color:isExpanded?"#e94560":"#aaaabf",height:28,padding:"0 10px",cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"'Outfit',sans-serif",flexShrink:0 }}>
-                      {isExpanded ? "Done" : "Edit"}
-                    </button>
-                  </div>
-                  {/* Expanded editor */}
-                  {isExpanded && (
-                    <div style={{ padding:"0 12px 12px",borderTop:"1px solid #1a1a30",paddingTop:10 }}>
-                      <div style={{ display:"flex",gap:6,alignItems:"center",marginBottom:6 }}>
-                        <input value={r.label || ""} onChange={e=>patchRule(r.id, { label: e.target.value })} placeholder="Label" style={{ flex:1,padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",minWidth:0 }} />
-                        <input value={r.category || ""} onChange={e=>patchRule(r.id, { category: e.target.value })} placeholder="Category" style={{ width:110,padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#8888aa",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none" }} />
-                        <input type="number" step="0.5" value={r.points ?? 0} onChange={e=>patchRule(r.id, { points: Number(e.target.value) })} style={{ width:64,padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:r.points>=0?"#4ecdc4":"#e94560",fontSize:12,fontWeight:700,fontFamily:"'Outfit',sans-serif",outline:"none",textAlign:"right" }} />
-                      </div>
-                      <textarea value={r.description || ""} onChange={e=>patchRule(r.id, { description: e.target.value })} placeholder="Description (shown to players in Scoring tab)" rows={2} style={{ width:"100%",padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#aaaabf",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none",resize:"vertical",boxSizing:"border-box",lineHeight:1.4 }} />
-                      <div style={{ display:"flex",justifyContent:"flex-end",gap:6,marginTop:8 }}>
-                        {r._custom && <Btn small variant="danger" onClick={()=>{ deleteCustomRule(r.id); setExpandedRuleId(null); }}>Remove from template</Btn>}
-                        {r._overridden && !r._custom && <Btn small variant="ghost" onClick={()=>{ resetPresetRule(r.id); setExpandedRuleId(null); }}>Reset to preset default</Btn>}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      <div style={{ marginBottom:20,padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
-          <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>Add Custom Rule</div>
-          <Btn small variant={addingCustom?"ghost":"secondary"} onClick={()=>setAddingCustom(!addingCustom)}>{addingCustom?"Cancel":"+ New"}</Btn>
-        </div>
-        {addingCustom && (
-          <div style={{ marginTop:10,display:"flex",flexDirection:"column",gap:8 }}>
-            <input value={newRule.label} onChange={e=>setNewRule(s=>({...s, label: e.target.value}))} placeholder="Rule label (e.g. 'Kissed by the Bombshell')" style={{ padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none" }} />
-            <div style={{ display:"flex",gap:8 }}>
-              <input type="number" step="0.5" value={newRule.points} onChange={e=>setNewRule(s=>({...s, points: e.target.value}))} placeholder="Points" style={{ width:90,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none" }} />
-              <input value={newRule.category} onChange={e=>setNewRule(s=>({...s, category: e.target.value}))} placeholder="Category" style={{ flex:1,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none" }} />
+        ) : view === "template" ? (
+          // BASE TEMPLATE VIEW — read-only list of rules where isBase=true
+          baseRules.length === 0 ? (
+            <div style={{ padding:"14px",textAlign:"center",color:"#6a6a8a",fontSize:12,background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a",lineHeight:1.6 }}>
+              No rules in the base template yet. Switch to Rule Library and toggle Base on the rules that should auto-load for new {preset.name} leagues.
             </div>
-            <textarea value={newRule.description} onChange={e=>setNewRule(s=>({...s, description: e.target.value}))} placeholder="Description (optional)" rows={2} style={{ width:"100%",padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,color:"#aaaabf",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",resize:"vertical",boxSizing:"border-box" }} />
-            <div style={{ display:"flex",justifyContent:"flex-end" }}>
-              <Btn small onClick={()=>{ addCustomRule(); setAddingCustom(false); }} disabled={!newRule.label.trim()}>+ Add to template</Btn>
+          ) : (
+            <div style={{ display:"flex",flexDirection:"column",gap:4,maxHeight:480,overflowY:"auto" }}>
+              {baseRules.map(r => (
+                <div key={r.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"10px 12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38" }}>
+                  <div style={{ flex:1,minWidth:0 }}>
+                    <div style={{ display:"flex",alignItems:"center",gap:6,flexWrap:"wrap" }}>
+                      <span style={{ fontSize:13,color:"#e8e8f0",fontWeight:600 }}>{r.label || "(no label)"}</span>
+                      {r.isElimination && <Badge color="#e94560">Elim</Badge>}
+                    </div>
+                    <div style={{ fontSize:10,color:"#6a6a8a",marginTop:2 }}>{r.category || "Other"}</div>
+                    {r.description && <div style={{ fontSize:11,color:"#8888aa",marginTop:4,lineHeight:1.4 }}>{r.description}</div>}
+                  </div>
+                  <div style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:14,color:(r.points||0)>=0?"#4ecdc4":"#e94560",minWidth:48,textAlign:"right" }}>
+                    {(r.points||0)>=0?"+":""}{r.points ?? 0}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        ) : (
+          // RULE LIBRARY VIEW — full editor for every rule
+          <div>
+            <div style={{ display:"flex",justifyContent:"flex-end",gap:6,marginBottom:8 }}>
+              <Btn small variant={adding?"ghost":"secondary"} onClick={()=>setAdding(!adding)}>{adding?"Cancel":"+ New Rule"}</Btn>
+            </div>
+            {adding && (
+              <div style={{ marginBottom:10,padding:"12px",background:"#0d0d18",borderRadius:8,border:"1px solid #f5a62333" }}>
+                <input value={newRule.label} onChange={e=>setNewRule(s=>({...s, label: e.target.value}))} placeholder="Rule label" autoFocus style={{ width:"100%",padding:"8px 12px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none",boxSizing:"border-box",marginBottom:8 }} />
+                <div style={{ display:"flex",gap:8,marginBottom:8 }}>
+                  <input type="number" step="0.5" value={newRule.points} onChange={e=>setNewRule(s=>({...s, points: e.target.value}))} placeholder="Points" style={{ width:90,padding:"8px 12px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none" }} />
+                  <input value={newRule.category} onChange={e=>setNewRule(s=>({...s, category: e.target.value}))} placeholder="Category" style={{ flex:1,padding:"8px 12px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none" }} />
+                </div>
+                <textarea value={newRule.description} onChange={e=>setNewRule(s=>({...s, description: e.target.value}))} placeholder="Description (shown to players; commissioners can edit per-league)" rows={2} style={{ width:"100%",padding:"8px 12px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#aaaabf",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",resize:"vertical",boxSizing:"border-box",marginBottom:8 }} />
+                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                  <label style={{ display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#aaaabf",cursor:"pointer" }}>
+                    <input type="checkbox" checked={!!newRule.isBase} onChange={e=>setNewRule(s=>({...s, isBase: e.target.checked}))} style={{ accentColor:"#f5a623" }} />
+                    Include in Base Template
+                  </label>
+                  <Btn small onClick={addNewRule} disabled={!newRule.label.trim()}>Add to Library</Btn>
+                </div>
+              </div>
+            )}
+            <div style={{ display:"flex",flexDirection:"column",gap:4,maxHeight:520,overflowY:"auto" }}>
+              {libraryList.length === 0 ? (
+                <div style={{ padding:"14px",textAlign:"center",color:"#6a6a8a",fontSize:12,background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a" }}>
+                  No rules in the library yet. Add one with the + New Rule button above.
+                </div>
+              ) : libraryList.map(r => {
+                const isExpanded = expandedRuleId === r.id;
+                return (
+                  <div key={r.id} style={{ background:"#0d0d18",borderRadius:8,border:r.isBase?"1px solid #f5a62333":"1px solid #1e1e38",overflow:"hidden" }}>
+                    <div style={{ display:"flex",alignItems:"center",gap:8,padding:"10px 12px" }}>
+                      <button onClick={()=>toggleBase(r.id)} title={r.isBase?"Click to remove from base template":"Click to include in base template"} style={{ background:r.isBase?"#f5a62322":"#12121f",border:r.isBase?"1px solid #f5a62366":"1px solid #2a2a4a",borderRadius:99,color:r.isBase?"#f5a623":"#6a6a8a",height:22,padding:"0 10px",cursor:"pointer",fontSize:9,fontWeight:700,fontFamily:"'Outfit',sans-serif",textTransform:"uppercase",letterSpacing:"0.04em",flexShrink:0 }}>
+                        {r.isBase ? "Base" : "Off"}
+                      </button>
+                      <div style={{ flex:1,minWidth:0 }}>
+                        <div style={{ display:"flex",alignItems:"center",gap:6,flexWrap:"wrap" }}>
+                          <span style={{ fontSize:13,color:"#e8e8f0",fontWeight:600 }}>{r.label || "(no label)"}</span>
+                          {r.isElimination && <Badge color="#e94560">Elim</Badge>}
+                        </div>
+                        <div style={{ fontSize:10,color:"#6a6a8a",marginTop:2 }}>{r.category || "Other"}</div>
+                      </div>
+                      <div style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:14,color:(r.points||0)>=0?"#4ecdc4":"#e94560",minWidth:48,textAlign:"right" }}>
+                        {(r.points||0)>=0?"+":""}{r.points ?? 0}
+                      </div>
+                      <button onClick={()=>setExpandedRuleId(isExpanded ? null : r.id)} title={isExpanded?"Collapse":"Edit"} style={{ background:isExpanded?"#e9456022":"#1a1a30",border:"1px solid #2a2a4a",borderRadius:6,color:isExpanded?"#e94560":"#aaaabf",height:28,padding:"0 10px",cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"'Outfit',sans-serif",flexShrink:0 }}>
+                        {isExpanded ? "Done" : "Edit"}
+                      </button>
+                    </div>
+                    {isExpanded && (
+                      <div style={{ padding:"0 12px 12px",borderTop:"1px solid #1a1a30",paddingTop:10 }}>
+                        <div style={{ display:"flex",gap:6,alignItems:"center",marginBottom:6 }}>
+                          <input value={r.label || ""} onChange={e=>patchRule(r.id, { label: e.target.value })} placeholder="Label" style={{ flex:1,padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",minWidth:0 }} />
+                          <input value={r.category || ""} onChange={e=>patchRule(r.id, { category: e.target.value })} placeholder="Category" style={{ width:110,padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#8888aa",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none" }} />
+                          <input type="number" step="0.5" value={r.points ?? 0} onChange={e=>patchRule(r.id, { points: Number(e.target.value) })} style={{ width:64,padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:r.points>=0?"#4ecdc4":"#e94560",fontSize:12,fontWeight:700,fontFamily:"'Outfit',sans-serif",outline:"none",textAlign:"right" }} />
+                        </div>
+                        <textarea value={r.description || ""} onChange={e=>patchRule(r.id, { description: e.target.value })} placeholder="Description (shown to players in the Scoring tab; commissioners can edit per-league)" rows={3} style={{ width:"100%",padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#aaaabf",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none",resize:"vertical",boxSizing:"border-box",lineHeight:1.4 }} />
+                        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:6,marginTop:8 }}>
+                          <label style={{ display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#8888aa",cursor:"pointer" }}>
+                            <input type="checkbox" checked={!!r.isElimination} onChange={e=>patchRule(r.id, { isElimination: e.target.checked })} style={{ accentColor:"#e94560" }} />
+                            Elimination rule (auto-flips contestant status on score)
+                          </label>
+                          <Btn small variant="danger" onClick={()=>{ deleteRule(r.id); setExpandedRuleId(null); }}>Delete</Btn>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
