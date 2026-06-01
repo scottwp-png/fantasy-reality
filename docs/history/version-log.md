@@ -32,7 +32,7 @@ Two pre-launch UX fixes from real-tester feedback: (1) the spoiler-protection ov
 - **Empty-state copy updated** at `App.jsx:3604`: "No polls yet. Tap + Add to create one." (was "Create one above.")
 - **What this commit does NOT do.** No change to spoiler grace-period logic, the `userProfile.spoilerRevealed` map, or any of the poll data model — `effectiveGroups`, `createPoll`, `submitPoll`, etc. are untouched. The 70vh cap applies only to the SpoilerBlur wrapper, not to the children — once revealed, the content has its own height back.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.17s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `b65cfc2`
 
 ### v2.4.43.0 — 2026-06-01
 Pre-launch polish on the invite/onboarding flow. Testers reported that the invite-code box on the sign-up form looked visually awkward and that clicking an invite link without an existing account was confusing — they'd land on the login screen with no sign of having been invited. Three changes: (1) sign-up invite-code box removed (was a teal-bordered card between Password and Create Account); (2) AuthScreen renders a prominent "You're invited!" banner above the mode tabs when the URL carries `?join=CODE`, with auto-default to the Sign Up tab; (3) home-screen "Join a League" box renamed "Have an invite code?" with a clarifying line that invite *links* don't require code entry. All 10 regression baselines pass byte-identical, `npm run build` clean.
