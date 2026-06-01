@@ -31,7 +31,7 @@
 - **Delete-episode affordance** at `App.jsx:9119-9130` (the `deleteEpisode` function) and the redesigned episode card at `App.jsx:9180-9209`. Cards are now a flex row with the main open-button on the left and a small `Delete` chip on the right. Confirm dialog warns that leagues consuming show-wide scoring will lose this episode's points. `saveRootData(\`showScoring/<show>/<season>/<ep>\`, null)` deletes the RTDB node; local state drops the entry from `episodesMap`; if the user is currently inside that episode's detail, they get bounced back to the index.
 - **What this commit does NOT do.** No bulk-delete or "Reset Episode" within the detail view — only the index has the delete affordance. The old `scoringRuleLibrary` rule stays in `database.rules.json` (historical reads still resolve; not actively written to). No data migration from the deny-failed writes — those writes never succeeded, so there's nothing to recover; admin just re-enters the edits after the rule deploy.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.90s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `f0482e0`
 
 ### v2.6.21.1 — 2026-06-01
 **Co-commissioner selector: admin uid backfill + visibility for unlinked owners.** Hotfix for an empty/single-entry selector in pre-launch leagues.
