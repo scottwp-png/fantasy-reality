@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.5.2.0
+**Current Production Version:** v2.5.3.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~8,045
+**App.jsx Line Count:** ~8,150
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,18 @@
 ---
 
 ## Version Log
+
+### v2.5.3.0 — 2026-06-01
+**Automated roster lock based on show airtime.** Most reality shows air at a regular cadence — Survivor Wednesdays at 8pm, Top Chef Mondays at 7pm, etc. Until now commissioners had to remember to manually lock rosters before each episode and unlock after scoring. Auto-lock derives lock state from the show's airtime in the viewer's local timezone, with the manual button kept as an override for edge cases.
+- **`airSchedule` added to most SHOW_PRESETS** at `App.jsx:202-236`. Each entry has `{ dayOfWeek, hour, minute, lockLeadHours }` — dayOfWeek using Sun=0...Sat=6, lockLeadHours defaulting to 2. Shows with batch drops (Love is Blind) or many-nights-per-week airings (Love Island) leave `airSchedule` undefined and use manual lock only. Survivor=Wed 8pm, Top Chef=Mon 7pm, Bachelor=Mon 8pm, Bake Off=Fri 8pm, Traitors=Thu 8pm, Big Brother=Wed 8pm (live eviction night), Challenge=Wed 8pm, Drag Race=Fri 8pm, Amazing Race=Wed 9:30pm.
+- **`getAutoLockState(league, now)`** at `App.jsx:271-300`. Pure function — no timers or polling. Finds the most recent airtime occurrence on or before `now`, returns `{ autoLocked: true, lockStart, airtime }` if `now >= airtime - lockLeadHours` AND the current week isn't finalized; otherwise returns `{ autoLocked: false, nextLockStart, nextAirtime }` for UI to display. Critically: when the episode has aired but the commissioner hasn't scored yet, auto-lock stays active (prevents managers from sneaking in roster changes between airtime and scoring).
+- **`isRosterLocked(league)`** at `App.jsx:307-310`. Effective lock state. Manual override (`league.rostersLocked === true`) always wins as a force-lock; otherwise auto-lock applies. No manual force-unlock during auto-lock — commissioner releases by scoring/finalizing the week. Intentional: prevents accidental unlock that would let managers exploit the lag.
+- **All read consumers updated** at `App.jsx:4788, 4794, 4842, 4895, 5345`. DepthChartTab's locked-banner / disable / "if open" checks and SalaryCapTab's Change button now route through `isRosterLocked(league)` instead of reading `league.rostersLocked` directly. The Settings toggle (the write site) still flips `rostersLocked` — that's the manual override, untouched.
+- **Settings banner reworked** at `App.jsx:6607-6643`. Shows effective state (locked or unlocked); appends an `AUTO` badge when the lock is from the schedule, not from manual. Explainer text dynamically shows either "Auto-locked because the episode aired (lock started Wed 6:00 PM). Score the week to release." or "Auto-lock next: Wed 6:00 PM (airs Wed 8:00 PM)." so commissioners always know what's happening. Button still toggles manual `rostersLocked` only — if auto is what's locking and commissioner clicks "Lock", nothing changes visibly (it would persist after auto releases).
+- **Pure derivation, no state churn.** `getAutoLockState` is called fresh on every render. No background polling, no setInterval, no Firebase writes from the client tied to the schedule. The downside: if a user keeps a tab open across the lock-start time without interacting, their stale render shows "unlocked" — but any roster-edit attempt re-renders and locks. Acceptable trade-off; alternative (setInterval) wastes battery on idle tabs.
+- **What this commit does NOT do.** No per-league override of the show's airSchedule (commissioner can't say "this league's Survivor is on Thursday because of a special week"). No manual force-unlock-during-auto-lock — commissioner has to score to release. No notifications ("rosters will lock in 30 minutes"). No timezone customization — uses the viewer's local time only, which works for the soft-launch audience but breaks if a league has managers across very different zones (one user in PT will see lock at 8pm PT while a user in ET sees lock at 8pm ET — different absolute times). The latter is acceptable because the lock is computed per-render and per-user; the actual ROSTER write is gated by client-side check only, not server-side rules. A future iteration could anchor airtime in ET and compute per-zone.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.70s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.5.2.0 — 2026-06-01
 The Cast tab sort dropdown's per-week options now group episodes into **draft weeks** for multi-episode shows (Love Island, Big Brother, Love is Blind — episodesPerWeek > 1). Selecting "Week N" on a multi-ep league sorts by the week's combined points AND renders a row of per-episode score chips on each contestant card. Tapping a chip opens a per-episode game-log modal showing the breakdown of scoring events for that contestant in that single episode. Single-ep leagues (Survivor, Top Chef, Bachelor, etc.) get no visible change — each "draft week" has exactly one episode so the dropdown labels and card layout are identical to before.

@@ -234,32 +234,100 @@ const DEFAULT_SCORING_RULES = [
   { id: "winner_of_the_show", label: "Winner of the Show", points: 30, category: "Endgame" },
 ];
 
+// v2.5.3.0: each preset can declare an `airSchedule` describing when new
+// episodes typically air. Used by getAutoLockState() to auto-lock rosters
+// `lockLeadHours` before showtime in the viewer's LOCAL timezone (so an 8pm
+// ET primetime show appears at 8pm-local everywhere — which matches everyone's
+// intuition: "lock around primetime in my zone"). dayOfWeek uses Sun=0...Sat=6.
+// Shows that release in batches or air many nights/week leave `airSchedule`
+// undefined; their leagues use manual lock only.
 const SHOW_PRESETS = {
   survivor: { name: "Survivor", emoji: "S", color: "#d4a24e", defaultFormat: "captains", episodesPerWeek: 1,
+    airSchedule: { dayOfWeek: 3, hour: 20, minute: 0, lockLeadHours: 2 }, // Wed 8pm
     scoringDefaults: ["loses_vote_due_to_risk","volunteers_for_journey___risk","gains_advantage___idol","finds_hidden_immunity_idol","successfully_splits_vote","uses_extra_vote_successfully","steals_vote_successfully","successfully_executes_blindside","1st_to_make_fire_for_their_tribe","wins_shot_in_the_dark","blamed_for_team_loss","last_place_team_immunity","last_place_team_reward","first_place_team_reward","first_place_team_immunity","picked_to_go_with_winner_of_individual_reward","wins_individual_reward","wins_individual_immunity","eliminated_with_idol_advantage","sv_eliminated","plays_hidden_immunity_idol_incorrectly","receives_a_vote","receives_zero_votes_at_tribal","correct_vote","saved_by_advantage","plays_hidden_immunity_idol_successfully","1st_member_of_the_jury","wins_final_4_fire_making_challenge","final_5","final_4","sv_winner"] },
   top_chef: { name: "Top Chef", emoji: "TC", color: "#3dd6c8", defaultFormat: "captains", episodesPerWeek: 1,
+    airSchedule: { dayOfWeek: 1, hour: 19, minute: 0, lockLeadHours: 2 }, // Mon 7pm
     scoringDefaults: ["money_earned_per_1k","favorite_dish_in_quickfire","favorite_dish_in_elimination","win_quickfire","win_elimination","win_restaurant_wars","return_from_last_chance_kitchen","tc_final_3","tc_winner","least_favorite_dish_in_quickfire","least_favorite_dish_in_elimination","cuts_self","fails_to_get_all_components_on_plate","entirely_empty_plate","tc_eliminated"] },
   love_island: { name: "Love Island", emoji: "LI", color: "#ff5da0", defaultFormat: "standard", episodesPerWeek: 6,
     scoringDefaults: ["li_coupled","li_dumped","li_recoupled","li_got_text","li_date","li_casa_loyal","li_casa_switched","li_public_vote_saved","li_public_vote_bottom","li_challenge_win","li_final_couple","li_winner","li_crying"] },
   the_bachelor: { name: "The Bachelor/ette", emoji: "B", color: "#e86b8a", defaultFormat: "standard", episodesPerWeek: 1,
+    airSchedule: { dayOfWeek: 1, hour: 20, minute: 0, lockLeadHours: 2 }, // Mon 8pm
     scoringDefaults: ["ba_rose","ba_no_rose","ba_first_impression","ba_one_on_one","ba_group_date_rose","ba_two_on_one","ba_kiss","ba_self_elim","ba_crying","ba_limo_exit_drama","ba_hometown","ba_fantasy_suite","ba_final_rose","ba_engaged"] },
   bake_off: { name: "Great British Bake Off", emoji: "BO", color: "#ffd23d", defaultFormat: "standard", episodesPerWeek: 1,
+    airSchedule: { dayOfWeek: 5, hour: 20, minute: 0, lockLeadHours: 2 }, // Fri 8pm (Netflix US)
     scoringDefaults: ["bo_star_baker","bo_technical_1st","bo_technical_top3","bo_technical_bottom3","bo_technical_last","bo_hollywood","bo_raw_soggy","bo_praised","bo_criticized","bo_eliminated","bo_final","bo_winner"] },
   custom: { name: "Custom Show", emoji: "TV", color: "#9d5dff", defaultFormat: "captains", episodesPerWeek: 1,
     scoringDefaults: ["eliminated","survived","won_episode","crying","winner_of_the_show"] },
   the_traitors: { name: "The Traitors", emoji: "T", color: "#e24b4a", defaultFormat: "captains", episodesPerWeek: 1,
+    airSchedule: { dayOfWeek: 4, hour: 20, minute: 0, lockLeadHours: 2 }, // Thu 8pm (Peacock)
     scoringDefaults: ["tr_murdered","tr_banished","tr_banished_traitor","tr_banished_faithful","tr_won_shield","tr_recruited","tr_survived_roundtable","tr_mission_money","tr_accused","tr_traitor_survived","tr_final","tr_winner"] },
   big_brother: { name: "Big Brother", emoji: "BB", color: "#4d8aff", defaultFormat: "captains", episodesPerWeek: 3,
+    airSchedule: { dayOfWeek: 3, hour: 20, minute: 0, lockLeadHours: 2 }, // Wed 8pm (live eviction is the primary lock anchor)
     scoringDefaults: ["bb_won_hoh","bb_won_veto","bb_nominated","bb_used_veto_on_self","bb_veto_used_on_them","bb_backdoored","bb_survived_block","bb_evicted","bb_have_not","bb_won_luxury","bb_unanimous_vote","bb_final_2","bb_winner"] },
   the_challenge: { name: "The Challenge", emoji: "CH", color: "#ff8a3d", defaultFormat: "captains", episodesPerWeek: 1,
+    airSchedule: { dayOfWeek: 3, hour: 20, minute: 0, lockLeadHours: 2 }, // Wed 8pm
     scoringDefaults: ["ch_daily_win","ch_elim_win","ch_sent_in","ch_purged","ch_skull","ch_eliminated","ch_last_place_daily","ch_power_position","ch_called_out","ch_final","ch_winner"] },
   drag_race: { name: "RuPaul's Drag Race", emoji: "DR", color: "#9d5dff", defaultFormat: "captains", episodesPerWeek: 1,
+    airSchedule: { dayOfWeek: 5, hour: 20, minute: 0, lockLeadHours: 2 }, // Fri 8pm
     scoringDefaults: ["dr_won_maxi","dr_won_mini","dr_top2","dr_safe","dr_low","dr_bottom2","dr_shantay","dr_sashay","dr_runway_praised","dr_snatch_game_win","dr_final","dr_winner"] },
   amazing_race: { name: "The Amazing Race", emoji: "AR", color: "#3ddc84", defaultFormat: "captains", episodesPerWeek: 1,
+    airSchedule: { dayOfWeek: 3, hour: 21, minute: 30, lockLeadHours: 2 }, // Wed 9:30pm
     scoringDefaults: ["ar_leg_first","ar_leg_2nd","ar_leg_3rd","ar_leg_last","ar_eliminated","ar_non_elim","ar_detour_first","ar_roadblock_complete","ar_uturn","ar_speed_bump","ar_express_pass","ar_won_prize","ar_final","ar_winner"] },
   love_is_blind: { name: "Love is Blind", emoji: "LB", color: "#c084fc", defaultFormat: "captains", episodesPerWeek: 3,
     scoringDefaults: ["lb_pod_date","lb_engaged","lb_met_irl","lb_argument","lb_broke_up","lb_said_yes","lb_said_no","lb_still_together","lb_crying"] },
 };
+
+// v2.5.3.0: derived roster-lock state from the show's airSchedule plus the
+// commissioner's manual override. Pure function — no timers, no setState. The
+// effective lock state is recomputed at render time so it stays accurate as
+// the clock ticks, with no background polling. Caller is responsible for
+// re-rendering periodically (or on user action) if they need the value to
+// update without interaction. For our consumers — depth-chart save buttons,
+// scoring tab — that happens naturally on every interaction.
+//
+// Lock window: [airtime - lockLeadHours, week-finalized]. After airtime, the
+// roster stays locked until the commissioner finalizes the current week
+// (sets weekStatus[currentWeek] = "finalized"). That intentionally bridges
+// the "episode aired but I haven't scored yet" gap so managers can't sneak
+// in a roster change before scoring.
+function getAutoLockState(league, now) {
+  const schedule = SHOW_PRESETS[league?.showType]?.airSchedule;
+  if (!schedule) return { autoLocked: false };
+  const currentWeek = String(league?.currentWeek || 1);
+  if (league?.weekStatus?.[currentWeek] === "finalized") return { autoLocked: false };
+
+  const nowDate = now || new Date();
+  const lead = Number(schedule.lockLeadHours) || 2;
+
+  // Find the most recent occurrence of (dayOfWeek, hour, minute) at or before
+  // `nowDate`. That's the upcoming/current week's airtime; the lock window
+  // started `lead` hours before it.
+  const candidate = new Date(nowDate);
+  candidate.setHours(Number(schedule.hour) || 20, Number(schedule.minute) || 0, 0, 0);
+  let dayDiff = (candidate.getDay() - (Number(schedule.dayOfWeek) || 0) + 7) % 7;
+  if (dayDiff === 0 && candidate > nowDate) dayDiff = 7;
+  candidate.setDate(candidate.getDate() - dayDiff);
+  const lockStart = new Date(candidate.getTime() - lead * 3600 * 1000);
+
+  if (nowDate >= lockStart) {
+    return { autoLocked: true, lockStart, airtime: candidate };
+  }
+  // Otherwise compute the next lock window for the UI to display.
+  const nextAirtime = new Date(candidate);
+  nextAirtime.setDate(nextAirtime.getDate() + 7);
+  const nextLockStart = new Date(nextAirtime.getTime() - lead * 3600 * 1000);
+  return { autoLocked: false, nextLockStart, nextAirtime };
+}
+
+// Effective roster lock state. Manual override (`league.rostersLocked === true`)
+// always wins as a force-lock; otherwise auto-lock applies. There's no manual
+// force-unlock during an active auto-lock window — commissioners who need to
+// edit rosters after airtime should score the week (which finalizes it and
+// releases the auto-lock).
+function isRosterLocked(league) {
+  if (league?.rostersLocked === true) return true;
+  return getAutoLockState(league).autoLocked === true;
+}
 
 // Cadence-aware factory. Returns the same shape as the old static
 // FORMAT_INFO const (object keyed by format with name/desc/icon). Pass `arg`
@@ -4717,13 +4785,13 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
       )}
 
       {/* Roster locked banner */}
-      {league.rostersLocked && !isCommissioner && (
+      {isRosterLocked(league) && !isCommissioner && (
         <div style={{ padding:"10px 14px",background:"#e9456011",borderRadius:8,border:"1px solid #e9456033",marginBottom:14,display:"flex",alignItems:"center",gap:8 }}>
           <span style={{ fontSize:16 }}>🔒</span>
           <div style={{ fontSize:12,color:"#e94560",lineHeight:1.4 }}>Rosters are locked. Changes are disabled until the commissioner unlocks them.</div>
         </div>
       )}
-      {league.rostersLocked && isCommissioner && (
+      {isRosterLocked(league) && isCommissioner && (
         <div style={{ padding:"10px 14px",background:"#f5a62311",borderRadius:8,border:"1px solid #f5a62333",marginBottom:14,display:"flex",alignItems:"center",gap:8 }}>
           <span style={{ fontSize:16 }}>🔒</span>
           <div style={{ flex:1,fontSize:12,color:"#f5a623",lineHeight:1.4 }}>Rosters are locked for managers. You can still edit as commissioner.</div>
@@ -4771,7 +4839,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
       {myRosterMode === "depth" && <>
       {/* Roster table */}
       <div style={{ background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",overflow:"hidden",
-        opacity:(league.rostersLocked && !isCommissioner) ? 0.5 : 1,pointerEvents:(league.rostersLocked && !isCommissioner) ? "none" : "auto" }}>
+        opacity:(isRosterLocked(league) && !isCommissioner) ? 0.5 : 1,pointerEvents:(isRosterLocked(league) && !isCommissioner) ? "none" : "auto" }}>
         <div style={{ display:"flex",alignItems:"center",padding:"10px 12px",background:"#0d0d18",borderBottom:"1px solid #1e1e38" }}>
           <div style={{ width:38,fontSize:10,fontWeight:600,color:"#4a4a6a",textAlign:"center",flexShrink:0 }}>Slot</div>
           <div style={{ flex:1,fontSize:10,fontWeight:600,color:"#4a4a6a",paddingLeft:10 }}>Player</div>
@@ -4824,7 +4892,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
           narrow viewports (the 280px flex-basis is the breakpoint). */}
       <div style={{ marginTop:20,display:"flex",gap:16,flexWrap:"wrap",alignItems:"flex-start" }}>
       {/* ─── HOT PICKS: Who should I roster? ─── */}
-      {!league.rostersLocked && (()=>{
+      {!isRosterLocked(league) && (()=>{
         const rosteredIds = new Set();
         if (localChart.captain) rosteredIds.add(localChart.captain);
         if (localChart.coCaptain) rosteredIds.add(localChart.coCaptain);
@@ -5274,7 +5342,7 @@ function EliminationPoolTab({ league, onUpdate, loggedInTeamId, isCommissioner }
         <div style={{ padding:"16px",background:"#0a1a18",borderRadius:12,border:"1px solid #4ecdc444",textAlign:"center",marginBottom:16 }}>
           <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:6 }}>Your pick for {cadenceLabel(league, currentWeek)}:</div>
           <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:20,fontWeight:800,color:"#4ecdc4" }}>{allContestants.find(c=>c.id===currentPick)?.name || "Unknown"}</div>
-          {!league.rostersLocked && <Btn small variant="ghost" onClick={()=>makePick(null)} style={{marginTop:8}}>Change</Btn>}
+          {!isRosterLocked(league) && <Btn small variant="ghost" onClick={()=>makePick(null)} style={{marginTop:8}}>Change</Btn>}
         </div>
       ) : (
         <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
@@ -6536,25 +6604,51 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing }) {
           </div>
         </div>
       )}
-      <div style={{ marginBottom:20,padding:"16px",background:league.rostersLocked?"#e9456011":"#12121f",borderRadius:10,
-        border:league.rostersLocked?"1px solid #e9456033":"1px solid #1e1e38",transition:"all 0.2s ease" }}>
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
-          <div>
-            <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",display:"flex",alignItems:"center",gap:6 }}>
-              {league.rostersLocked ? "🔒" : "🔓"} Roster Lock
-            </div>
-            <div style={{ fontSize:12,color:"#6a6a8a",marginTop:4 }}>
-              {league.rostersLocked
-                ? "Rosters are locked. Managers cannot make changes."
-                : "Rosters are open. Managers can edit their rosters."}
+      {(() => {
+        // v2.5.3.0: banner reflects effective lock state (manual OR auto).
+        // The toggle still flips the manual override only; the explainer below
+        // tells the commissioner when auto-lock is what's holding the lock.
+        const autoState = getAutoLockState(league);
+        const effective = isRosterLocked(league);
+        const manual = !!league.rostersLocked;
+        const fmtAirtime = (d) => {
+          if (!d) return null;
+          const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+          const h = d.getHours();
+          const m = d.getMinutes();
+          const ampm = h >= 12 ? "PM" : "AM";
+          const h12 = ((h + 11) % 12) + 1;
+          return `${days[d.getDay()]} ${h12}:${m.toString().padStart(2,"0")} ${ampm}`;
+        };
+        let detail = effective
+          ? "Rosters are locked. Managers cannot make changes."
+          : "Rosters are open. Managers can edit their rosters.";
+        let autoExplainer = null;
+        if (autoState.autoLocked && !manual) {
+          autoExplainer = `Auto-locked because the episode aired (lock started ${fmtAirtime(autoState.lockStart)}). Score the ${cadenceWord(league).toLowerCase()} to release.`;
+        } else if (!autoState.autoLocked && autoState.nextLockStart) {
+          autoExplainer = `Auto-lock next: ${fmtAirtime(autoState.nextLockStart)} (airs ${fmtAirtime(autoState.nextAirtime)}).`;
+        }
+        return (
+          <div style={{ marginBottom:20,padding:"16px",background:effective?"#e9456011":"#12121f",borderRadius:10,
+            border:effective?"1px solid #e9456033":"1px solid #1e1e38",transition:"all 0.2s ease" }}>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:10 }}>
+              <div style={{ flex:1,minWidth:0 }}>
+                <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",display:"flex",alignItems:"center",gap:6 }}>
+                  {effective ? "🔒" : "🔓"} Roster Lock
+                  {effective && !manual && <Badge color="#f5a623">AUTO</Badge>}
+                </div>
+                <div style={{ fontSize:12,color:"#6a6a8a",marginTop:4 }}>{detail}</div>
+                {autoExplainer && <div style={{ fontSize:11,color:"#8888aa",marginTop:4,fontStyle:"italic",lineHeight:1.4 }}>{autoExplainer}</div>}
+              </div>
+              <Btn small variant={manual?"danger":"secondary"}
+                onClick={()=>onUpdate({...league,rostersLocked:!manual})}>
+                {manual ? "Unlock" : "Lock"}
+              </Btn>
             </div>
           </div>
-          <Btn small variant={league.rostersLocked?"danger":"secondary"}
-            onClick={()=>onUpdate({...league,rostersLocked:!league.rostersLocked})}>
-            {league.rostersLocked ? "Unlock" : "Lock"}
-          </Btn>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* ─── Final Lock-In (Heroes only) ─── */}
       {isLockInEligible(league) && (
