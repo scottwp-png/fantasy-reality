@@ -32,7 +32,7 @@ Polish on the AppHome header buttons after v2.4.33.0's Support addition. "My Acc
 - **Trailing blank line removed** at the old `App.jsx:7127` — was creating a subtle vertical gap inside the cluster.
 - **Not yet smoke-tested in browser** — recommended smoke: (a) on Home, verify the right-side cluster shows `Admin` (if admin) + `Support` + `Account`, all sized similarly, no jitter; (b) shrink browser to narrow width and verify the cluster wraps below the welcome text instead of overflowing or squishing.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.40s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `32bd2ab`
 
 ### v2.4.33.0 — 2026-05-31
 The floating support button (fixed-position chat-bubble at bottom-right, visible on every authenticated view) is removed — user reported it was "in the way" of content and bottom-right Save / Done buttons. Replaced with a discrete **Support** text button in the home screen header alongside the existing `Admin` and `My Account` buttons. Same mailto behavior (opens an email to admin@fantasyrealitytv.com), just unrooted from screen real estate everywhere else. All 10 regression baselines pass byte-identical, `npm run build` clean.
