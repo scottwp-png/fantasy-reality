@@ -33,7 +33,7 @@ The Snog Marry Pie section from v2.4.35.0 is replaced with a generic **Polls** f
 - **What this commit does NOT do.** No multi-pick polls (each poll = exactly one pick). No anonymous polls (picks always attributed to the team). No poll templates (the user has to retype Snog/Marry/Pie questions if they want to play it). No poll history archive — closed polls stay in the list. No notifications.
 - **Not yet smoke-tested in browser** — recommended smoke: (a) verify the pill reads "Polls"; (b) as commissioner, post a poll, verify it appears at the top of the list; (c) as a manager, pick a contestant in the dropdown, verify the pick saves immediately and shows up in the Picks list; (d) post a second poll, verify both render; (e) close a poll, verify the picker is disabled; (f) verify the tally shows correct counts + percentages with multiple managers' picks.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.22s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `6a8a853`
 
 ### v2.4.35.0 — 2026-06-01
 My Roster (DepthChartTab) reorganized into three views via a pill bar — **Depth Chart**, **Game Log**, and the new **Snog Marry Pie** side-game. Pill bar sits below the team selector so switching modes preserves the active team. Existing depth-chart editor + Hot Picks + Most Rostered + the sticky Save Roster bar live under Depth Chart; the old "Team History" section is renamed Game Log and lives under its own pill (empty-state message when no weeks scored yet); SMP is brand-new and described below. All 10 regression baselines pass byte-identical, `npm run build` clean.
