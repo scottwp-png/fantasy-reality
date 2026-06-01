@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.44.0
+**Current Production Version:** v2.4.45.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~7,705
+**App.jsx Line Count:** ~7,775
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,16 @@
 ---
 
 ## Version Log
+
+### v2.4.45.0 — 2026-06-01
+Two pre-launch fixes both centered on what users actually see on the Standings tab and during commissioner setup. (1) The contestant-leaderboard half of the old `WeeklyBreakdownSection` (deleted in v2.4.42.0) had no replacement — managers wanted a "who's scoring what" view sortable by season-total or per-week. Restored as **Cast Standings**. (2) The "Add from Library" picker in scoring rules showed every default rule across every show (133 available in a Survivor league), which testers correctly read as "most of this is irrelevant to my show." Now defaults to the league's own show with a dropdown to switch.
+- **Cast Standings restored** at `App.jsx:1322-1379` (new `CastBreakdownSection` component) + render at `App.jsx:1683-1685`. Renders below the team standings and above Polls. Default view is Season Total — for each contestant, sums `calcContestantWeekPoints` across every finalized week and ranks descending. Per-week selector (Season Total + one option per week in `weeklyScores`) flips to a single-episode breakdown. Each row shows: rank pill (top-3 gold), 28px circular photo (or initial fallback) with `objectPosition: center {photoCropY||20}%` matching the rest of the app, contestant name (line-through + dimmed when `status === "eliminated"`), and points (teal positive / red negative). Returns `null` when there are no weeks scored or no contestants, so the section is invisible during pre-season.
+- **No new state at the league level** — Cast Standings is pure derivation from `league.weeklyScores`, `league.contestants`, and the local `selectedView`. No DB schema change, no migration, no impact on `calcContestantWeekPoints` itself (just a new caller).
+- **Library filter by show** at `App.jsx:5772-5783` (state + filter) and `App.jsx:5907-5918` (UI). New local state `libraryShow` defaults to `league.showType || "all"`. `libraryAvailable` now intersects `DEFAULT_SCORING_RULES` against `SHOW_PRESETS[libraryShow]?.scoringDefaults` (a Set of rule IDs) — so a Survivor league sees only the 31 Survivor rules instead of all 133. The header gains a `<select>` listing every show preset + "All shows". The available count updates live as the filter changes.
+- **Why default to current show, not "all"**: the cluttered list was the primary complaint. Cross-show rule borrowing exists (a custom league might steal Top Chef's "Cuts Self") but it's rare; making it one click away via the dropdown is the right trade-off.
+- **What this commit does NOT do.** Library is still compile-time `DEFAULT_SCORING_RULES` — the planned RTDB-loaded admin-managed library (v2.4.43.0 backlog item) is still future work. Scoring rules still have no `description` field — that's the next commit. Show filter is per-component state, not persisted, so it resets to the league's show on every mount (intentional — commissioners shouldn't have to re-pick the right show every time).
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.07s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.44.0 — 2026-06-01
 Two pre-launch UX fixes from real-tester feedback: (1) the spoiler-protection overlay's reveal panel was only the small button at the bottom — testers (including the user's girlfriend) instinctively tapped the eye emoji or the headline text, which did nothing. On tall tabs like Standings the overlay was vertically centered in the full content height, forcing scroll to find the warning at all. (2) The Polls section on Standings landed on a wall of empty form fields for commissioners, drowning the actual poll list. Both issues addressed without changing any underlying mechanics.
