@@ -926,7 +926,12 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
   useEffect(() => {
     const preset = SHOW_PRESETS[showType];
     if (preset) {
-      setFormat(preset.defaultFormat);
+      // v2.5.0.0: only Heroes (captains) is selectable at launch. Force the
+      // format regardless of preset.defaultFormat so picking Love Island /
+      // Bachelor / Bake Off (which default to "standard" in the preset table)
+      // doesn't silently switch to a format that's not yet shipped. Remove
+      // this override when other formats launch.
+      setFormat("captains");
       setScoringRules(DEFAULT_SCORING_RULES.filter(r => preset.scoringDefaults.includes(r.id)));
       // Episodes-per-week cascades from showType. Manual override via the
       // number input persists until the user changes showType again, at
@@ -1111,31 +1116,25 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
                 </div>
               )}
           <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:8,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>League Format</label>
-          <div style={{ display:"flex",gap:8,marginBottom:8,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch" }}>
-            {["captains","standard",...(featureFlags?.new_formats!==false?["survivor_pool","elimination_pool","predictions","salary_cap"]:[])].filter(Boolean).map(f => {
-              const isPreview = !["captains"].includes(f);
-              return (
-                <button key={f} onClick={() => setFormat(f)} style={{
-                  padding:"8px 16px",borderRadius:99,cursor:"pointer",whiteSpace:"nowrap",
-                  background: format===f ? "#e9456022" : "transparent",
-                  border: format===f ? "1px solid #e9456066" : "1px solid #2a2a4a",
-                  color: format===f ? "#e94560" : "#7a7a9a",
-                  fontSize:13,fontWeight:format===f?700:500,fontFamily:"'Outfit',sans-serif",
-                  transition:"all 0.15s ease",flexShrink:0,opacity:isPreview?0.7:1,
-                }}>
-                  {formatInfo({ episodesPerWeek })[f]?.name||f}{isPreview ? " \ud83e\uddea" : ""}
-                </button>
-              );
-            })}
+          {/* v2.5.0.0: Heroes is the only fully-baked format ready for the
+              soft launch. Everything else is hidden until the corresponding
+              format-specific UX (Standard snake redraft, Best Ball auto-pick,
+              Roto categories, Salary Cap budget, etc.) is hardened. */}
+          <div style={{ display:"flex",gap:8,marginBottom:8 }}>
+            <button onClick={() => setFormat("captains")} style={{
+              padding:"8px 16px",borderRadius:99,cursor:"pointer",whiteSpace:"nowrap",
+              background:"#e9456022",border:"1px solid #e9456066",color:"#e94560",
+              fontSize:13,fontWeight:700,fontFamily:"'Outfit',sans-serif",flexShrink:0,
+            }}>{formatInfo({ episodesPerWeek })["captains"]?.name || "Heroes"}</button>
           </div>
-          <div style={{ padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",marginBottom:16 }}>
-            <div style={{ color:"#e8e8f0",fontSize:13,lineHeight:1.6 }}>{formatInfo({ episodesPerWeek })[format]?.desc}</div>
+          <div style={{ padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",marginBottom:8 }}>
+            <div style={{ color:"#e8e8f0",fontSize:13,lineHeight:1.6 }}>{formatInfo({ episodesPerWeek })["captains"]?.desc}</div>
           </div>
-          {!["captains"].includes(format) && (
-            <div style={{ padding:"10px 14px",background:"#f5a62311",borderRadius:8,border:"1px solid #f5a62333",marginBottom:16 }}>
-              <div style={{ fontSize:12,color:"#f5a623",lineHeight:1.5 }}>{"\ud83e\uddea"} This format is in preview. Some features may be incomplete or subject to change.</div>
+          <div style={{ padding:"10px 14px",background:"#8888aa11",borderRadius:8,border:"1px dashed #2a2a4a",marginBottom:16 }}>
+            <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.5 }}>
+              More formats coming soon &mdash; Standard snake draft, Best Ball, Categories/Roto, Salary Cap, Survivor Pool, Elimination Pool, and Predictions are all in the pipeline.
             </div>
-          )}
+          </div>
 
           {/* Format-specific config */}
           {format === "captains" && (
@@ -2143,10 +2142,12 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
           {["active","all"].map(f=>(<button key={f} onClick={()=>setFilter(f)} style={{padding:"6px 14px",borderRadius:99,border:filter===f?"1px solid #e9456044":"1px solid #1e1e38",cursor:"pointer",fontSize:12,fontWeight:600,textTransform:"capitalize",background:filter===f?"#e9456018":"transparent",color:filter===f?"#e94560":"#7a7a9a",fontFamily:"'Outfit',sans-serif",transition:"all .15s"}}>{f}{f==="all"?` (${league.contestants?.length||0})`:""}</button>))}
         </div>
         {/* v2.4.51.0: 5-pill sort \u2192 1 dropdown so per-week options can live in
-            the same control. v2.4.52.0: capped maxWidth to keep the select on
-            one row next to the filter pills and dropped the disabled separator
-            rows (they rendered weirdly in some browsers); per-week options now
-            grouped via <optgroup> instead. */}
+            the same control. v2.4.52.0: capped maxWidth + <optgroup>.
+            v2.5.0.0: dropped the "Other" group (only A\u2013Z lived there); A\u2013Z
+            is now a plain option at the top of Overall. The literal "A\u2013Z" was
+            rendering as "A\u2013Z" in some build configs because of how JSX
+            text nodes handle the en-dash byte \u2014 wrapping in a JSX expression
+            container with a quoted string forces JS escape interpretation. */}
         <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={{
           padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
           color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",cursor:"pointer",outline:"none",
@@ -2157,15 +2158,13 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
             <option value="best">Best {cadenceWord(league)}</option>
             <option value="worst">Worst {cadenceWord(league)}</option>
             <option value="lastWeek">Last {cadenceWord(league)}</option>
+            <option value="name">{"A\u2013Z"}</option>
           </optgroup>
           {weeks.length > 0 && (
-            <optgroup label={`By ${cadenceWord(league)}`}>
+            <optgroup label={cadenceWord(league)}>
               {weeks.map(w => <option key={w} value={`week:${w}`}>{cadenceLabel(league, w)}</option>)}
             </optgroup>
           )}
-          <optgroup label="Other">
-            <option value="name">A\u2013Z</option>
-          </optgroup>
         </select>
       </div>
       {/* Manage Contestants panel */}
@@ -6952,7 +6951,13 @@ export default function FantasyRealityTV() {
     }
   }
 
-  async function handleJoinViaCode(inviteCode) {
+  // v2.5.0.0: `autoConfirm` opts. When true, bypasses the JoinConfirmModal and
+  // commits + navigates straight to the joined league. Used for invite LINKS
+  // (?join=CODE captured at boot and the post-signup localStorage path) —
+  // tapping an invite link is explicit consent, so the modal is just an extra
+  // tap. Manual code entry (typing a bare code into the home-screen Join box)
+  // still gets the modal as a sanity-check ("you're about to join X").
+  async function handleJoinViaCode(inviteCode, opts = {}) {
     if (!authUser || !userProfile) return "Not logged in.";
     const freshLeagues = await refreshLeagues();
     const code = inviteCode.trim().toUpperCase();
@@ -6964,8 +6969,15 @@ export default function FantasyRealityTV() {
         console.log("[JoinViaCode] League", league.name, "has invite code:", league.leagueInviteCode, "match:", league.leagueInviteCode === code);
       }
       if (league.leagueInviteCode && league.leagueInviteCode === code) {
-        if (userProfile.activations?.[league.id]) return "You're already in this league.";
-        setPendingJoin({ league, code, type: "league" });
+        if (userProfile.activations?.[league.id]) {
+          // Already in the league — still navigate so URL-based clicks land
+          // on the league dashboard, not stranded on Home.
+          if (opts.autoConfirm) { setSelectedId(league.id); setView("league"); setPendingJoinCode(""); }
+          return "You're already in this league.";
+        }
+        const joinInfo = { league, code, type: "league" };
+        if (opts.autoConfirm) { return doJoin(joinInfo, freshLeagues); }
+        setPendingJoin(joinInfo);
         return null;
       }
 
@@ -6976,7 +6988,9 @@ export default function FantasyRealityTV() {
       if (teamId) {
         console.log("[JoinViaCode] Found legacy team code match, teamId:", teamId);
         if (used.includes(code)) return "This code has already been used.";
-        setPendingJoin({ league, code, type: "team", teamId });
+        const joinInfo = { league, code, type: "team", teamId };
+        if (opts.autoConfirm) { return doJoin(joinInfo, freshLeagues); }
+        setPendingJoin(joinInfo);
         return null;
       }
     }
@@ -6984,44 +6998,31 @@ export default function FantasyRealityTV() {
     return "Code not found.";
   }
 
-  async function confirmJoin() {
-    if (!pendingJoin || !authUser || !userProfile) return;
-    setConfirmJoinError("");
-    const { league, code, type, teamId } = pendingJoin;
+  async function doJoin(info, freshLeaguesOverride) {
+    if (!info || !authUser || !userProfile) return "Not logged in.";
+    const { league, code, type, teamId } = info;
     try {
-      const freshLeagues = await refreshLeagues();
-
-      // Always use the freshly-fetched league as the base — pendingJoin.league may be stale
+      const freshLeagues = freshLeaguesOverride || await refreshLeagues();
       const freshLeague = freshLeagues.find(l => l.id === league.id) || league;
 
       if (type === "league") {
         const newTeamId = generateId();
         const displayName = userProfile.displayName || authUser.email?.split("@")[0] || "Player";
         const newTeam = {
-          id: newTeamId,
-          name: "Team " + displayName,
-          owner: displayName,
+          id: newTeamId, name: "Team " + displayName, owner: displayName,
           depthChart: { captain: null, coCaptain: null, regulars: [] },
-          weeklyRosters: {},
-          weeklyDepthCharts: {},
+          weeklyRosters: {}, weeklyDepthCharts: {},
         };
         const updatedLeague = { ...freshLeague, teams: [...(freshLeague.teams||[]), newTeam] };
         const updatedLeagues = freshLeagues.map(l => l.id === league.id ? updatedLeague : l);
         setLeagues(updatedLeagues);
         await saveLeague(updatedLeague);
-        const updatedProfile = {
-          ...userProfile,
-          activations: { ...(userProfile.activations || {}), [league.id]: newTeamId }
-        };
+        const updatedProfile = { ...userProfile, activations: { ...(userProfile.activations || {}), [league.id]: newTeamId } };
         await saveUserProfile(authUser.uid, updatedProfile);
         setUserProfile(updatedProfile);
       } else {
-        // Legacy per-team code — use fresh league to avoid overwriting changes
         const freshUsed = freshLeague.usedCodes || [];
-        const updatedProfile = {
-          ...userProfile,
-          activations: { ...(userProfile.activations || {}), [league.id]: teamId }
-        };
+        const updatedProfile = { ...userProfile, activations: { ...(userProfile.activations || {}), [league.id]: teamId } };
         await saveUserProfile(authUser.uid, updatedProfile);
         setUserProfile(updatedProfile);
         const updatedLeague = { ...freshLeague, usedCodes: [...freshUsed, code] };
@@ -7030,17 +7031,28 @@ export default function FantasyRealityTV() {
         await saveLeague(updatedLeague);
       }
 
-      // Post-join redirect to the league dashboard
-      const joinedLeagueId = league.id;
       setPendingJoin(null);
       setPendingJoinCode("");
       setConfirmJoinError("");
-      setSelectedId(joinedLeagueId);
+      setSelectedId(league.id);
       setView("league");
+      return null;
     } catch (e) {
-      console.error("[confirmJoin] Error:", e);
-      setConfirmJoinError(e.message || "Something went wrong. Please try again.");
+      console.error("[doJoin] Error:", e);
+      const msg = e.message || "Something went wrong. Please try again.";
+      setConfirmJoinError(msg);
+      return msg;
     }
+  }
+
+  // v2.5.0.0: confirmJoin (modal-button handler) and auto-join (URL flow) now
+  // share the same `doJoin` body — see doJoin above. confirmJoin reads from
+  // the modal's pendingJoin state; doJoin can be called with explicit info
+  // when there's no modal in play (URL-based join).
+  async function confirmJoin() {
+    if (!pendingJoin) return;
+    setConfirmJoinError("");
+    await doJoin(pendingJoin);
   }
 
 
@@ -7883,11 +7895,15 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
 
   // Handle pending invite codes on mount.
   // AppHome only renders after auth is complete, so onJoinViaCode has correct userProfile here.
+  // v2.5.0.0: URL-based and post-signup joins pass autoConfirm so users land
+  // directly on the joined league instead of pausing on AppHome with a confirm
+  // modal. Manual code entry (the Join League button below) still goes through
+  // the modal as a sanity-check.
   useEffect(() => {
     // URL-based join (?join=CODE — passed as pendingJoinCode prop)
     if (pendingJoinCode && pendingJoinCode.length >= 6) {
       (async () => {
-        const err = await onJoinViaCode(pendingJoinCode);
+        const err = await onJoinViaCode(pendingJoinCode, { autoConfirm: true });
         if (err) setError(err);
       })();
     }
@@ -7896,7 +7912,7 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
     if (pending) {
       localStorage.removeItem("frtv_pending_invite");
       (async () => {
-        const err = await onJoinViaCode(pending);
+        const err = await onJoinViaCode(pending, { autoConfirm: true });
         if (err) setError(err);
       })();
     }

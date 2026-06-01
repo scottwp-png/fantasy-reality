@@ -1,7 +1,7 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.53.0
+**Current Production Version:** v2.5.0.0
 **Last Deploy Date:** 2026-06-01
 **App.jsx Line Count:** ~7,975
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
@@ -22,6 +22,16 @@
 ---
 
 ## Version Log
+
+### v2.5.0.0 — 2026-06-01
+**Launch lockdown.** Three changes tightening the soft-launch experience: (1) only the Heroes format is selectable at league creation — Standard, Best Ball, Roto, Salary Cap, Survivor Pool, Elimination Pool, and Predictions are hidden behind a "more coming soon" notice until each format's UX is hardened; (2) clicking an invite link now lands directly on the joined league instead of pausing on AppHome with a confirmation modal; (3) the Cast-tab sort dropdown is cleaned up — "A–Z" rendered as escape-sequence text on some builds, the "Other" optgroup was needless (it held one entry), and "By Episode" / "By Week" simplifies to just the unit name.
+- **Heroes-only format pick** at `App.jsx:1108-1124`. The format pill row, the format-description card, and the preview-format warning were replaced with a single non-clickable Heroes pill + the format description + a dashed "More formats coming soon — Standard snake draft, Best Ball, Categories/Roto, Salary Cap, Survivor Pool, Elimination Pool, and Predictions are all in the pipeline." When other formats ship, restoring the picker is a 20-line revert.
+- **`useEffect` forces `setFormat("captains")` on showType change** at `App.jsx:867-881`. Picking Love Island / Bachelor / Bake Off (which default to `"standard"` in `SHOW_PRESETS`) used to silently switch the format — now they all stay on Heroes regardless of preset.defaultFormat. Comment notes the override is removable when other formats launch.
+- **Auto-confirm join on URL-based codes** at `App.jsx:6957-7053`. `handleJoinViaCode(code, { autoConfirm: true })` now skips the `JoinConfirmModal` and commits straight through to `doJoin(joinInfo)`, then navigates to the joined league. The shared `doJoin(info, freshLeaguesOverride)` helper holds the body that used to live inline in `confirmJoin`; `confirmJoin` (the modal-button handler) delegates to it. URL-based and post-signup-localStorage flows both pass `autoConfirm: true`; manual code entry from the Home Join box still goes through the modal as a sanity check. If the user is already in the league, the URL path still navigates them to the league dashboard instead of stranding them on Home.
+- **Cast sort dropdown polish** at `App.jsx:2210-2234`. The literal `"A–Z"` option rendered as escape-sequence text on some browsers/builds (same JSX-text-node escape interaction as the merge banner in v2.4.46.0). Wrapped in a JSX expression container with a quoted string so JS interprets the en-dash escape. Dropped the "Other" optgroup (it held only A–Z); A–Z is now the last entry in the "Overall" group. "By {Unit}" group renamed to just `{Unit}` ("Week" / "Episode") — slightly less wordy.
+- **What this commit does NOT do.** No removal of the `standard` / `survivor_pool` / etc. format implementations themselves — they're untouched in the codebase, just unselectable at create. Existing leagues with `format: "standard"` continue to work. No customization of the "coming soon" message per-format. The manual-code-entry path on Home still shows the confirm modal — only invite LINKS skip it.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (5.46s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.53.0 — 2026-06-01
 The CreateLeagueScreen's League Name field had a static placeholder "e.g. Top Chef Fantasy 2026" — confusing for a user creating a Survivor league. Made it dynamic based on the selected show.
