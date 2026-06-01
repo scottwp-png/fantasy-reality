@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.6.0
+**Current Production Version:** v2.6.7.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~8,675
+**App.jsx Line Count:** ~8,700
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,16 @@
 ---
 
 ## Version Log
+
+### v2.6.7.0 — 2026-06-01
+**Auto-import show cast at league creation when admin has it set up.** Universal-cast principle: the same (show, season) means the same contestants for every league. Commissioners shouldn't redo the data entry the admin already did.
+- **`handleSave` in `CreateLeagueScreen` is now async** at `App.jsx:1109-1184`. When the commissioner picks a season number, the create flow does a `loadData("showCast/<showType>/season_<N>")` call before constructing the league object. If the admin populated the cast, every contestant is cloned into the new league with a freshly-generated id, preserving name / photoUrl / photoCropY / gender / tribe. Status defaults to `"active"`; bio defaults to empty (commissioner can edit any field after).
+- **Graceful fallback**: if `seasonNumber` isn't set OR `showCast/<showType>/season_<N>` doesn't exist OR the fetch errors, the league is created with an empty `contestants` array as before. The "Import Cast" button on the Cast tab (v2.6.6.0) stays for after-the-fact imports — useful when admin populates the cast AFTER a commissioner has created their league.
+- **No new UI surface** — the auto-import is intentionally silent. The user explicitly said "the cast for a given show + season should be universal no matter the league," so opting OUT of the import would defeat the purpose. Commissioners can still delete individual contestants from Manage if they want a subset.
+- **One-time backfill executed**: contestants from the existing "Fantasy Love Island" / "Series 13" league (id `mpu4onvos07eq`) were written to `showCast/love_island/season_13` via `firebase database:set`. The league was also patched with `seasonNumber: 13` so the opt-in toggle works for it. Any NEW Love Island Series 13 league created from this point auto-inherits those 12 contestants (with photos, gender, etc.) without any commissioner setup.
+- **What this commit does NOT do.** No ongoing sync — if the admin updates the cast (renames a contestant, adds a returnee mid-season), already-existing leagues don't see it automatically. Commissioners can re-run the Import Cast button on the Cast tab to pull updates (skips dupes by case-insensitive name). No bulk auto-update across all leagues sharing a season key (could be done as a future feature; out of scope for the soft launch).
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.99s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.6.0 — 2026-06-01
 **Admin-managed show cast + one-click commissioner import + per-team uid for accurate user count.** Solves the "set up 20 contestants manually for every league" pain point and makes the Stats user count work without requiring the rules deploy.

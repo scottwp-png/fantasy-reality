@@ -1106,13 +1106,38 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
     setScoringRules(scoringRules.map(r=>r.id===ruleId?{...r,points:Number(points)}:r));
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!name.trim()) return;
     if (format === "captains" && genderedRoster && (Number(minMale)+Number(minFemale)) > (Number(regularSlots)+2)) {
       alert(`Gender minimums (${Number(minMale)+Number(minFemale)}) exceed total roster size (${Number(regularSlots)+2}). Reduce Min Male or Min Female before creating the league.`);
       return;
     }
     const preset = SHOW_PRESETS[showType];
+    // v2.6.7.0: auto-import admin-managed show cast at create time when the
+    // commissioner picked a season number AND the admin has populated
+    // showCast/<showType>/season_<N>. Universal-cast principle: same show +
+    // same season = same contestants across every league. Default-on; no
+    // user-facing toggle. If admin hasn't set up the cast yet, the
+    // contestants array starts empty and the commissioner can still add
+    // manually or hit Import Cast on the Cast tab later.
+    let importedContestants = [];
+    if (seasonNumber) {
+      try {
+        const cast = await loadData(`showCast/${showType}/season_${Number(seasonNumber)}`, null);
+        if (Array.isArray(cast?.contestants)) {
+          importedContestants = cast.contestants.map(sc => ({
+            id: generateId(),
+            name: sc.name,
+            photoUrl: sc.photoUrl || "",
+            ...(sc.photoCropY != null ? { photoCropY: sc.photoCropY } : {}),
+            gender: sc.gender || "",
+            tribe: sc.tribe || null,
+            status: "active",
+            bio: "",
+          }));
+        }
+      } catch { /* fall through with empty contestants */ }
+    }
     let league = {
       id: generateId(),
       name: name.trim(),
@@ -1138,7 +1163,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
       decimalScoring,
       bestBall: format === "captains" ? bestBall : false,
       scoringRules,
-      contestants: [],
+      contestants: importedContestants,
       teams,
       weeklyScores: {},
       currentWeek: 1,
