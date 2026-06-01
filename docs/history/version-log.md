@@ -29,7 +29,7 @@
 - **Admin uid backfill** at `App.jsx:8048-8081`. Admin has parent-read access on `frtv_users`, so on app load we now scan every profile's `activations` map and cross-reference: any `activations[league.id] === team.id` tells us that user's uid belongs on that team. Stamps `team.uid` via `saveLeague` for any unstamped match. One pass per app load; only writes when there's something to stamp. Non-admin commissioners can't read the parent collection (rules) so this is admin-only — fine for the pre-launch fix.
 - **Visibility for pending owners** at `App.jsx:7019-7039`. Even after the backfill, some teams legitimately have no real user (placeholder teams the commissioner added manually). Those now appear in the selector as disabled `Name (Team X) — awaiting login` options, separated from eligible promotable teams by a divider. A helper line below explains how to link them (sign up via invite, or log in and save a roster). Replaces the previous "no eligible" empty state — commissioner now sees the full member list with status, instead of wondering where people went.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.98s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `93f2061`
 
 ### v2.6.21.0 — 2026-06-01
 **Auto-lock schedule config UI + rule editor modal.**
