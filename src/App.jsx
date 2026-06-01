@@ -7565,6 +7565,102 @@ function FAQPage({ onBack }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ADMIN PANEL
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// v2.6.0.0: Scaffolding for admin Shows management. Surfaces three planned
+// surfaces: the Scoring Rule Library (catalog of default rules), per-show
+// base-rule editing, and Show-Wide Episode Scoring (compute-on-read).
+//
+// COMPUTE-ON-READ ARCHITECTURE (planned, not yet wired):
+//   RTDB: showScoring/<showType>/<seasonId>/<episode>/<contestantId>/<ruleId> = count
+//   Each league gains league.showSeasonId to subscribe to a season's events.
+//   calcContestantWeekPoints (src/scoring.js) merges: for each rule in
+//   league.scoringRules where there's a matching showScoring count, add
+//   (count × league's own rule.points) to the contestant's week total. Plus
+//   league.weeklyScores for per-league-only custom rules (commissioners can
+//   still manually score things the show-wide layer doesn't know about).
+//   Why this matters: a global admin scores "first couple kiss" once across
+//   all Love Island leagues; each league applies its OWN point value AND its
+//   own description/interpretation of the rule. The v2.4.46.0 per-league
+//   label/description/points editor in ScoringRulesSection is exactly the
+//   override surface — commissioners can already tune the rule definition
+//   per league; once cascade is wired, those overrides survive against the
+//   global event source.
+function AdminShowsTab() {
+  const [selectedShow, setSelectedShow] = useState("survivor");
+  const preset = SHOW_PRESETS[selectedShow] || {};
+  const showRules = DEFAULT_SCORING_RULES.filter(r => preset.scoringDefaults?.includes(r.id));
+
+  return (
+    <div>
+      <div style={{ marginBottom:16,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+        <div style={{ fontSize:11,fontWeight:700,color:"#f5a623",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em" }}>How show-wide scoring will work</div>
+        <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.6 }}>
+          Score a show's episode once here as admin; events cascade to every league subscribed to that show + season. Each league applies its own point values and rule descriptions on top, so a single "first couple kiss" event can be worth 10 pts in one league and 5 pts in another, with each league free to interpret what "first couple kiss" means. Commissioners can still manually score custom rules the show-wide layer doesn't know about.
+        </div>
+      </div>
+
+      <Select label="Show" value={selectedShow} onChange={e=>setSelectedShow(e.target.value)} options={
+        Object.entries(SHOW_PRESETS).map(([id, p]) => ({ value: id, label: p.name }))
+      } />
+
+      {/* Section: Base Rules for this show */}
+      <div style={{ marginBottom:20,padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
+          <div>
+            <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>Base Rules &middot; {preset.name}</div>
+            <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>{showRules.length} rule{showRules.length!==1?"s":""} in this preset</div>
+          </div>
+          <Badge color="#8888aa">Read-only</Badge>
+        </div>
+        <div style={{ maxHeight:280,overflowY:"auto",background:"#0d0d18",borderRadius:6,padding:8 }}>
+          {showRules.length === 0 ? (
+            <div style={{ padding:"12px",textAlign:"center",color:"#6a6a8a",fontSize:12 }}>No rules in this preset.</div>
+          ) : showRules.map(r => (
+            <div key={r.id} style={{ padding:"8px 10px",borderBottom:"1px solid #1a1a30" }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8 }}>
+                <div style={{ color:"#e8e8f0",fontSize:12,fontWeight:600 }}>{r.label}</div>
+                <div style={{ color:r.points>=0?"#4ecdc4":"#e94560",fontSize:11,fontWeight:700,flexShrink:0 }}>{r.points>=0?"+":""}{r.points}</div>
+              </div>
+              <div style={{ color:"#6a6a8a",fontSize:10,marginTop:1 }}>{r.category || "Other"}{r.isElimination ? " · Elimination" : ""}</div>
+              {r.description && <div style={{ color:"#8888aa",fontSize:10,marginTop:3,lineHeight:1.4 }}>{r.description}</div>}
+            </div>
+          ))}
+        </div>
+        <div style={{ fontSize:10,color:"#6a6a8a",marginTop:8,fontStyle:"italic",lineHeight:1.4 }}>
+          Editing these base rules + adding new library rules ships next iteration. The library is currently compiled into the app; commissioners can already customize labels, points, and descriptions per-league in Settings &rsaquo; Scoring Rules.
+        </div>
+      </div>
+
+      {/* Section: Show-Wide Episode Scoring placeholder */}
+      <div style={{ marginBottom:20,padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
+          <div>
+            <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>Show-Wide Episode Scoring</div>
+            <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>Score events once, cascade to all subscribed leagues</div>
+          </div>
+          <Badge color="#f5a623">Coming soon</Badge>
+        </div>
+        <div style={{ padding:"14px",textAlign:"center",background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a",color:"#6a6a8a",fontSize:13,lineHeight:1.5 }}>
+          Episode-scoring UI will live here. Pick an episode, mark events per contestant, save once &mdash; every league subscribed to this show+season picks up the events at read-time, applying their own point values.
+        </div>
+      </div>
+
+      {/* Section: Library Add-Ons placeholder */}
+      <div style={{ marginBottom:20,padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
+          <div>
+            <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>Library Add-Ons</div>
+            <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>Add new rules to the global library &mdash; available in every league's "Add from Library" picker</div>
+          </div>
+          <Badge color="#f5a623">Coming soon</Badge>
+        </div>
+        <div style={{ padding:"14px",textAlign:"center",background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a",color:"#6a6a8a",fontSize:13,lineHeight:1.5 }}>
+          Add-rule UI will live here. Library rules are stored at RTDB <code style={{color:"#aaaabf"}}>scoringRuleLibrary/&lt;ruleId&gt;</code> and merge with the compiled-in defaults when commissioners browse the library.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }) {
   const [tab, setTab] = useState("stats");
   const [users, setUsers] = useState(null);
@@ -7602,7 +7698,7 @@ function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }
   const totalContestants = leagues.reduce((sum, l) => sum + (l.contestants||[]).length, 0);
   const activeLeagues = leagues.filter(l => Object.keys(l.weeklyScores||{}).length > 0).length;
 
-  const tabs = [{id:"stats",label:"Stats"},{id:"users",label:"Users"},{id:"leagues",label:"Leagues"},{id:"announce",label:"Announce"},{id:"manage",label:"Manage"},{id:"audit",label:"Audit Log"}];
+  const tabs = [{id:"stats",label:"Stats"},{id:"users",label:"Users"},{id:"leagues",label:"Leagues"},{id:"shows",label:"Shows"},{id:"announce",label:"Announce"},{id:"manage",label:"Manage"},{id:"audit",label:"Audit Log"}];
 
   return (
     <div style={{ padding:20 }}>
@@ -7706,6 +7802,15 @@ function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }
           ))}
         </div>
       )}
+
+      {/* Shows Tab — v2.6.0.0 scaffolding. Houses (1) Scoring Rule Library
+          management, (2) per-show base-rule editing, (3) Show-Wide episode
+          scoring. The first two are read-only stubs in this commit (the
+          architecture is in place but the RTDB writes + compute-on-read
+          merge in scoring.js ship in a follow-up). The episode scoring UI
+          is a clear "coming soon" placeholder so commissioners and the admin
+          can see what's planned. */}
+      {tab==="shows" && <AdminShowsTab />}
 
       {/* Announcement Tab */}
       {tab==="announce" && (

@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.5.3.0
+**Current Production Version:** v2.6.0.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~8,150
+**App.jsx Line Count:** ~8,235
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,19 @@
 ---
 
 ## Version Log
+
+### v2.6.0.0 — 2026-06-01
+**Admin Shows tab — scaffolding for show-wide scoring, library management, and per-show base-rule editing.** The full compute-on-read merge that actually cascades show-wide events to subscribed leagues isn't wired in this commit (that requires data-model changes to `calcContestantWeekPoints` + a new `league.showSeasonId` field + RTDB writes for episode events), but the architecture is documented in code and the admin UI is in place so the admin can see what's planned and the layout it'll fit.
+- **New "Shows" tab in `AdminPanel`** at `App.jsx:7605, 7711-7718`. Sits between Leagues and Announce in the tab bar. Renders the new `AdminShowsTab` component.
+- **`AdminShowsTab` component** at `App.jsx:7568-7656`. Three sections under a show selector:
+  1. **Base Rules** — read-only list of `DEFAULT_SCORING_RULES` filtered to the selected show's preset, showing label / category / points / isElimination / description. Confirms the rule set the admin would be editing.
+  2. **Show-Wide Episode Scoring** — placeholder with a clear "Coming soon" badge and an explanation that episode-scoring UI will let the admin tag events once + cascade to every league subscribed to that show+season, with per-league point values applied at render time.
+  3. **Library Add-Ons** — placeholder explaining that new rules will be added to RTDB at `scoringRuleLibrary/<ruleId>` and merge into every league's "Add from Library" picker.
+- **Inline architecture documentation** at `App.jsx:7536-7567` (comment block above the component) — spells out the compute-on-read plan: RTDB path `showScoring/<showType>/<seasonId>/<episode>/<contestantId>/<ruleId>`, league subscription via `league.showSeasonId`, merge logic adds `count × league rule.points` per matching rule per contestant per episode, plus league-only `weeklyScores` for custom rules the show-wide layer doesn't know about. Critically: the v2.4.46.0 per-league label/description/points editor in `ScoringRulesSection` is already the override surface — once cascade is wired, those overrides survive against the global event source. So a league can have its own "first couple kiss" definition AND its own point value while picking up the global "this happened" events.
+- **What this commit does NOT do.** No RTDB writes from this tab. No changes to `calcContestantWeekPoints` in `src/scoring.js`. No `league.showSeasonId` field added yet. League library picker still reads compiled-in `DEFAULT_SCORING_RULES`. The scaffolding gives the admin visibility and aligns the design before the data-model commitment.
+- **Why ship a scaffold rather than punt entirely:** the user surfaced this is needed for "real adoption" and explicitly asked to see it in the admin screen. The scaffold makes the structure tangible — admin opens Shows tab and sees the rule list for the show they're scoring, the placeholder for episode scoring, and the architecture explainer. That validates the design before we commit to the data model. The next iteration plugs real data in without restructuring the UI.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.59s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.5.3.0 — 2026-06-01
 **Automated roster lock based on show airtime.** Most reality shows air at a regular cadence — Survivor Wednesdays at 8pm, Top Chef Mondays at 7pm, etc. Until now commissioners had to remember to manually lock rosters before each episode and unlock after scoring. Auto-lock derives lock state from the show's airtime in the viewer's local timezone, with the manual button kept as an override for edge cases.
