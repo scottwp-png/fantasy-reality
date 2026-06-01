@@ -4549,23 +4549,49 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
       depthChart: editingWeek ? t.depthChart : { ...localChart },
       weeklyDepthCharts: { ...(t.weeklyDepthCharts||{}), [weekNum]: { ...localChart } },
     });
-    // v2.6.1.0: log roster save so all league members can see who edited
-    // what and when. Critically flags commissioner-while-locked edits — the
-    // "looking at you commissioners" detection the user asked for.
+    // v2.6.1.0 + v2.6.2.0: only audit-log when the roster CONTENT actually
+    // changed (contestants on the chart or their positions). Cosmetic edits
+    // like team-name-only saves are filtered out so league members aren't
+    // notified about every tweak. Critically still flags commissioner-while-
+    // locked edits as the "looking at you commissioners" red flag.
     const editedTeam = league.teams.find(t => t.id === selectedTeam);
-    const isOwnTeam = selectedTeam === myTeamId;
-    const wasLocked = isRosterLocked(league);
-    const actorName = userProfile?.displayName || (isCommissioner ? "Commissioner" : "Manager");
-    const auditDesc = isCommissioner && !isOwnTeam
-      ? `${actorName} (commissioner) saved ${editedTeam?.name || "a team"}'s roster${wasLocked ? " — while rosters were LOCKED" : ""}`
-      : `${actorName} saved ${editedTeam?.name || "their"} roster${wasLocked ? " — while LOCKED" : ""}`;
-    const audited = appendAudit(league, {
-      type: wasLocked ? "roster-locked" : "roster",
-      actorName,
-      desc: auditDesc,
-      meta: { teamId: selectedTeam, week: weekNum, byCommissioner: !!isCommissioner && !isOwnTeam, wasLocked },
+    const prevChart = editingWeek
+      ? (editedTeam?.weeklyDepthCharts?.[String(editingWeek)] || editedTeam?.depthChart || {})
+      : (editedTeam?.depthChart || {});
+    const sig = (c) => JSON.stringify({
+      captain: c?.captain || null,
+      coCaptain: c?.coCaptain || null,
+      regulars: [...(c?.regulars || [])].sort(),
+      mode: c?.mode,
+      heroCouple: [...(c?.heroCouple || [])].sort(),
+      sidekickCouple: [...(c?.sidekickCouple || [])].sort(),
     });
-    onUpdate({ ...audited, teams: updatedTeams });
+    const orderSig = (c) => JSON.stringify({
+      captain: c?.captain || null,
+      coCaptain: c?.coCaptain || null,
+      regulars: c?.regulars || [],
+    });
+    const contentChanged = sig(prevChart) !== sig(localChart);
+    const orderChanged = !contentChanged && orderSig(prevChart) !== orderSig(localChart);
+    let nextLeague = { ...league, teams: updatedTeams };
+    if (contentChanged || orderChanged) {
+      const isOwnTeam = selectedTeam === myTeamId;
+      const wasLocked = isRosterLocked(league);
+      const actorName = userProfile?.displayName || (isCommissioner ? "Commissioner" : "Manager");
+      const verb = contentChanged ? "changed" : "reordered";
+      const target = isCommissioner && !isOwnTeam
+        ? `${editedTeam?.name || "a team"}'s roster`
+        : `${editedTeam?.name || "their"} roster`;
+      const lockedSuffix = wasLocked ? " — while rosters were LOCKED" : "";
+      const audited = appendAudit(league, {
+        type: wasLocked ? "roster-locked" : "roster",
+        actorName,
+        desc: `${actorName} ${verb} ${target}${lockedSuffix}`,
+        meta: { teamId: selectedTeam, week: weekNum, byCommissioner: !!isCommissioner && !isOwnTeam, wasLocked, contentChanged, orderChanged },
+      });
+      nextLeague = { ...audited, teams: updatedTeams };
+    }
+    onUpdate(nextLeague);
     setEditingName(false);
   }
 
@@ -6263,7 +6289,7 @@ function recalcWeeklyScoresForRuleRemoval(league, ruleId) {
   return { ...league, weeklyScores: out };
 }
 
-function ScoringRulesSection({ league, onUpdate }) {
+function ScoringRulesSection({ league, onUpdate, userProfile }) {
   const rules = league.scoringRules || [];
   const [adding, setAdding] = useState(false);
   const [newLabel, setNewLabel] = useState("");
@@ -6304,10 +6330,20 @@ function ScoringRulesSection({ league, onUpdate }) {
     if (!rule) return;
     const oldPts = Number(rule.points) || 0;
     const newPts = Number(nextPts);
-    if (Number.isNaN(newPts)) return;
+    if (Number.isNaN(newPts) || newPts === oldPts) return;
     const nextRules = rules.map(r => r.id === ruleId ? { ...r, points: newPts } : r);
     const recalced = recalcWeeklyScoresForRulePointsChange(league, ruleId, oldPts, newPts);
-    onUpdate({ ...recalced, scoringRules: nextRules });
+    // v2.6.2.0: audit-log scoring metric adjustments — point changes are
+    // material (affect every past score). Label / category / description
+    // edits are cosmetic and intentionally skipped.
+    const actorName = userProfile?.displayName || "Commissioner";
+    const audited = appendAudit(recalced, {
+      type: "scoring-rule",
+      actorName,
+      desc: `${actorName} changed "${rule.label}" from ${oldPts>=0?"+":""}${oldPts} to ${newPts>=0?"+":""}${newPts} pts`,
+      meta: { ruleId, oldPts, newPts },
+    });
+    onUpdate({ ...audited, scoringRules: nextRules });
   }
 
   function updateRuleLabel(ruleId, label) {
@@ -6327,7 +6363,14 @@ function ScoringRulesSection({ league, onUpdate }) {
     if (!rule) return;
     if (!confirm(`Remove "${rule.label}"? Any points already scored for this rule will be erased from past weeks.`)) return;
     const recalced = recalcWeeklyScoresForRuleRemoval(league, ruleId);
-    onUpdate({ ...recalced, scoringRules: rules.filter(r => r.id !== ruleId) });
+    const actorName = userProfile?.displayName || "Commissioner";
+    const audited = appendAudit(recalced, {
+      type: "scoring-rule",
+      actorName,
+      desc: `${actorName} removed scoring rule "${rule.label}"`,
+      meta: { ruleId },
+    });
+    onUpdate({ ...audited, scoringRules: rules.filter(r => r.id !== ruleId) });
   }
 
   function addCustomRule() {
@@ -6337,18 +6380,33 @@ function ScoringRulesSection({ league, onUpdate }) {
     let id = baseId; let n = 2;
     while (existingIds.has(id)) { id = `${baseId}_${n++}`; }
     const desc = newDescription.trim();
+    const pts = Number(newPoints) || 0;
     const rule = {
-      id, label, points: Number(newPoints) || 0,
+      id, label, points: pts,
       category: newCategory.trim() || "Custom",
       ...(desc ? { description: desc } : {}),
     };
-    onUpdate({ ...league, scoringRules: [...rules, rule] });
+    const actorName = userProfile?.displayName || "Commissioner";
+    const audited = appendAudit(league, {
+      type: "scoring-rule",
+      actorName,
+      desc: `${actorName} added scoring rule "${label}" (${pts>=0?"+":""}${pts} pts)`,
+      meta: { ruleId: id, points: pts },
+    });
+    onUpdate({ ...audited, scoringRules: [...rules, rule] });
     setNewLabel(""); setNewPoints(0); setNewCategory(""); setNewDescription(""); setAdding(false);
   }
 
   function addFromLibrary(rule) {
     if (existingIds.has(rule.id)) return;
-    onUpdate({ ...league, scoringRules: [...rules, { ...rule }] });
+    const actorName = userProfile?.displayName || "Commissioner";
+    const audited = appendAudit(league, {
+      type: "scoring-rule",
+      actorName,
+      desc: `${actorName} added scoring rule "${rule.label}" (${rule.points>=0?"+":""}${rule.points} pts) from library`,
+      meta: { ruleId: rule.id, points: rule.points },
+    });
+    onUpdate({ ...audited, scoringRules: [...rules, { ...rule }] });
   }
 
   return (
@@ -6684,7 +6742,7 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
       </>}
 
       {/* ─── SCORING RULES SECTION ─── */}
-      {section === "scoring" && <ScoringRulesSection league={league} onUpdate={onUpdate} />}
+      {section === "scoring" && <ScoringRulesSection league={league} onUpdate={onUpdate} userProfile={userProfile} />}
 
       {/* ─── ROSTER SECTION ─── */}
       {section === "roster" && <>
@@ -7678,36 +7736,121 @@ function FAQPage({ onBack }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ADMIN PANEL
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// v2.6.0.0: Scaffolding for admin Shows management. Surfaces three planned
-// surfaces: the Scoring Rule Library (catalog of default rules), per-show
-// base-rule editing, and Show-Wide Episode Scoring (compute-on-read).
-//
-// COMPUTE-ON-READ ARCHITECTURE (planned, not yet wired):
-//   RTDB: showScoring/<showType>/<seasonId>/<episode>/<contestantId>/<ruleId> = count
-//   Each league gains league.showSeasonId to subscribe to a season's events.
-//   calcContestantWeekPoints (src/scoring.js) merges: for each rule in
-//   league.scoringRules where there's a matching showScoring count, add
-//   (count × league's own rule.points) to the contestant's week total. Plus
-//   league.weeklyScores for per-league-only custom rules (commissioners can
-//   still manually score things the show-wide layer doesn't know about).
-//   Why this matters: a global admin scores "first couple kiss" once across
-//   all Love Island leagues; each league applies its OWN point value AND its
-//   own description/interpretation of the rule. The v2.4.46.0 per-league
-//   label/description/points editor in ScoringRulesSection is exactly the
-//   override surface — commissioners can already tune the rule definition
-//   per league; once cascade is wired, those overrides survive against the
-//   global event source.
+// v2.6.2.0: Admin Shows tab — fully editable. Base rules and library add-ons
+// are RTDB-backed at `scoringRuleLibrary/<showType>/<ruleId>` and override the
+// compiled-in `DEFAULT_SCORING_RULES` at read time. Custom rules (not in
+// DEFAULT_SCORING_RULES) live alongside overrides and appear in every league's
+// library picker. Per-league rule edits (in ScoringRulesSection) still win as
+// the most-specific override layer.
 function AdminShowsTab() {
   const [selectedShow, setSelectedShow] = useState("survivor");
+  const [overrides, setOverrides] = useState({}); // { [ruleId]: { label, points, category, description, isElimination, _custom? } }
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState(null);
+  const [newRule, setNewRule] = useState({ id:"", label:"", points:0, category:"Custom", description:"" });
+
   const preset = SHOW_PRESETS[selectedShow] || {};
-  const showRules = DEFAULT_SCORING_RULES.filter(r => preset.scoringDefaults?.includes(r.id));
+  const presetIds = new Set(preset.scoringDefaults || []);
+  const presetRules = DEFAULT_SCORING_RULES.filter(r => presetIds.has(r.id));
+
+  // Load overrides for the selected show whenever it changes.
+  useEffect(() => {
+    let cancelled = false;
+    setLoaded(false);
+    (async () => {
+      const data = await loadData("scoringRuleLibrary/" + selectedShow, {});
+      if (!cancelled) {
+        setOverrides(data || {});
+        setLoaded(true);
+        setSavedAt(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedShow]);
+
+  // Compute the merged view: presetRules with overrides applied, plus pure-
+  // custom rules (no preset row). Custom rules show first so they're visible.
+  const mergedRules = useMemo(() => {
+    const result = [];
+    Object.entries(overrides).forEach(([rid, ov]) => {
+      if (ov?._custom) result.push({ id: rid, ...ov });
+    });
+    presetRules.forEach(r => {
+      const ov = overrides[r.id] || {};
+      result.push({
+        ...r,
+        ...ov,
+        id: r.id,
+        _isPresetBase: true,
+        _overridden: Object.keys(ov).length > 0 && !ov._custom,
+      });
+    });
+    return result;
+  }, [presetRules, overrides]);
+
+  function patchRule(ruleId, patch) {
+    setOverrides(prev => {
+      const existing = prev[ruleId] || {};
+      const isPreset = presetIds.has(ruleId);
+      const baseDefault = isPreset ? DEFAULT_SCORING_RULES.find(r => r.id === ruleId) : null;
+      const next = { ...existing, ...patch };
+      // For preset rules, only store fields that DIFFER from the compiled default —
+      // so an unmodified rule has no override entry and can pick up future default
+      // tweaks. For custom rules, store everything.
+      if (isPreset && baseDefault) {
+        const trimmed = {};
+        ["label","points","category","description","isElimination"].forEach(k => {
+          if (k in next && next[k] !== undefined && next[k] !== baseDefault[k]) trimmed[k] = next[k];
+        });
+        if (Object.keys(trimmed).length === 0) {
+          const { [ruleId]: _, ...rest } = prev;
+          return rest;
+        }
+        return { ...prev, [ruleId]: trimmed };
+      }
+      return { ...prev, [ruleId]: next };
+    });
+  }
+
+  function deleteCustomRule(ruleId) {
+    if (!confirm(`Remove custom rule "${overrides[ruleId]?.label || ruleId}" from the ${preset.name} library?`)) return;
+    setOverrides(prev => { const { [ruleId]: _, ...rest } = prev; return rest; });
+  }
+
+  function resetPresetRule(ruleId) {
+    setOverrides(prev => { const { [ruleId]: _, ...rest } = prev; return rest; });
+  }
+
+  function addCustomRule() {
+    const label = newRule.label.trim();
+    if (!label) return;
+    const baseId = "lib_" + selectedShow + "_" + label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/_+$/,"");
+    let id = baseId; let n = 2;
+    while (overrides[id] || presetIds.has(id)) { id = `${baseId}_${n++}`; }
+    setOverrides(prev => ({ ...prev, [id]: {
+      _custom: true,
+      label,
+      points: Number(newRule.points) || 0,
+      category: newRule.category.trim() || "Custom",
+      description: newRule.description.trim() || undefined,
+    }}));
+    setNewRule({ id:"", label:"", points:0, category:"Custom", description:"" });
+  }
+
+  async function saveAll() {
+    setSaving(true);
+    await saveData("scoringRuleLibrary/" + selectedShow, overrides);
+    setSavedAt(Date.now());
+    setSaving(false);
+  }
 
   return (
     <div>
       <div style={{ marginBottom:16,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-        <div style={{ fontSize:11,fontWeight:700,color:"#f5a623",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em" }}>How show-wide scoring will work</div>
+        <div style={{ fontSize:11,fontWeight:700,color:"#f5a623",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em" }}>Show-Wide Rule Library</div>
         <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.6 }}>
-          Score a show's episode once here as admin; events cascade to every league subscribed to that show + season. Each league applies its own point values and rule descriptions on top, so a single "first couple kiss" event can be worth 10 pts in one league and 5 pts in another, with each league free to interpret what "first couple kiss" means. Commissioners can still manually score custom rules the show-wide layer doesn't know about.
+          Edit a show's base rules or add new library entries. Changes go to RTDB at <code style={{color:"#aaaabf",fontSize:11}}>scoringRuleLibrary/{selectedShow}</code> and merge into every league's "Add from Library" picker plus the seed values when a new league of this show is created. Each league can still override label/points/description per-league in Settings &rsaquo; Scoring Rules — those wins as the most-specific layer.
         </div>
       </div>
 
@@ -7715,59 +7858,78 @@ function AdminShowsTab() {
         Object.entries(SHOW_PRESETS).map(([id, p]) => ({ value: id, label: p.name }))
       } />
 
-      {/* Section: Base Rules for this show */}
       <div style={{ marginBottom:20,padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:12,flexWrap:"wrap" }}>
           <div>
-            <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>Base Rules &middot; {preset.name}</div>
-            <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>{showRules.length} rule{showRules.length!==1?"s":""} in this preset</div>
+            <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>Rules &middot; {preset.name}</div>
+            <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>{mergedRules.length} rule{mergedRules.length!==1?"s":""} ({presetRules.length} preset + {mergedRules.length - presetRules.length} custom)</div>
           </div>
-          <Badge color="#8888aa">Read-only</Badge>
+          <div style={{ display:"flex",gap:8,alignItems:"center" }}>
+            {savedAt && <span style={{ fontSize:11,color:"#4ecdc4" }}>Saved</span>}
+            <Btn small onClick={saveAll} disabled={saving || !loaded}>{saving?"Saving...":"Save changes"}</Btn>
+          </div>
         </div>
-        <div style={{ maxHeight:280,overflowY:"auto",background:"#0d0d18",borderRadius:6,padding:8 }}>
-          {showRules.length === 0 ? (
-            <div style={{ padding:"12px",textAlign:"center",color:"#6a6a8a",fontSize:12 }}>No rules in this preset.</div>
-          ) : showRules.map(r => (
-            <div key={r.id} style={{ padding:"8px 10px",borderBottom:"1px solid #1a1a30" }}>
-              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8 }}>
-                <div style={{ color:"#e8e8f0",fontSize:12,fontWeight:600 }}>{r.label}</div>
-                <div style={{ color:r.points>=0?"#4ecdc4":"#e94560",fontSize:11,fontWeight:700,flexShrink:0 }}>{r.points>=0?"+":""}{r.points}</div>
+        {!loaded ? (
+          <div style={{ padding:"20px",textAlign:"center",color:"#6a6a8a",fontSize:13 }}>Loading...</div>
+        ) : (
+          <div style={{ display:"flex",flexDirection:"column",gap:6,maxHeight:480,overflowY:"auto" }}>
+            {mergedRules.map(r => (
+              <div key={r.id} style={{ padding:"10px 12px",background:"#0d0d18",borderRadius:8,border:r._overridden||r._custom?"1px solid #f5a62333":"1px solid #1e1e38" }}>
+                <div style={{ display:"flex",gap:6,alignItems:"center",marginBottom:6 }}>
+                  <input value={r.label || ""} onChange={e=>patchRule(r.id, { label: e.target.value })} placeholder="Label" style={{ flex:1,padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",minWidth:0 }} />
+                  <input value={r.category || ""} onChange={e=>patchRule(r.id, { category: e.target.value })} placeholder="Category" style={{ width:110,padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#8888aa",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none" }} />
+                  <input type="number" step="0.5" value={r.points ?? 0} onChange={e=>patchRule(r.id, { points: Number(e.target.value) })} style={{ width:64,padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:r.points>=0?"#4ecdc4":"#e94560",fontSize:12,fontWeight:700,fontFamily:"'Outfit',sans-serif",outline:"none",textAlign:"right" }} />
+                  {r._custom ? (
+                    <button onClick={()=>deleteCustomRule(r.id)} title="Remove custom rule" style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#e94560",width:28,height:28,cursor:"pointer",fontSize:14,flexShrink:0 }}>&times;</button>
+                  ) : r._overridden ? (
+                    <button onClick={()=>resetPresetRule(r.id)} title="Reset to preset default" style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#8888aa",height:28,padding:"0 8px",cursor:"pointer",fontSize:10,flexShrink:0,fontFamily:"'Outfit',sans-serif" }}>Reset</button>
+                  ) : (
+                    <div style={{ width:28 }}/>
+                  )}
+                </div>
+                <textarea value={r.description || ""} onChange={e=>patchRule(r.id, { description: e.target.value })} placeholder="Description (shown to players in Scoring tab)" rows={2} style={{ width:"100%",padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#aaaabf",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none",resize:"vertical",boxSizing:"border-box",lineHeight:1.4 }} />
+                {(r._custom || r._overridden) && (
+                  <div style={{ marginTop:4,display:"flex",gap:6,alignItems:"center" }}>
+                    {r._custom && <Badge color="#9d5dff">Custom</Badge>}
+                    {r._overridden && <Badge color="#f5a623">Override</Badge>}
+                    {r.isElimination && <Badge color="#e94560">Elimination</Badge>}
+                  </div>
+                )}
               </div>
-              <div style={{ color:"#6a6a8a",fontSize:10,marginTop:1 }}>{r.category || "Other"}{r.isElimination ? " · Elimination" : ""}</div>
-              {r.description && <div style={{ color:"#8888aa",fontSize:10,marginTop:3,lineHeight:1.4 }}>{r.description}</div>}
-            </div>
-          ))}
-        </div>
-        <div style={{ fontSize:10,color:"#6a6a8a",marginTop:8,fontStyle:"italic",lineHeight:1.4 }}>
-          Editing these base rules + adding new library rules ships next iteration. The library is currently compiled into the app; commissioners can already customize labels, points, and descriptions per-league in Settings &rsaquo; Scoring Rules.
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={{ marginBottom:20,padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+        <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:10 }}>Add Custom Rule</div>
+        <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
+          <input value={newRule.label} onChange={e=>setNewRule(s=>({...s, label: e.target.value}))} placeholder="Rule label (e.g. 'Kissed by the Bombshell')" style={{ padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none" }} />
+          <div style={{ display:"flex",gap:8 }}>
+            <input type="number" step="0.5" value={newRule.points} onChange={e=>setNewRule(s=>({...s, points: e.target.value}))} placeholder="Points" style={{ width:90,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none" }} />
+            <input value={newRule.category} onChange={e=>setNewRule(s=>({...s, category: e.target.value}))} placeholder="Category" style={{ flex:1,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none" }} />
+          </div>
+          <textarea value={newRule.description} onChange={e=>setNewRule(s=>({...s, description: e.target.value}))} placeholder="Description (optional)" rows={2} style={{ width:"100%",padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,color:"#aaaabf",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",resize:"vertical",boxSizing:"border-box" }} />
+          <div style={{ display:"flex",justifyContent:"flex-end" }}>
+            <Btn small onClick={addCustomRule} disabled={!newRule.label.trim()}>+ Add to {preset.name} library</Btn>
+          </div>
         </div>
       </div>
 
-      {/* Section: Show-Wide Episode Scoring placeholder */}
+      {/* Show-Wide Episode Scoring — actual cascade requires linking league
+          contestants to a shared show-wide contestant pool, which is a real
+          data-model commitment (not just UI). Marked clearly so the user
+          knows why it's not yet a one-click feature. */}
       <div style={{ marginBottom:20,padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
-          <div>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,gap:8 }}>
+          <div style={{ flex:1,minWidth:0 }}>
             <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>Show-Wide Episode Scoring</div>
             <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>Score events once, cascade to all subscribed leagues</div>
           </div>
-          <Badge color="#f5a623">Coming soon</Badge>
+          <Badge color="#f5a623">Needs season setup</Badge>
         </div>
-        <div style={{ padding:"14px",textAlign:"center",background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a",color:"#6a6a8a",fontSize:13,lineHeight:1.5 }}>
-          Episode-scoring UI will live here. Pick an episode, mark events per contestant, save once &mdash; every league subscribed to this show+season picks up the events at read-time, applying their own point values.
-        </div>
-      </div>
-
-      {/* Section: Library Add-Ons placeholder */}
-      <div style={{ marginBottom:20,padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
-          <div>
-            <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>Library Add-Ons</div>
-            <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>Add new rules to the global library &mdash; available in every league's "Add from Library" picker</div>
-          </div>
-          <Badge color="#f5a623">Coming soon</Badge>
-        </div>
-        <div style={{ padding:"14px",textAlign:"center",background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a",color:"#6a6a8a",fontSize:13,lineHeight:1.5 }}>
-          Add-rule UI will live here. Library rules are stored at RTDB <code style={{color:"#aaaabf"}}>scoringRuleLibrary/&lt;ruleId&gt;</code> and merge with the compiled-in defaults when commissioners browse the library.
+        <div style={{ padding:"14px",background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a",color:"#8888aa",fontSize:12,lineHeight:1.6 }}>
+          Cascade scoring is built on top of the rule library above — once it's in place, scoring an event in this UI multiplies each league's own point value against the count and adds it at render time. The blocker is the contestant pool: today each league owns its own contestant list, so a "show-wide event" needs a way to identify the contestant across leagues. The simplest path is a per-show <code style={{color:"#aaaabf"}}>seasons/&lt;showType&gt;/&lt;seasonId&gt;/contestants[]</code> registry that commissioners link their league to at create time. Once that data model lands, this section becomes the scoring UI. Until then, commissioners score per-league in the Scoring tab.
         </div>
       </div>
     </div>

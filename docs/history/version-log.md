@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.1.0
+**Current Production Version:** v2.6.2.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~8,300
+**App.jsx Line Count:** ~8,460
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -23,6 +23,19 @@
 
 ## Version Log
 
+### v2.6.2.0 — 2026-06-01
+Two follow-ups to v2.6.0.0 and v2.6.1.0: (1) the admin Shows tab is now fully editable instead of a scaffold — base rules and library add-ons persist to RTDB at `scoringRuleLibrary/<showType>` and merge into every league's library picker; (2) the per-league audit log is now scoped to only-meaningful events (roster content / order changes, scoring rule additions/removals, point-value changes, scoring updates, lock toggles, finalize) — cosmetic-only saves (team name renames, label tweaks, description edits) no longer appear in the activity feed.
+- **Admin Shows tab made functional** at `App.jsx:7686-7841`. Replaces the v2.6.0.0 scaffold. Load: on show change, fetches `scoringRuleLibrary/<showType>` from RTDB. Edit: each rule row has live-bound label/category/points/description inputs; preset rules track which fields differ from their compiled defaults and only store the deltas (so an untouched rule has no override entry and inherits future default changes). Reset: per-rule button on overridden preset rules reverts to compiled default. Delete: per-rule button on custom rules removes them. Add Custom Rule: form below the list creates a new library entry with auto-generated ID. Save: explicit Save Changes button writes the full overrides object to RTDB.
+- **Show-Wide Episode Scoring**: kept as a placeholder with a more specific note ("Needs season setup" — explains the blocker is a shared per-show contestant pool that leagues link to). Documented the data-model path (`seasons/<showType>/<seasonId>/contestants[]`) so future commits land cleanly.
+- **Audit log scoped to meaningful events** at `App.jsx:4477-4521` (depth chart) and `App.jsx:6328-6380` (scoring rules):
+  - DepthChartTab: compares previous chart vs new via JSON-signature comparison on captain/coCaptain/regulars (and finale couples). Logs `roster` (content) or `roster-reordered` (positions) only when those differ. Team-name-only saves no longer trigger an audit entry.
+  - ScoringRulesSection: now audit-logs `updateRulePoints` (point value change), `removeRule` (rule removed), `addCustomRule` (rule added via custom form), and `addFromLibrary` (rule added from library picker). Skips `updateRuleLabel`, `updateRuleCategory`, `updateRuleDescription` — cosmetic clarifications that don't change scoring math.
+- **`userProfile` threaded into ScoringRulesSection** at `App.jsx:6745` so scoring-rule audit entries are attributed to the actual user's `displayName`.
+- **`updateRulePoints` no-op guard**: `if (newPts === oldPts) return;` early-out prevents spurious audit entries when the input loses focus without actually changing the value.
+- **What this commit does NOT do.** ScoringRulesSection's library picker still reads from compiled-in `DEFAULT_SCORING_RULES` rather than merging in RTDB overrides — that's the next iteration (depends on a global library-load that propagates to every league instance). CreateLeagueScreen also still seeds from compiled defaults. The admin Shows tab writes are functional; the consume-the-overrides side is the follow-up.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.26s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
+
 ### v2.6.1.0 — 2026-06-01
 **Per-league activity log, visible to ALL league members.** The intent is detection of commissioner abuse — if a commissioner edits someone else's roster while rosters are "locked", every league member can see the receipt with a timestamp and a red FLAGGED badge. Same idea as the admin Audit Log tab, but scoped to one league and exposed to all members.
 - **`appendAudit(league, entry)` helper** at `App.jsx:329-349`. Pure function — returns a new league object with the entry prepended to `league.auditLog` (newest-first). Auto-caps at 500 entries to keep the league doc bounded (~50 KB even with verbose descriptions). Entry shape: `{ time, type, actorName?, desc, meta? }`. Time is `Date.now()` if not provided.
@@ -37,7 +50,7 @@
 - **`userProfile` threaded into write components** at `App.jsx:1563, 1565, 1573`. ScoringTab, DepthChartTab, and SettingsTab now accept `userProfile` so they can attribute audit entries to the actual user (`userProfile.displayName`). Fallback strings ("Commissioner" / "Manager") when displayName is missing.
 - **What this commit does NOT do.** Not exhaustive coverage — team add/remove, contestant add/remove, finale-mode toggle, scoring-rule edits, and prediction-question edits don't write to the log yet. Could add later; the helper makes it a one-line addition per write site. No filtering UI (search/type-filter in the activity tab). No export. No server-side write-rule enforcement that the log is append-only — the database rules currently allow commissioners to overwrite the entire league doc, including the auditLog. That gap is acceptable for the trust model of this app (a malicious commissioner could already mess with scores; the audit log raises the cost of doing it covertly because all members would see the entries — and the absence of expected entries is itself evidence of tampering).
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.14s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `468d984`
 
 ### v2.6.0.0 — 2026-06-01
 **Admin Shows tab — scaffolding for show-wide scoring, library management, and per-show base-rule editing.** The full compute-on-read merge that actually cascades show-wide events to subscribed leagues isn't wired in this commit (that requires data-model changes to `calcContestantWeekPoints` + a new `league.showSeasonId` field + RTDB writes for episode events), but the architecture is documented in code and the admin UI is in place so the admin can see what's planned and the layout it'll fit.
