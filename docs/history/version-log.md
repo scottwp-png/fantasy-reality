@@ -33,7 +33,7 @@
 - **`showCast` RTDB rule** added to `database.rules.json` — all-auth read, admin-only write — mirroring the existing `scoringRuleLibrary` and `showScoring` patterns. **Manual deploy required after this commit:** `firebase deploy --only database`.
 - **What this commit does NOT do.** No auto-sync of cast updates back to leagues that have already imported (commissioners can re-run Import Cast to pull new additions, but existing imports won't auto-update). No bulk-edit on the league side after import — commissioners can still edit individual contestants in Cast > Manage as before. No retro-stamp of uid on existing teams; only triggered on join or future roster saves.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (5.01s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `ff4c0de`
 
 ### v2.6.5.0 — 2026-06-01
 **Structured Season # selector for show-wide scoring + Stats user-count fallback.** Two follow-ups to v2.6.3.0 — both addressing real friction in the show-wide cascade and admin observability.
@@ -43,7 +43,7 @@
 - **Stats user-count fallback** at `App.jsx:8081-8104`. The v2.6.3.0 `database.rules.json` change requires manual `firebase deploy --only database` to take effect. Until that lands, the parent-level `frtv_users` read still returns `{}` (permission-denied) and Stats shows 0. Added a fallback: if the collection read returns nothing, iterate `league.commissionerUid` for every visible league and read each profile individually (the per-uid read rule was always permissive). `userCountFallbackUsed` state flag lets the UI surface that the count is approximate — useful debug signal until rules deploy.
 - **Backwards-compat**: existing leagues without `seasonNumber` continue to render fine; show-wide scoring is opt-in and the new key derivation returns null when `seasonNumber` is undefined, so the merge no-ops cleanly.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.25s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `92aafba`
 
 ### v2.6.4.0 — 2026-06-01
 **Poll results consolidated to a single ranked-list view per question.** The previous layout had two separate sections per question — "Picks" (TeamName → Contestant rows) and "Tally" (Contestant + vote count + %). Same info shown twice, sliced two ways, which required mental cross-reference to answer "who picked X?" or "what did Team Bob pick?".
