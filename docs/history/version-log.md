@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.5.1.0
+**Current Production Version:** v2.5.1.1
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~7,985
+**App.jsx Line Count:** ~7,975
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,14 @@
 ---
 
 ## Version Log
+
+### v2.5.1.1 — 2026-06-01
+v2.5.1.0 went too far stripping the profile modals — the original layouts were basically right, they just needed the photo capped so portrait images didn't push the close button below the fold on small viewports. Reverted both modals to their pre-v2.5.1.0 layout (outer scroll, photo as natural-width, no internal scroll regions) and added a single line: `maxHeight: 55vh` on the contestant photo's `<img>`. The TeamProfileModal didn't need any change — kept its v2.4.x roster layout.
+- **ContestantPhotoLightbox layout restored** at `App.jsx:794-836`. Outer container back to `alignItems: flex-start`, `padding: 40px 20px`, `overflowY: auto` — the original scroll behavior when content is tall is fine. The only change vs pre-v2.5.1.0 is the photo `<img>` gains `maxHeight: "55vh"` so tall portrait images stay reasonable. Bio renders fully, no internal scroll region. Close button is below the bio as before.
+- **TeamProfileModal roster restored** at `App.jsx:1906-1916`. Reverted to `flexShrink: 0` and `overflow: hidden`. The v2.4.x layout fit fine — turning the roster into an internal-scroll region was scope creep.
+- **What this commit does NOT do.** No revert of the v2.5.1.0 commit itself — keeping it in git history with this surgical follow-up. The `cursor: default` on the inner panel (v2.5.1.0) is no longer needed and was reverted too.
+- `npm run build` clean (4.21s). 10/10 baselines unaffected (modal changes are pure UI). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.5.1.0 — 2026-06-01
 Profile modals (contestant photo lightbox, team profile modal) now FIT in the viewport — no body-level scroll. Tall contestant photos used to push the bio + Close button below the fold; users had to scroll to dismiss. Long rosters in TeamProfileModal could push the avatar off-screen.
