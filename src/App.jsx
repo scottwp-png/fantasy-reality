@@ -1475,71 +1475,6 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // STANDINGS TAB
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// v2.4.45.0: brought back as "Cast Standings" — the contestant-leaderboard
-// half of the old WeeklyBreakdownSection that got dropped in v2.4.42.0. The
-// teams half stayed dropped (the main standings rows + their expand already
-// cover that need), but the contestant half had no equivalent surface and
-// users wanted a sortable "who scored what" view. Defaults to Season Total;
-// per-week selector lets managers spot single-episode breakouts.
-function CastBreakdownSection({ league }) {
-  const weeks = Object.keys(league.weeklyScores || {}).sort((a,b)=>+a - +b);
-  const [selectedView, setSelectedView] = useState("overall");
-  const contestants = league.contestants || [];
-
-  if (weeks.length === 0 || contestants.length === 0) return null;
-
-  const viewOptions = [
-    { value: "overall", label: "Season Total" },
-    ...weeks.map(w => ({ value: w, label: cadenceLabel(league, w) }))
-  ];
-
-  const scored = contestants.map(c => {
-    let pts;
-    if (selectedView === "overall") {
-      pts = weeks.reduce((s, w) => s + calcContestantWeekPoints(league.weeklyScores?.[w] || {}, c.id), 0);
-    } else {
-      pts = calcContestantWeekPoints(league.weeklyScores?.[selectedView] || {}, c.id);
-    }
-    return { c, pts: Math.round(pts * 100) / 100 };
-  }).sort((a, b) => b.pts - a.pts);
-
-  return (
-    <div style={{ marginTop:24,paddingTop:16,borderTop:"1px solid #1e1e38" }}>
-      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,gap:8 }}>
-        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Cast Standings</h3>
-        <select value={selectedView} onChange={e => setSelectedView(e.target.value)} style={{
-          padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
-          color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",cursor:"pointer"
-        }}>
-          {viewOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      </div>
-      <div>
-        {scored.map(({ c, pts }, i) => {
-          const eliminated = c.status === "eliminated";
-          return (
-            <div key={c.id} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid #1a1a30" }}>
-              <div style={{ display:"flex",alignItems:"center",gap:10,minWidth:0,flex:1 }}>
-                <span style={{ fontSize:12,fontWeight:700,color:i<3?"#f5a623":"#4a4a6a",width:20,flexShrink:0 }}>{i+1}</span>
-                {c.photoUrl ? (
-                  <img src={c.photoUrl} alt="" style={{ width:28,height:28,borderRadius:"50%",objectFit:"cover",objectPosition:`center ${c.photoCropY||20}%`,flexShrink:0,opacity:eliminated?0.5:1 }} />
-                ) : (
-                  <div style={{ width:28,height:28,borderRadius:"50%",background:"#1a1a30",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#8888aa",flexShrink:0 }}>{c.name?.[0] || "?"}</div>
-                )}
-                <span style={{ color:eliminated?"#6a6a8a":"#e8e8f0",fontSize:13,fontWeight:600,textDecoration:eliminated?"line-through":"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{c.name}</span>
-              </div>
-              <span style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:14,flexShrink:0,
-                color:pts>0?"#4ecdc4":pts<0?"#e94560":"#6a6a8a" }}>
-                {pts>0?"+":""}{formatPts(pts, league)}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function StandingsTab({ league, standings, onUpdate, isCommissioner, myTeamId }) {
   const weeks = Object.keys(league.weeklyScores || {}).sort((a,b)=>+a - +b);
   const [expanded, setExpanded] = useState(null);
@@ -1828,13 +1763,13 @@ function StandingsTab({ league, standings, onUpdate, isCommissioner, myTeamId })
           })}
         </div>
       )}
-      {/* Cast Standings — restored in v2.4.45.0 (lost in the v2.4.42.0 cleanup).
-          Sortable contestant leaderboard with Season-Total / per-week selector. */}
-      <CastBreakdownSection league={league} />
       {/* League-wide polls — moved here from My Roster in v2.4.42.0 so they're
           visible to all managers (Standings is the universal landing tab).
           v2.4.44.0: header + Add button moved into PollsSection so the create
-          form can collapse cleanly under the title row. */}
+          form can collapse cleanly under the title row.
+          v2.4.48.0: the brief CastBreakdownSection (v2.4.45.0) was removed from
+          here — the Cast tab already has a richer contestant leaderboard with
+          filter/sort + game log per contestant. See ContestantsTab. */}
       <div style={{ marginTop:24,paddingTop:16,borderTop:"1px solid #1e1e38" }}>
         <PollsSection league={league} team={(league.teams||[]).find(t => t.id === myTeamId)} onUpdate={onUpdate} isCommissioner={isCommissioner} />
       </div>
@@ -2135,7 +2070,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
   return (
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
-        <h3 style={{margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em"}}>Cast Scoring</h3>
+        <h3 style={{margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em"}}>Cast Standings</h3>
         <div style={{display:"flex",gap:6}}>
           {!readOnly&&<div style={{display:"flex",gap:6}}>
             <Btn small onClick={()=>{setEditing(null);setModal("add-contestant")}}><Icon name="plus" size={14}/> Add</Btn>
