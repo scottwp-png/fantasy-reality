@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.21.2
+**Current Production Version:** v2.6.22.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~9,685
+**App.jsx Line Count:** ~9,775
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,18 @@
 ---
 
 ## Version Log
+
+### v2.6.22.0 — 2026-06-01
+**Rule library drag-and-drop reordering + category grouping.** Admin can now structure each show's library by category, with row-level ordering inside each category and rules movable across categories by drag.
+- **Data model addition** at `App.jsx:8580` (normalize) and the new `reorderInCategory` helper at `App.jsx:8722-8754`: every library entry can now carry an optional `order: number` field. Unset orders fall to the end of the category sorted alphabetically — legacy data still renders sensibly until admin drags. Categories themselves stay alphabetical for now (no cross-category reordering — can be added later if asked).
+- **Rule Library view restructured** at `App.jsx:8835-8893` (the grouped render). The flat list is gone — rules now appear under category headers (`ACTIONS`, `CHALLENGES`, etc.). Each row gets a `⋮⋮` grip handle on the left; rows are HTML5 `draggable`. Drop targets: another row (inserts before it, inheriting that row's category) or a category header (appends to that category). Drop indicator is a 2px amber bar on the target's top edge; the dragged row dims to 0.4 opacity. No new dep — native HTML5 DnD only. Desktop-first: touch DnD on the native API is unreliable, but library management is an admin-on-desktop workflow.
+- **Base Template view also grouped** at `App.jsx:8772-8793`. Now reads like a category-organized snapshot of what new leagues will receive, matching the structure admin set up in Rule Library. Read-only — drag is only available in Rule Library.
+- **Drag state lives in `AdminShowDetail`** at `App.jsx:8689-8721`: `draggedRuleId` (the rule being dragged), `dragOverRuleId` (target row for the drop indicator), `dragOverCategory` (target header). Cleared on every drag end / drop. Reorder is committed to local `library` state immediately; persistence still goes through the Save button at the top of the section (same as label/points/description edits).
+- **Old-category renumber after a cross-category move** keeps `order` indices compact in both source and target categories — purely cosmetic; the sort logic doesn't require contiguous orders.
+- **Drive-by fix**: removed a dead `setExpandedRuleId(null)` call in the view-toggle button at `App.jsx:8728` (a leftover from v2.6.21.0's modal refactor — would have thrown ReferenceError if anyone clicked the Base Template/Rule Library toggle while the toggle was in scope of that variable). Replaced with `setEditingRuleId(null)` which is the actual current state setter.
+- **What this commit does NOT do.** No touch / mobile DnD — admin workflow is desktop. No reordering of categories themselves — they stay alphabetical (rarely needed; can be added if asked). No per-rule cross-show moves (each show's library is independent). The Base Template view doesn't show the grip handle since it's read-only.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.76s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.21.2 — 2026-06-01
 **Hotfix bundle: missing RTDB rule for `scoringLibrary`, stuck Save buttons, delete-episode admin affordance.**

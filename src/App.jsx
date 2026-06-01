@@ -8639,6 +8639,121 @@ function AdminShowDetail({ record, onBack }) {
   }, [library]);
   const baseRules = libraryList.filter(r => r.isBase);
 
+  // v2.6.22.0: group by category with admin-defined ordering. Each library
+  // entry has an optional `order` field (assigned via drag-and-drop in the
+  // Rule Library view). Unordered entries fall to the end of their category
+  // sorted alphabetically — keeps legacy data sensible until admin reorders.
+  // Category order: alphabetical (rare admin need to reorder categories;
+  // can be added later if requested).
+  const libraryByCategory = useMemo(() => {
+    const groups = {};
+    Object.entries(library).forEach(([id, r]) => {
+      const cat = r.category || "Other";
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push({ id, ...r });
+    });
+    Object.values(groups).forEach(arr => arr.sort((a, b) => {
+      const oa = a.order ?? Number.POSITIVE_INFINITY;
+      const ob = b.order ?? Number.POSITIVE_INFINITY;
+      if (oa !== ob) return oa - ob;
+      return (a.label || "").localeCompare(b.label || "");
+    }));
+    return groups;
+  }, [library]);
+  const categoryNames = useMemo(() => Object.keys(libraryByCategory).sort((a, b) => a.localeCompare(b)), [libraryByCategory]);
+
+  const baseRulesByCategory = useMemo(() => {
+    const out = {};
+    categoryNames.forEach(cat => {
+      const base = (libraryByCategory[cat] || []).filter(r => r.isBase);
+      if (base.length) out[cat] = base;
+    });
+    return out;
+  }, [libraryByCategory, categoryNames]);
+  const baseCategoryNames = useMemo(() => Object.keys(baseRulesByCategory), [baseRulesByCategory]);
+
+  // v2.6.22.0: drag-and-drop state for the Rule Library view. draggedRuleId
+  // is the rule being dragged; dragOverRuleId tracks the row directly under
+  // the cursor to render the drop indicator above it; dragOverCategory marks
+  // a category header that would accept a drop-at-end.
+  const [draggedRuleId, setDraggedRuleId] = useState(null);
+  const [dragOverRuleId, setDragOverRuleId] = useState(null);
+  const [dragOverCategory, setDragOverCategory] = useState(null);
+  function handleDragStart(e, ruleId) {
+    setDraggedRuleId(ruleId);
+    try { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", ruleId); } catch {}
+  }
+  function handleDragOverRow(e, targetRuleId) {
+    if (!draggedRuleId || draggedRuleId === targetRuleId) return;
+    e.preventDefault();
+    try { e.dataTransfer.dropEffect = "move"; } catch {}
+    setDragOverRuleId(targetRuleId);
+    setDragOverCategory(null);
+  }
+  function handleDragOverCategory(e, catName) {
+    if (!draggedRuleId) return;
+    e.preventDefault();
+    try { e.dataTransfer.dropEffect = "move"; } catch {}
+    setDragOverCategory(catName);
+    setDragOverRuleId(null);
+  }
+  function handleDragEnd() {
+    setDraggedRuleId(null);
+    setDragOverRuleId(null);
+    setDragOverCategory(null);
+  }
+  // Reorder helper: builds the new order for the affected category, assigns
+  // sequential `order` indices to every rule in that category, and updates
+  // the dragged rule's `category` if it moved across categories.
+  function reorderInCategory(draggedId, beforeId, targetCategory) {
+    setLibrary(prev => {
+      if (!prev[draggedId]) return prev;
+      const next = { ...prev };
+      const oldCategory = next[draggedId].category || "Other";
+      next[draggedId] = { ...next[draggedId], category: targetCategory };
+      const inCat = Object.entries(next)
+        .filter(([id, r]) => (r.category || "Other") === targetCategory && id !== draggedId)
+        .sort(([, a], [, b]) => {
+          const oa = a.order ?? Number.POSITIVE_INFINITY;
+          const ob = b.order ?? Number.POSITIVE_INFINITY;
+          if (oa !== ob) return oa - ob;
+          return (a.label || "").localeCompare(b.label || "");
+        })
+        .map(([id]) => id);
+      if (beforeId && inCat.includes(beforeId)) {
+        inCat.splice(inCat.indexOf(beforeId), 0, draggedId);
+      } else {
+        inCat.push(draggedId);
+      }
+      inCat.forEach((id, idx) => { next[id] = { ...next[id], order: idx }; });
+      // Renumber the old category if the rule moved out, so its order field
+      // stays compact (cosmetic — not strictly required, but keeps RTDB tidy).
+      if (oldCategory !== targetCategory) {
+        const oldList = Object.entries(next)
+          .filter(([, r]) => (r.category || "Other") === oldCategory)
+          .sort(([, a], [, b]) => (a.order ?? Number.POSITIVE_INFINITY) - (b.order ?? Number.POSITIVE_INFINITY))
+          .map(([id]) => id);
+        oldList.forEach((id, idx) => { next[id] = { ...next[id], order: idx }; });
+      }
+      return next;
+    });
+  }
+  function handleDropOnRow(e, targetRuleId) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!draggedRuleId || draggedRuleId === targetRuleId) { handleDragEnd(); return; }
+    const targetCat = library[targetRuleId]?.category || "Other";
+    reorderInCategory(draggedRuleId, targetRuleId, targetCat);
+    handleDragEnd();
+  }
+  function handleDropOnCategory(e, catName) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!draggedRuleId) { handleDragEnd(); return; }
+    reorderInCategory(draggedRuleId, null, catName);
+    handleDragEnd();
+  }
+
   // For ShowWideScoringSection: it still expects mergedRules in the old shape.
   const mergedRules = useMemo(() => libraryList, [libraryList]);
 
@@ -8725,7 +8840,7 @@ function AdminShowDetail({ record, onBack }) {
             { id:"template", label:"Base Template" },
             { id:"library", label:"Rule Library" },
           ].map(v => (
-            <button key={v.id} onClick={()=>{ setView(v.id); setExpandedRuleId(null); }} style={{
+            <button key={v.id} onClick={()=>{ setView(v.id); setEditingRuleId(null); }} style={{
               flex:1,padding:"6px 10px",borderRadius:99,border:"none",cursor:"pointer",
               background: view===v.id ? "#f5a62333" : "transparent",
               color: view===v.id ? "#f5a623" : "#7a7a9a",
@@ -8737,34 +8852,46 @@ function AdminShowDetail({ record, onBack }) {
         {!loaded ? (
           <div style={{ padding:"20px",textAlign:"center",color:"#6a6a8a",fontSize:13 }}>Loading...</div>
         ) : view === "template" ? (
-          // BASE TEMPLATE VIEW — read-only list of rules where isBase=true
-          baseRules.length === 0 ? (
+          // BASE TEMPLATE VIEW — read-only list of rules where isBase=true,
+          // grouped by category so admins see the structure they configured.
+          baseCategoryNames.length === 0 ? (
             <div style={{ padding:"14px",textAlign:"center",color:"#6a6a8a",fontSize:12,background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a",lineHeight:1.6 }}>
               No rules in the base template yet. Switch to Rule Library and toggle Base on the rules that should auto-load for new {preset.name} leagues.
             </div>
           ) : (
-            <div style={{ display:"flex",flexDirection:"column",gap:4,maxHeight:480,overflowY:"auto" }}>
-              {baseRules.map(r => (
-                <div key={r.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"10px 12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38" }}>
-                  <div style={{ flex:1,minWidth:0 }}>
-                    <div style={{ display:"flex",alignItems:"center",gap:6,flexWrap:"wrap" }}>
-                      <span style={{ fontSize:13,color:"#e8e8f0",fontWeight:600 }}>{r.label || "(no label)"}</span>
-                      {r.isElimination && <Badge color="#e94560">Elim</Badge>}
-                    </div>
-                    <div style={{ fontSize:10,color:"#6a6a8a",marginTop:2 }}>{r.category || "Other"}</div>
-                    {r.description && <div style={{ fontSize:11,color:"#8888aa",marginTop:4,lineHeight:1.4 }}>{r.description}</div>}
-                  </div>
-                  <div style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:14,color:(r.points||0)>=0?"#4ecdc4":"#e94560",minWidth:48,textAlign:"right" }}>
-                    {(r.points||0)>=0?"+":""}{r.points ?? 0}
+            <div style={{ display:"flex",flexDirection:"column",gap:10,maxHeight:480,overflowY:"auto" }}>
+              {baseCategoryNames.map(cat => (
+                <div key={cat}>
+                  <div style={{ fontSize:10,fontWeight:700,color:"#8888aa",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6,paddingLeft:2 }}>{cat}</div>
+                  <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
+                    {baseRulesByCategory[cat].map(r => (
+                      <div key={r.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"10px 12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38" }}>
+                        <div style={{ flex:1,minWidth:0 }}>
+                          <div style={{ display:"flex",alignItems:"center",gap:6,flexWrap:"wrap" }}>
+                            <span style={{ fontSize:13,color:"#e8e8f0",fontWeight:600 }}>{r.label || "(no label)"}</span>
+                            {r.isElimination && <Badge color="#e94560">Elim</Badge>}
+                          </div>
+                          {r.description && <div style={{ fontSize:11,color:"#8888aa",marginTop:4,lineHeight:1.4 }}>{r.description}</div>}
+                        </div>
+                        <div style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:14,color:(r.points||0)>=0?"#4ecdc4":"#e94560",minWidth:48,textAlign:"right" }}>
+                          {(r.points||0)>=0?"+":""}{r.points ?? 0}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}
             </div>
           )
         ) : (
-          // RULE LIBRARY VIEW — full editor for every rule
+          // RULE LIBRARY VIEW — full editor for every rule, grouped by
+          // category with drag-and-drop reordering (v2.6.22.0). Drag a row
+          // onto another row to insert before it (cross-category drops also
+          // change the rule's category); drop onto a category header to
+          // append to that category.
           <div>
-            <div style={{ display:"flex",justifyContent:"flex-end",gap:6,marginBottom:8 }}>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:6,marginBottom:8 }}>
+              <div style={{ fontSize:10,color:"#6a6a8a",fontStyle:"italic" }}>Drag a rule by its grip handle to reorder or move between categories.</div>
               <Btn small variant={adding?"ghost":"secondary"} onClick={()=>setAdding(!adding)}>{adding?"Cancel":"+ New Rule"}</Btn>
             </div>
             {adding && (
@@ -8784,29 +8911,66 @@ function AdminShowDetail({ record, onBack }) {
                 </div>
               </div>
             )}
-            <div style={{ display:"flex",flexDirection:"column",gap:4,maxHeight:520,overflowY:"auto" }}>
-              {libraryList.length === 0 ? (
+            <div style={{ display:"flex",flexDirection:"column",gap:10,maxHeight:520,overflowY:"auto" }}>
+              {categoryNames.length === 0 ? (
                 <div style={{ padding:"14px",textAlign:"center",color:"#6a6a8a",fontSize:12,background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a" }}>
                   No rules in the library yet. Add one with the + New Rule button above.
                 </div>
-              ) : libraryList.map(r => (
-                <div key={r.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"10px 12px",background:"#0d0d18",borderRadius:8,border:r.isBase?"1px solid #f5a62333":"1px solid #1e1e38" }}>
-                  <button onClick={()=>toggleBase(r.id)} title={r.isBase?"Click to remove from base template":"Click to include in base template"} style={{ background:r.isBase?"#f5a62322":"#12121f",border:r.isBase?"1px solid #f5a62366":"1px solid #2a2a4a",borderRadius:99,color:r.isBase?"#f5a623":"#6a6a8a",height:22,padding:"0 10px",cursor:"pointer",fontSize:9,fontWeight:700,fontFamily:"'Outfit',sans-serif",textTransform:"uppercase",letterSpacing:"0.04em",flexShrink:0 }}>
-                    {r.isBase ? "Base" : "Off"}
-                  </button>
-                  <div style={{ flex:1,minWidth:0 }}>
-                    <div style={{ display:"flex",alignItems:"center",gap:6,flexWrap:"wrap" }}>
-                      <span style={{ fontSize:13,color:"#e8e8f0",fontWeight:600 }}>{r.label || "(no label)"}</span>
-                      {r.isElimination && <Badge color="#e94560">Elim</Badge>}
-                    </div>
-                    <div style={{ fontSize:10,color:"#6a6a8a",marginTop:2 }}>{r.category || "Other"}</div>
+              ) : categoryNames.map(cat => (
+                <div key={cat}>
+                  <div
+                    onDragOver={e => handleDragOverCategory(e, cat)}
+                    onDragLeave={() => setDragOverCategory(prev => prev === cat ? null : prev)}
+                    onDrop={e => handleDropOnCategory(e, cat)}
+                    style={{
+                      fontSize:10,fontWeight:700,color: dragOverCategory === cat ? "#f5a623" : "#8888aa",
+                      textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6,paddingLeft:2,paddingBottom:4,
+                      borderBottom: dragOverCategory === cat ? "2px solid #f5a623" : "2px solid transparent",
+                      transition:"border-color 0.1s, color 0.1s",
+                    }}
+                  >{cat}</div>
+                  <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
+                    {libraryByCategory[cat].map(r => {
+                      const isDragging = draggedRuleId === r.id;
+                      const isDropTarget = dragOverRuleId === r.id;
+                      return (
+                        <div
+                          key={r.id}
+                          draggable
+                          onDragStart={e => handleDragStart(e, r.id)}
+                          onDragOver={e => handleDragOverRow(e, r.id)}
+                          onDragLeave={() => setDragOverRuleId(prev => prev === r.id ? null : prev)}
+                          onDrop={e => handleDropOnRow(e, r.id)}
+                          onDragEnd={handleDragEnd}
+                          style={{
+                            display:"flex",alignItems:"center",gap:8,padding:"10px 12px",
+                            background:"#0d0d18",borderRadius:8,
+                            border:r.isBase?"1px solid #f5a62333":"1px solid #1e1e38",
+                            borderTop: isDropTarget ? "2px solid #f5a623" : (r.isBase?"1px solid #f5a62333":"1px solid #1e1e38"),
+                            opacity: isDragging ? 0.4 : 1,
+                            cursor: isDragging ? "grabbing" : "default",
+                          }}
+                        >
+                          <div title="Drag to reorder" style={{ color:"#4a4a6a",cursor:"grab",fontSize:14,lineHeight:1,userSelect:"none",padding:"0 2px",flexShrink:0 }}>⋮⋮</div>
+                          <button onClick={()=>toggleBase(r.id)} title={r.isBase?"Click to remove from base template":"Click to include in base template"} style={{ background:r.isBase?"#f5a62322":"#12121f",border:r.isBase?"1px solid #f5a62366":"1px solid #2a2a4a",borderRadius:99,color:r.isBase?"#f5a623":"#6a6a8a",height:22,padding:"0 10px",cursor:"pointer",fontSize:9,fontWeight:700,fontFamily:"'Outfit',sans-serif",textTransform:"uppercase",letterSpacing:"0.04em",flexShrink:0 }}>
+                            {r.isBase ? "Base" : "Off"}
+                          </button>
+                          <div style={{ flex:1,minWidth:0 }}>
+                            <div style={{ display:"flex",alignItems:"center",gap:6,flexWrap:"wrap" }}>
+                              <span style={{ fontSize:13,color:"#e8e8f0",fontWeight:600 }}>{r.label || "(no label)"}</span>
+                              {r.isElimination && <Badge color="#e94560">Elim</Badge>}
+                            </div>
+                          </div>
+                          <div style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:14,color:(r.points||0)>=0?"#4ecdc4":"#e94560",minWidth:48,textAlign:"right" }}>
+                            {(r.points||0)>=0?"+":""}{r.points ?? 0}
+                          </div>
+                          <button onClick={()=>setEditingRuleId(r.id)} title="Edit rule" style={{ background:"#1a1a30",border:"1px solid #2a2a4a",borderRadius:6,color:"#aaaabf",height:28,padding:"0 10px",cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"'Outfit',sans-serif",flexShrink:0 }}>
+                            Edit
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:14,color:(r.points||0)>=0?"#4ecdc4":"#e94560",minWidth:48,textAlign:"right" }}>
-                    {(r.points||0)>=0?"+":""}{r.points ?? 0}
-                  </div>
-                  <button onClick={()=>setEditingRuleId(r.id)} title="Edit rule" style={{ background:"#1a1a30",border:"1px solid #2a2a4a",borderRadius:6,color:"#aaaabf",height:28,padding:"0 10px",cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"'Outfit',sans-serif",flexShrink:0 }}>
-                    Edit
-                  </button>
                 </div>
               ))}
             </div>
