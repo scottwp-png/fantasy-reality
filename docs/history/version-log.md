@@ -30,7 +30,7 @@ The `CastBreakdownSection` shipped in v2.4.45.0 (at the bottom of the Standings 
 - **Inline comment in StandingsTab** at `App.jsx:1683-1685` notes the removal and points future readers at ContestantsTab so the historical context (why polls live below standings without a contestant breakdown between them) is preserved.
 - **What this commit does NOT do.** No restructure of `ContestantsTab` content. The cards' header bigVal (driven by sort selection) plus the expanded 4-stat grid are progressive disclosure — the collapsed view shows 1–2 metrics, the expanded view shows all 4 + game log. That's not redundancy, that's UI density management. No new "pick any week" filter on the Cast tab either — `lastWeek` covers the common case and per-week scores are in the expanded game log already.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.21s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `dac2bf9`
 
 ### v2.4.47.0 — 2026-06-01
 The existing `CreateLeagueScreen` was already a 3-step flow but the first step ("Basics") was a single dense scrolling page with name, show, season, format pick, format-specific config (Heroes regularSlots / gender minimums / Standard picksPerManager), AND five optional toggles (episodes/week, h2h, best ball, roto, decimal). For experienced fantasy-sports commissioners that's fine — they want everything visible. For non-technical users (the dominant audience for a reality-TV fantasy app) it's a wall of decisions on the first screen. Added a **Guided / Advanced mode toggle** that splits step 1 into three bite-sized sub-steps when Guided, and keeps the existing all-in-one when Advanced.
