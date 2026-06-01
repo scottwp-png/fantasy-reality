@@ -1,7 +1,7 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.33.0
+**Current Production Version:** v2.4.34.0
 **Last Deploy Date:** 2026-05-31
 **App.jsx Line Count:** ~7,210
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
@@ -22,6 +22,17 @@
 ---
 
 ## Version Log
+
+### v2.4.34.0 — 2026-05-31
+Polish on the AppHome header buttons after v2.4.33.0's Support addition. "My Account" → **Account** (shorter, balances visual width with the new neighboring Support button). Trailing whitespace inside the buttons flex container removed (was creating subtle layout jitter). Outer header gets `flexWrap:"wrap"` + `gap:12` so the welcome text and the buttons row wrap to two lines on narrow viewports instead of squishing. Buttons inside the right-side cluster get `flexShrink:0` so they never compress below their text width. Inner button gap tightens from `8px` → `6px` so the three buttons (Admin / Support / Account) feel like one cohesive cluster rather than three independent items. All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **Rename** at `App.jsx:7129`. `"My Account"` → `"Account"`. Brings the button character count from 10 to 7, matching `"Support"` (7) and `"Admin"` (5) so the three buttons read as a balanced cluster. The `onOpenSettings` handler is unchanged.
+- **Outer header spacing** at `App.jsx:7115`. Added `gap:12,flexWrap:"wrap"` to the existing `display:"flex",justifyContent:"space-between",alignItems:"center"`. On viewports wide enough, the welcome text + buttons cluster lay out side-by-side as before. On narrow viewports they wrap to stacked, with 12px between the rows. Added `minWidth:0` to the welcome-text wrapper so long display names don't push the buttons off-screen.
+- **Buttons cluster** at `App.jsx:7121`. Inner flex gap tightened from `8px` to `6px`. Added `flexShrink:0,flexWrap:"wrap"` so the cluster keeps its buttons readable on narrow screens — if even three buttons in one row don't fit, they wrap within the cluster rather than overlapping the welcome text.
+- **Per-button `flexShrink:0`** at each of the three buttons. Belt-and-suspenders with the cluster's `flexShrink:0` — guarantees no button compresses below its text width.
+- **Trailing blank line removed** at the old `App.jsx:7127` — was creating a subtle vertical gap inside the cluster.
+- **Not yet smoke-tested in browser** — recommended smoke: (a) on Home, verify the right-side cluster shows `Admin` (if admin) + `Support` + `Account`, all sized similarly, no jitter; (b) shrink browser to narrow width and verify the cluster wraps below the welcome text instead of overflowing or squishing.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.40s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.33.0 — 2026-05-31
 The floating support button (fixed-position chat-bubble at bottom-right, visible on every authenticated view) is removed — user reported it was "in the way" of content and bottom-right Save / Done buttons. Replaced with a discrete **Support** text button in the home screen header alongside the existing `Admin` and `My Account` buttons. Same mailto behavior (opens an email to admin@fantasyrealitytv.com), just unrooted from screen real estate everywhere else. All 10 regression baselines pass byte-identical, `npm run build` clean.

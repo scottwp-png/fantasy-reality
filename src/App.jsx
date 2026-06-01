@@ -7106,25 +7106,24 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
 
   return (
     <div>
-      <div style={{ padding:"20px 20px 10px",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
-        <div>
+      <div style={{ padding:"20px 20px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap" }}>
+        <div style={{ minWidth:0 }}>
           <div style={{ fontSize:12,color:"#6a6a8a" }}>Welcome back,</div>
           <div style={{ fontSize:18,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:"#e8e8f0" }}>
             {displayName} {isAdmin && <span style={{ fontSize:12,color:"#f5a623" }}>★ Admin</span>}
           </div>
         </div>
-        <div style={{ display:"flex",gap:8,alignItems:"center" }}>
+        <div style={{ display:"flex",gap:6,alignItems:"center",flexShrink:0,flexWrap:"wrap" }}>
           {isAdmin && <button onClick={onOpenAdmin} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",
-            color:"#f5a623",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif",fontWeight:600 }}>Admin</button>}
+            color:"#f5a623",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif",fontWeight:600,flexShrink:0 }}>Admin</button>}
           <button onClick={()=>{
             const subject = encodeURIComponent("FRTV Feedback");
             const body = encodeURIComponent("\n\n---\nUser: " + (user?.email||"unknown"));
             window.open("mailto:admin@fantasyrealitytv.com?subject=" + subject + "&body=" + body);
           }} title="Send feedback or report a bug" style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",
-            color:"#6a6a8a",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>Support</button>
+            color:"#6a6a8a",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif",flexShrink:0 }}>Support</button>
           <button onClick={onOpenSettings} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",
-            color:"#6a6a8a",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>My Account</button>
-
+            color:"#6a6a8a",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif",flexShrink:0 }}>Account</button>
         </div>
       </div>
 
