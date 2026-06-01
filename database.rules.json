@@ -45,6 +45,14 @@
       ".write": "auth != null && auth.token.email === 'scottwpii@gmail.com'"
     },
 
+    // Show cast (v2.6.6.0) — admin defines contestants once per (show, season)
+    // and commissioners can import the cast into their league with one click.
+    // Any authenticated user can read; only admin can write.
+    "showCast": {
+      ".read": "auth != null",
+      ".write": "auth != null && auth.token.email === 'scottwpii@gmail.com'"
+    },
+
     // User profiles — users can read/write their own; admin can read/write all.
     // v2.6.3.0: added parent-level .read for admin so the admin Stats / Users
     // tabs can list all profiles via a single get() at the collection level.

@@ -2364,8 +2364,32 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
         <h3 style={{margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em"}}>Cast Standings</h3>
         <div style={{display:"flex",gap:6}}>
-          {!readOnly&&<div style={{display:"flex",gap:6}}>
+          {!readOnly&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             <Btn small onClick={()=>{setEditing(null);setModal("add-contestant")}}><Icon name="plus" size={14}/> Add</Btn>
+            {/* v2.6.6.0: import the admin-managed cast for this league's
+                (showType, seasonNumber). Skips contestants already present
+                (matched by case-insensitive name) so re-imports are idempotent. */}
+            {league.seasonNumber && <Btn small variant="ghost" onClick={async ()=>{
+              const data = await loadData(`showCast/${league.showType}/season_${league.seasonNumber}`, null);
+              const incoming = Array.isArray(data?.contestants) ? data.contestants : [];
+              if (incoming.length === 0) {
+                alert(`No show cast set up yet for ${SHOW_PRESETS[league.showType]?.name || league.showType} Season ${league.seasonNumber}. Ask the admin to populate it.`);
+                return;
+              }
+              const existing = new Set((league.contestants||[]).map(c => (c.name||"").toLowerCase().trim()));
+              const toAdd = incoming.filter(sc => !existing.has((sc.name||"").toLowerCase().trim())).map(sc => ({
+                id: generateId(),
+                name: sc.name,
+                photoUrl: sc.photoUrl || "",
+                gender: sc.gender || "",
+                tribe: sc.tribe || null,
+                status: "active",
+                bio: "",
+              }));
+              if (toAdd.length === 0) { alert(`All ${incoming.length} contestants from the show cast are already in this league.`); return; }
+              if (!confirm(`Import ${toAdd.length} contestant${toAdd.length===1?"":"s"} from ${SHOW_PRESETS[league.showType]?.name || league.showType} Season ${league.seasonNumber}?`)) return;
+              onUpdate({ ...league, contestants: [...(league.contestants||[]), ...toAdd] });
+            }}>📥 Import Cast</Btn>}
             <Btn small variant="ghost" onClick={()=>setManagePhotos(!managePhotos)}>Manage</Btn>
           </div>}
         </div>
@@ -7512,6 +7536,7 @@ export default function FantasyRealityTV() {
         const displayName = userProfile.displayName || authUser.email?.split("@")[0] || "Player";
         const newTeam = {
           id: newTeamId, name: "Team " + displayName, owner: displayName,
+          uid: authUser.uid, // v2.6.6.0: stamp the joining user's uid on the team so admin can count distinct users without the parent-read rule
           depthChart: { captain: null, coCaptain: null, regulars: [] },
           weeklyRosters: {}, weeklyDepthCharts: {},
         };
@@ -7527,7 +7552,10 @@ export default function FantasyRealityTV() {
         const updatedProfile = { ...userProfile, activations: { ...(userProfile.activations || {}), [league.id]: teamId } };
         await saveUserProfile(authUser.uid, updatedProfile);
         setUserProfile(updatedProfile);
-        const updatedLeague = { ...freshLeague, usedCodes: [...freshUsed, code] };
+        // v2.6.6.0: stamp uid on the (pre-existing) team so admin can count
+        // distinct users without the parent-read rule.
+        const teamsWithUid = (freshLeague.teams || []).map(t => t.id === teamId ? { ...t, uid: authUser.uid } : t);
+        const updatedLeague = { ...freshLeague, teams: teamsWithUid, usedCodes: [...freshUsed, code] };
         const updatedLeagues = freshLeagues.map(l => l.id === league.id ? updatedLeague : l);
         setLeagues(updatedLeagues);
         await saveLeague(updatedLeague);
@@ -8082,7 +8110,117 @@ function AdminShowsTab() {
         </div>
       </div>
 
+      <ShowCastSection selectedShow={selectedShow} />
       <ShowWideScoringSection selectedShow={selectedShow} mergedRules={mergedRules} />
+    </div>
+  );
+}
+
+// v2.6.6.0: admin-managed show cast per (show, season). Commissioners pull
+// from this into their league.contestants with one click — addresses the
+// "set up 20 contestants manually for each league" pain point. Persists at
+// RTDB `showCast/<showType>/season_<N>/contestants[]`.
+function ShowCastSection({ selectedShow }) {
+  const [seasonNumber, setSeasonNumber] = useState("");
+  const [castList, setCastList] = useState([]); // [{ id, name, photoUrl, gender, tribe }]
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState(null);
+  const [newName, setNewName] = useState("");
+
+  const seasonKey = seasonNumber ? `season_${seasonNumber}` : "";
+
+  useEffect(() => {
+    if (!seasonKey) { setCastList([]); setLoaded(true); return; }
+    let cancelled = false;
+    setLoaded(false);
+    (async () => {
+      const data = await loadData(`showCast/${selectedShow}/${seasonKey}`, null);
+      if (cancelled) return;
+      setCastList(Array.isArray(data?.contestants) ? data.contestants : []);
+      setLoaded(true);
+      setSavedAt(null);
+    })();
+    return () => { cancelled = true; };
+  }, [selectedShow, seasonKey]);
+
+  function addContestant() {
+    const n = newName.trim();
+    if (!n) return;
+    if (castList.some(c => c.name.toLowerCase() === n.toLowerCase())) return;
+    const id = "sc_" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+    setCastList(prev => [...prev, { id, name: n, photoUrl: "", gender: "", tribe: "" }]);
+    setNewName("");
+  }
+  function updateContestant(id, patch) {
+    setCastList(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
+  }
+  function removeContestant(id) {
+    setCastList(prev => prev.filter(c => c.id !== id));
+  }
+  async function saveAll() {
+    if (!seasonKey) return;
+    setSaving(true);
+    await saveData(`showCast/${selectedShow}/${seasonKey}`, { contestants: castList });
+    setSavedAt(Date.now());
+    setSaving(false);
+  }
+
+  return (
+    <div style={{ marginBottom:20,padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,gap:8,flexWrap:"wrap" }}>
+        <div style={{ flex:1,minWidth:0 }}>
+          <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>Show Cast</div>
+          <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>One cast list per season &mdash; commissioners import into their leagues</div>
+        </div>
+        {savedAt && <span style={{ fontSize:11,color:"#4ecdc4" }}>Saved</span>}
+        <Btn small onClick={saveAll} disabled={saving || !seasonKey}>{saving?"Saving...":"Save"}</Btn>
+      </div>
+
+      <div style={{ marginBottom:12,maxWidth:200 }}>
+        <Select label="Season #" value={seasonNumber} onChange={e=>setSeasonNumber(e.target.value)} options={[
+          { value: "", label: "— Pick a season —" },
+          ...Array.from({length: 60}, (_, i) => ({ value: String(i+1), label: `Season ${i+1}` })),
+        ]} />
+      </div>
+
+      {!seasonKey ? (
+        <div style={{ padding:"14px",textAlign:"center",background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a",color:"#8888aa",fontSize:12,lineHeight:1.6 }}>
+          Pick a season number to manage the cast. Leagues with the same Season # see an Import Cast button on their Cast tab.
+        </div>
+      ) : !loaded ? (
+        <div style={{ padding:"20px",textAlign:"center",color:"#6a6a8a",fontSize:13 }}>Loading...</div>
+      ) : (
+        <>
+          <div style={{ display:"flex",gap:6,marginBottom:10 }}>
+            <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Contestant name" onKeyDown={e=>{if(e.key==="Enter")addContestant()}} style={{ flex:1,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none" }} />
+            <Btn small onClick={addContestant} disabled={!newName.trim()}>+ Add</Btn>
+          </div>
+          {castList.length === 0 ? (
+            <div style={{ padding:"14px",textAlign:"center",color:"#6a6a8a",fontSize:12,background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a" }}>
+              No contestants yet. Add names above.
+            </div>
+          ) : (
+            <div style={{ display:"flex",flexDirection:"column",gap:8,maxHeight:480,overflowY:"auto" }}>
+              {castList.map(c => (
+                <div key={c.id} style={{ padding:"10px 12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38" }}>
+                  <div style={{ display:"flex",gap:6,alignItems:"center",marginBottom:6 }}>
+                    <input value={c.name} onChange={e=>updateContestant(c.id, { name: e.target.value })} style={{ flex:1,padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",minWidth:0 }} />
+                    <select value={c.gender || ""} onChange={e=>updateContestant(c.id, { gender: e.target.value })} style={{ width:80,padding:"6px 8px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#8888aa",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none" }}>
+                      <option value="">—</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                    </select>
+                    <input value={c.tribe || ""} onChange={e=>updateContestant(c.id, { tribe: e.target.value })} placeholder="Tribe (opt)" style={{ width:100,padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#8888aa",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none" }} />
+                    <button onClick={()=>removeContestant(c.id)} title="Remove" style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#e94560",width:28,height:28,cursor:"pointer",fontSize:14,flexShrink:0 }}>&times;</button>
+                  </div>
+                  <input value={c.photoUrl || ""} onChange={e=>updateContestant(c.id, { photoUrl: e.target.value })} placeholder="Photo URL (optional)" style={{ width:"100%",padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#aaaabf",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none",boxSizing:"border-box" }} />
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -8256,9 +8394,16 @@ function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }
           setUsers(profiles);
           setUserCountFallbackUsed(false);
         } else {
-          // Fallback: per-uid reads for every commissioner UID we can see.
+          // Fallback: per-uid reads for every UID we can derive from leagues.
+          // Includes commissioner UIDs + per-team uid stamps (v2.6.6.0).
+          // Existing teams from before v2.6.6.0 have no uid; admin sees fewer
+          // users until those users re-join or save their roster (which
+          // refreshes their team and stamps the uid).
           const uids = new Set();
-          leagues.forEach(l => { if (l.commissionerUid) uids.add(l.commissionerUid); });
+          leagues.forEach(l => {
+            if (l.commissionerUid) uids.add(l.commissionerUid);
+            (l.teams || []).forEach(t => { if (t.uid) uids.add(t.uid); });
+          });
           const fetched = {};
           await Promise.all([...uids].map(async uid => {
             try {
@@ -8323,7 +8468,7 @@ function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }
         <div>
           <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12 }}>
             {[
-              {label:"Total Users",value:totalUsers,color:"#4ecdc4"},
+              {label:"Total Users" + (userCountFallbackUsed ? " (approx)" : ""),value:totalUsers,color:"#4ecdc4"},
               {label:"Total Leagues",value:totalLeagues,color:"#e94560"},
               {label:"Active Leagues",value:activeLeagues,color:"#f5a623"},
               {label:"Total Teams",value:totalTeams,color:"#9d5dff"},
@@ -8335,6 +8480,11 @@ function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }
               </div>
             ))}
           </div>
+          {userCountFallbackUsed && (
+            <div style={{ marginTop:14,padding:"10px 14px",background:"#f5a62311",border:"1px solid #f5a62333",borderRadius:8,fontSize:11,color:"#f5a623",lineHeight:1.5 }}>
+              User count is approximate — derived from commissioner + per-team UID stamps on visible leagues. Existing managers from before v2.6.6.0 don't appear until they next save a roster. For an accurate total, run <code style={{color:"#e8e8f0"}}>firebase deploy --only database</code> from the project root (deploys the v2.6.3.0 rules update that allows admin to read the full <code style={{color:"#e8e8f0"}}>frtv_users</code> collection).
+            </div>
+          )}
         </div>
       )}
 

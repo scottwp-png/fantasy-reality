@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.5.0
+**Current Production Version:** v2.6.6.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~8,540
+**App.jsx Line Count:** ~8,675
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,18 @@
 ---
 
 ## Version Log
+
+### v2.6.6.0 — 2026-06-01
+**Admin-managed show cast + one-click commissioner import + per-team uid for accurate user count.** Solves the "set up 20 contestants manually for every league" pain point and makes the Stats user count work without requiring the rules deploy.
+- **`ShowCastSection` in admin Shows tab** at `App.jsx:7960-8049` (above `ShowWideScoringSection`). Admin picks Season # (same structured selector as v2.6.5.0), then adds contestants with name / gender / tribe / photo URL. Persists at RTDB `showCast/<showType>/season_<N>` = `{ contestants: [{ id, name, photoUrl, gender, tribe }] }`. Save button at the top of the section.
+- **Import Cast button on the Cast tab** at `App.jsx:2371-2393` (commissioner only). Renders when `league.seasonNumber` is set. Fetches the show cast for the league's (showType, seasonNumber), filters out contestants already present by case-insensitive name match, prompts to confirm `N to add`, then merges into `league.contestants` with generated league-local IDs. Re-imports are idempotent — running it again on the same league won't duplicate.
+- **`team.uid` field stamped at join time** at `App.jsx:7505, 7530` (`doJoin`). Both new-team and legacy-per-team-code paths now stamp `authUser.uid` onto the team object. Lets admin count distinct users from the leagues' team list (no parent-read rule needed). Existing teams from before v2.6.6.0 are uid-less until the user next saves their roster (which refreshes the team and stamps it).
+- **AdminPanel user-count fallback expanded** at `App.jsx:8104-8124`. Now iterates `league.teams[].uid` in addition to `league.commissionerUid` when the parent `frtv_users` read returns empty. Pre-v2.6.6.0 teams (no uid stamp) won't show up in the fallback count until they next save; the Stats card has a warning banner explaining the gap and pointing at the `firebase deploy --only database` for the accurate full read.
+- **Stats label dynamically says "Total Users (approx)"** when the fallback is in play at `App.jsx:8453`. With an info banner below explaining where the count comes from and how to get the accurate number.
+- **`showCast` RTDB rule** added to `database.rules.json` — all-auth read, admin-only write — mirroring the existing `scoringRuleLibrary` and `showScoring` patterns. **Manual deploy required after this commit:** `firebase deploy --only database`.
+- **What this commit does NOT do.** No auto-sync of cast updates back to leagues that have already imported (commissioners can re-run Import Cast to pull new additions, but existing imports won't auto-update). No bulk-edit on the league side after import — commissioners can still edit individual contestants in Cast > Manage as before. No retro-stamp of uid on existing teams; only triggered on join or future roster saves.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (5.01s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.5.0 — 2026-06-01
 **Structured Season # selector for show-wide scoring + Stats user-count fallback.** Two follow-ups to v2.6.3.0 — both addressing real friction in the show-wide cascade and admin observability.
