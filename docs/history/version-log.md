@@ -33,7 +33,7 @@ The existing `CreateLeagueScreen` was already a 3-step flow but the first step (
 - **Existing Advanced layout preserved exactly.** Every original input, label, and style is still there — sections A, B, and C are wrapped in `{(!wizardMode || subStep === N) && (` conditions so when `wizardMode === false`, all three render together as before. No behavior change for power users.
 - **What this commit does NOT do.** Steps 2 (Scoring) and 3 (Teams) are not sub-divided in Guided mode — they're already one-decision-per-screen by nature (toggle rules / add teams). The Guided/Advanced choice is not persisted to the user profile — each new league-create resets to the default (Guided). No A/B testing or first-time-vs-returning-user heuristic.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.16s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `3accba4`
 
 ### v2.4.46.0 — 2026-06-01
 Two fixes: (1) every scoring rule now has an optional `description` field that explains what the rule actually counts — shorthand labels like "Plays Idol Incorrectly" or "Correct Vote" were causing confusion during the live Survivor league because players inferred different meanings. (2) The Cast-tab tribe-merge banner was rendering escape sequences as literal text instead of the flag emoji and em-dash; wrapped the literals in JSX expression containers so JS string-literal escape interpretation happens.
