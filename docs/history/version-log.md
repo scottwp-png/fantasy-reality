@@ -31,7 +31,7 @@
 - **Add Custom Rule form moved behind a toggle button** at `App.jsx:8347-8362`. Was always-visible below the rule list; now collapsed by default with a `+ New` button on a small header row. Click → form expands; Cancel collapses. Matches the simple-by-default pattern of the rule list itself.
 - **What this commit does NOT do.** No actual library/template data model split — both still live at `scoringRuleLibrary/<showType>`. The UI clarifies the language without changing storage. A future iteration could move to `scoringLibrary/<ruleId>` (cross-show definitions) + `scoringTemplate/<showType>/<ruleId>` (per-show usage with points) — that would need a one-time migration. No bulk move-rules-between-shows feature. The Cast tab's Import button still exists as a recovery path (per v2.6.11.0 / v2.6.6.0); episode scoring no longer depends on names being typed correctly because they come from the same cast file.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.11s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `80deb18`
 
 ### v2.6.14.0 — 2026-06-01
 **Robust Stats dashboard for soft-launch metrics.** Replaces the 5-card headline-only Stats tab with a full company-viability dashboard. Aim: real signals on whether this turns into a business — growth velocity, engagement intensity, network-effect penetration, activation rate, retention via DAU/MAU.
