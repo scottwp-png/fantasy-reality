@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.11.0
+**Current Production Version:** v2.6.12.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~8,735
+**App.jsx Line Count:** ~8,850
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,16 @@
 ---
 
 ## Version Log
+
+### v2.6.12.0 — 2026-06-01
+**Admin Shows tab restructured to mirror My Leagues** — index of show-record cards, tap to drill into a detail view. Replaces the single dense management form (show selector at top + library + cast + scoring all stacked) with a two-level navigation that matches the mental model of the existing My Leagues home screen.
+- **New `AdminShowsTab` is the router/index** at `App.jsx:7994-8118`. On mount, fetches root `/showCast` and `/showScoring`, derives a deduped list of (showType, seasonNumber) records, and renders each as a card with the show emoji/color, `Show Name · Season N` headline, and a meta line `X contestants · Y episodes scored`. A `+ New Show` button opens an inline create form (showType + seasonNumber selectors); submitting it either opens an existing matching record OR creates a fresh in-memory record and navigates to detail. The record only commits to RTDB when the admin saves cast or scoring under it.
+- **New `AdminShowDetail`** at `App.jsx:8120-8307` — the body that used to be `AdminShowsTab`'s render, now scoped to a single record. Receives `{ showType, seasonNumber }` as `record`. Removes the show selector dropdown (the record is fixed); adds a back button at the top with breadcrumb-style header showing `Show Name · Season N`. The library rule editor stays — it's per-showType so it applies to all seasons of this show; the section header explains this.
+- **`ShowCastSection` and `ShowWideScoringSection` accept `lockedSeason`** at `App.jsx:8311, 8449`. When provided, the season selector inside the section is hidden and the section locks to that season. Free-pick mode preserved for backwards-compat / future contexts where the section might be reused outside the record-detail flow.
+- **Records list scrolls beyond the records you've created** by reading RTDB existence — so any show that has cast OR scoring data shows up. The Love Island Series 13 record will be visible as a card on first open of the admin tab (12 contestants from the v2.6.10.0 backfill, 0 episodes scored).
+- **What this commit does NOT do.** No delete-record affordance from the index (records "exist" as long as they have data; admin would need to clear the underlying RTDB paths manually). No bulk operations across records. No multi-edit. The record card doesn't surface the `useShowWideScoring`-enabled leagues for that season — could be a useful "X leagues subscribed" stat in a future iteration.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (5.29s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.11.0 — 2026-06-01
 **Show-cast updates auto-cascade to opted-in leagues + admin gets the full contestant editor.** Two related improvements. (1) Mid-season cast additions (Love Island's Casa Amor bombshells, late Survivor returnees) no longer require commissioners to hit Import Cast — when admin adds a new contestant at the show level, every league with that show + season picks it up on next load. (2) The admin Show Cast section now opens the existing `AddContestantModal` (the same rich editor commissioners use in their leagues) instead of bare inline inputs, so admin gets photo file upload, image paste, crop sliders, and bulk-paste of many contestants at once.

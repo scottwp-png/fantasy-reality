@@ -7991,8 +7991,141 @@ function FAQPage({ onBack }) {
 // DEFAULT_SCORING_RULES) live alongside overrides and appear in every league's
 // library picker. Per-league rule edits (in ScoringRulesSection) still win as
 // the most-specific override layer.
+// v2.6.12.0: Index view — list of (showType, seasonNumber) "show records" as
+// cards, with a "+ New Show" affordance. Drilling into a card opens the detail
+// view (the management UI for that record). Operates like My Leagues.
 function AdminShowsTab() {
-  const [selectedShow, setSelectedShow] = useState("survivor");
+  const [selectedRecord, setSelectedRecord] = useState(null);
+  const [records, setRecords] = useState([]);
+  const [recordsLoaded, setRecordsLoaded] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newShowType, setNewShowType] = useState("survivor");
+  const [newShowSeason, setNewShowSeason] = useState("");
+
+  // Load existing records (anything with cast data OR scoring data at the root
+  // showCast / showScoring paths). Single shallow-ish fetch on mount.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [cast, scoring] = await Promise.all([
+        loadRootData("showCast", {}),
+        loadRootData("showScoring", {}),
+      ]);
+      if (cancelled) return;
+      const map = {};
+      function add(showType, seasonKey, kind, data) {
+        const m = String(seasonKey).match(/^season_(\d+)$/);
+        if (!m) return;
+        const n = Number(m[1]);
+        const key = `${showType}_${n}`;
+        if (!map[key]) map[key] = { showType, seasonNumber: n, castCount: 0, episodeCount: 0 };
+        if (kind === "cast") map[key].castCount = Array.isArray(data?.contestants) ? data.contestants.length : 0;
+        if (kind === "scoring") map[key].episodeCount = Object.keys(data || {}).length;
+      }
+      Object.entries(cast || {}).forEach(([s, seasons]) => Object.entries(seasons || {}).forEach(([k, v]) => add(s, k, "cast", v)));
+      Object.entries(scoring || {}).forEach(([s, seasons]) => Object.entries(seasons || {}).forEach(([k, v]) => add(s, k, "scoring", v)));
+      setRecords(Object.values(map).sort((a, b) => a.showType.localeCompare(b.showType) || a.seasonNumber - b.seasonNumber));
+      setRecordsLoaded(true);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (selectedRecord) {
+    return <AdminShowDetail record={selectedRecord} onBack={() => setSelectedRecord(null)} />;
+  }
+
+  function startCreate() {
+    setNewShowType("survivor");
+    setNewShowSeason("");
+    setCreating(true);
+  }
+  function confirmCreate() {
+    const n = Number(newShowSeason);
+    if (!newShowType || !n || n < 1) return;
+    // Existence check — if the record already exists, just open it instead of "creating".
+    const existing = records.find(r => r.showType === newShowType && r.seasonNumber === n);
+    if (existing) { setSelectedRecord(existing); setCreating(false); return; }
+    const fresh = { showType: newShowType, seasonNumber: n, castCount: 0, episodeCount: 0 };
+    setRecords(prev => [...prev, fresh].sort((a, b) => a.showType.localeCompare(b.showType) || a.seasonNumber - b.seasonNumber));
+    setSelectedRecord(fresh);
+    setCreating(false);
+  }
+
+  return (
+    <div>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,gap:8,flexWrap:"wrap" }}>
+        <div>
+          <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>Show Records</div>
+          <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>Each card is one (show, season). Tap to manage cast + scoring; library rules are show-wide.</div>
+        </div>
+        <Btn small onClick={startCreate}><Icon name="plus" size={12}/> New Show</Btn>
+      </div>
+
+      {creating && (
+        <div style={{ marginBottom:16,padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #f5a62333" }}>
+          <div style={{ fontSize:12,fontWeight:700,color:"#f5a623",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.05em" }}>New Show Record</div>
+          <div style={{ display:"flex",gap:10,flexWrap:"wrap" }}>
+            <div style={{ flex:"1 1 200px",minWidth:160 }}>
+              <Select label="Show" value={newShowType} onChange={e=>setNewShowType(e.target.value)} options={
+                Object.entries(SHOW_PRESETS).map(([id, p]) => ({ value: id, label: p.name }))
+              } />
+            </div>
+            <div style={{ flex:"1 1 140px",minWidth:120 }}>
+              <Select label="Season #" value={newShowSeason} onChange={e=>setNewShowSeason(e.target.value)} options={[
+                { value: "", label: "— Pick —" },
+                ...Array.from({length: 60}, (_, i) => ({ value: String(i+1), label: `Season ${i+1}` })),
+              ]} />
+            </div>
+          </div>
+          <div style={{ display:"flex",gap:8,justifyContent:"flex-end",marginTop:6 }}>
+            <Btn small variant="ghost" onClick={()=>setCreating(false)}>Cancel</Btn>
+            <Btn small onClick={confirmCreate} disabled={!newShowSeason}>Open</Btn>
+          </div>
+        </div>
+      )}
+
+      {!recordsLoaded ? (
+        <div style={{ padding:"20px",textAlign:"center",color:"#6a6a8a",fontSize:13 }}>Loading...</div>
+      ) : records.length === 0 ? (
+        <EmptyState message="No shows yet. Tap &quot;+ New Show&quot; to set up a season&apos;s cast and scoring." />
+      ) : (
+        <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+          {records.map(r => {
+            const preset = SHOW_PRESETS[r.showType] || {};
+            return (
+              <button key={`${r.showType}_${r.seasonNumber}`} onClick={()=>setSelectedRecord(r)} style={{
+                display:"flex",alignItems:"center",gap:14,padding:"16px 18px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:12,cursor:"pointer",textAlign:"left",width:"100%",fontFamily:"'Outfit',sans-serif",
+              }}>
+                <div style={{ width:40,height:40,borderRadius:10,background:(preset.color||"#9d5dff")+"18",
+                  border:"1px solid "+(preset.color||"#9d5dff")+"33",
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  fontFamily:"'Anybody',sans-serif",fontSize:14,fontWeight:900,
+                  color:preset.color||"#9d5dff",flexShrink:0
+                }}>{preset.emoji || "TV"}</div>
+                <div style={{ flex:1,minWidth:0 }}>
+                  <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:15,fontFamily:"'Anybody',sans-serif" }}>{preset.name || r.showType} &middot; Season {r.seasonNumber}</div>
+                  <div style={{ color:"#6a6a8a",fontSize:12,marginTop:2 }}>
+                    {r.castCount} contestant{r.castCount===1?"":"s"} &middot; {r.episodeCount} episode{r.episodeCount===1?"":"s"} scored
+                  </div>
+                </div>
+                <Icon name="chevron" size={16}/>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// v2.6.12.0: detail view for a single (showType, seasonNumber) record. Hosts
+// the library rule editor (which is per-showType, shared across all seasons of
+// that show), the season-scoped cast editor, and the season-scoped show-wide
+// episode scoring editor. Was previously the body of AdminShowsTab in
+// v2.6.0.0→v2.6.11.0; now a child component invoked from the index.
+function AdminShowDetail({ record, onBack }) {
+  const selectedShow = record.showType;
+  const lockedSeason = record.seasonNumber;
   const [overrides, setOverrides] = useState({}); // { [ruleId]: { label, points, category, description, isElimination, _custom? } }
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -8094,18 +8227,28 @@ function AdminShowsTab() {
     setSaving(false);
   }
 
+  const showName = SHOW_PRESETS[selectedShow]?.name || selectedShow;
   return (
     <div>
-      <div style={{ marginBottom:16,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-        <div style={{ fontSize:11,fontWeight:700,color:"#f5a623",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em" }}>Show-Wide Rule Library</div>
-        <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.6 }}>
-          Edit a show's base rules or add new library entries. Changes go to RTDB at <code style={{color:"#aaaabf",fontSize:11}}>scoringRuleLibrary/{selectedShow}</code> and merge into every league's "Add from Library" picker plus the seed values when a new league of this show is created. Each league can still override label/points/description per-league in Settings &rsaquo; Scoring Rules — those wins as the most-specific layer.
+      <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:14 }}>
+        <button onClick={onBack} title="Back to shows" style={{ background:"none",border:"none",color:"#8888aa",cursor:"pointer",padding:4,display:"flex",alignItems:"center" }}>
+          <Icon name="back" size={18}/>
+        </button>
+        <div style={{ flex:1,minWidth:0 }}>
+          <div style={{ fontSize:11,color:"#6a6a8a",fontWeight:600,letterSpacing:"0.05em",textTransform:"uppercase" }}>Show Record</div>
+          <div style={{ fontSize:18,fontWeight:800,color:"#e8e8f0",fontFamily:"'Anybody',sans-serif",letterSpacing:"-0.01em" }}>{showName} &middot; Season {lockedSeason}</div>
         </div>
       </div>
 
-      <Select label="Show" value={selectedShow} onChange={e=>setSelectedShow(e.target.value)} options={
-        Object.entries(SHOW_PRESETS).map(([id, p]) => ({ value: id, label: p.name }))
-      } />
+      <div style={{ marginBottom:16,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+        <div style={{ fontSize:11,fontWeight:700,color:"#f5a623",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em" }}>Show-Wide Rule Library</div>
+        <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.6 }}>
+          Edit {showName}'s base rules or add new library entries. The library is per-show (shared across every season of {showName}). Changes go to RTDB at <code style={{color:"#aaaabf",fontSize:11}}>scoringRuleLibrary/{selectedShow}</code> and merge into every league's "Add from Library" picker plus the seed values when a new league of this show is created. Each league can still override label/points/description per-league in Settings &rsaquo; Scoring Rules — those win as the most-specific layer.
+        </div>
+      </div>
+
+      {/* v2.6.12.0: show selector removed — record is fixed when entering the
+          detail view from the index. Back button at the top of the section. */}
 
       <div style={{ marginBottom:20,padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:12,flexWrap:"wrap" }}>
@@ -8165,8 +8308,8 @@ function AdminShowsTab() {
         </div>
       </div>
 
-      <ShowCastSection selectedShow={selectedShow} />
-      <ShowWideScoringSection selectedShow={selectedShow} mergedRules={mergedRules} />
+      <ShowCastSection selectedShow={selectedShow} lockedSeason={lockedSeason} />
+      <ShowWideScoringSection selectedShow={selectedShow} mergedRules={mergedRules} lockedSeason={lockedSeason} />
     </div>
   );
 }
@@ -8175,8 +8318,12 @@ function AdminShowsTab() {
 // from this into their league.contestants with one click — addresses the
 // "set up 20 contestants manually for each league" pain point. Persists at
 // RTDB `showCast/<showType>/season_<N>/contestants[]`.
-function ShowCastSection({ selectedShow }) {
-  const [seasonNumber, setSeasonNumber] = useState("");
+function ShowCastSection({ selectedShow, lockedSeason }) {
+  // v2.6.12.0: when `lockedSeason` is provided (by AdminShowDetail), the
+  // season selector is hidden and the section is locked to that season. The
+  // free-pick mode is preserved for backwards-compat / future contexts.
+  const [seasonNumber, setSeasonNumber] = useState(lockedSeason != null ? String(lockedSeason) : "");
+  useEffect(() => { if (lockedSeason != null) setSeasonNumber(String(lockedSeason)); }, [lockedSeason]);
   const [castList, setCastList] = useState([]); // [{ id, name, photoUrl, photoCropY, photoCropZoom, gender, tribe, bio, status }]
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -8235,12 +8382,14 @@ function ShowCastSection({ selectedShow }) {
         <Btn small onClick={saveAll} disabled={saving || !seasonKey}>{saving?"Saving...":"Save"}</Btn>
       </div>
 
-      <div style={{ marginBottom:12,maxWidth:200 }}>
-        <Select label="Season #" value={seasonNumber} onChange={e=>setSeasonNumber(e.target.value)} options={[
-          { value: "", label: "— Pick a season —" },
-          ...Array.from({length: 60}, (_, i) => ({ value: String(i+1), label: `Season ${i+1}` })),
-        ]} />
-      </div>
+      {lockedSeason == null && (
+        <div style={{ marginBottom:12,maxWidth:200 }}>
+          <Select label="Season #" value={seasonNumber} onChange={e=>setSeasonNumber(e.target.value)} options={[
+            { value: "", label: "— Pick a season —" },
+            ...Array.from({length: 60}, (_, i) => ({ value: String(i+1), label: `Season ${i+1}` })),
+          ]} />
+        </div>
+      )}
 
       {!seasonKey ? (
         <div style={{ padding:"14px",textAlign:"center",background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a",color:"#8888aa",fontSize:12,lineHeight:1.6 }}>
@@ -8307,10 +8456,12 @@ function ShowCastSection({ selectedShow }) {
 // is case-insensitive trim — if league contestant names diverge from what
 // admin types here, they won't match; the commissioner can rename their
 // league's contestants to align.
-function ShowWideScoringSection({ selectedShow, mergedRules }) {
+function ShowWideScoringSection({ selectedShow, mergedRules, lockedSeason }) {
   // v2.6.5.0: structured numeric Season # to match the league-side selector.
   // Avoids string mismatches that silently drop events.
-  const [seasonNumber, setSeasonNumber] = useState("");
+  // v2.6.12.0: when `lockedSeason` is provided, the selector is hidden.
+  const [seasonNumber, setSeasonNumber] = useState(lockedSeason != null ? String(lockedSeason) : "");
+  useEffect(() => { if (lockedSeason != null) setSeasonNumber(String(lockedSeason)); }, [lockedSeason]);
   const [episode, setEpisode] = useState("1");
   const [contestants, setContestants] = useState([]); // [{ name, scores: {ruleId: count} }]
   const [newName, setNewName] = useState("");
@@ -8382,12 +8533,14 @@ function ShowWideScoringSection({ selectedShow, mergedRules }) {
       </div>
 
       <div style={{ display:"flex",gap:8,marginBottom:12 }}>
-        <div style={{ flex:2 }}>
-          <Select label="Season #" value={seasonNumber} onChange={e=>setSeasonNumber(e.target.value)} options={[
-            { value: "", label: "— Pick a season —" },
-            ...Array.from({length: 60}, (_, i) => ({ value: String(i+1), label: `Season ${i+1}` })),
-          ]} />
-        </div>
+        {lockedSeason == null && (
+          <div style={{ flex:2 }}>
+            <Select label="Season #" value={seasonNumber} onChange={e=>setSeasonNumber(e.target.value)} options={[
+              { value: "", label: "— Pick a season —" },
+              ...Array.from({length: 60}, (_, i) => ({ value: String(i+1), label: `Season ${i+1}` })),
+            ]} />
+          </div>
+        )}
         <div style={{ flex:1 }}>
           <Input label="Episode" type="number" min="1" value={episode} onChange={e=>setEpisode(String(Number(e.target.value) || 1))} />
         </div>
