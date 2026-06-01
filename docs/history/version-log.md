@@ -34,7 +34,7 @@
 - **Cleanup**: stale "Version: v2.4.1.0" line in admin platform info removed at `App.jsx:8409` (was hardcoded and 30+ versions out of date; we have the version-log for actual tracking).
 - **What this commit does NOT do.** No retroactive backfill of show-wide events into already-finalized weeks (the merge is at render time, but if a week is finalized BEFORE show-wide events are added, the spoiler-protection grace-period clock is already running off the league's local scores). No fuzzy name matching — if a league's contestant is "Aidan R." but admin types "Aidan Reilly", they won't match (commissioner needs to rename to align). No per-league time-series metrics in admin Stats (a future iteration). The `linkedLeagueId` badge in the leagues list was replaced with the new `useShowWideScoring` indicator since linked scoring is hidden.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.33s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `ba715a6`
 
 ### v2.6.2.0 — 2026-06-01
 Two follow-ups to v2.6.0.0 and v2.6.1.0: (1) the admin Shows tab is now fully editable instead of a scaffold — base rules and library add-ons persist to RTDB at `scoringRuleLibrary/<showType>` and merge into every league's library picker; (2) the per-league audit log is now scoped to only-meaningful events (roster content / order changes, scoring rule additions/removals, point-value changes, scoring updates, lock toggles, finalize) — cosmetic-only saves (team name renames, label tweaks, description edits) no longer appear in the activity feed.
