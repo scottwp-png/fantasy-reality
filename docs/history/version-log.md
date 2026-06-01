@@ -35,7 +35,7 @@
 - **Co-commissioner has full commissioner powers EXCEPT** transferring the primary role (that lives in Transfer Commissioner under Danger Zone and gates on the primary uid). They can edit scoring, lock rosters, finalize weeks, manage rules, manage cast, delete-with-confirm, run polls, etc.
 - **What this commit does NOT do.** No invite-by-email for non-team-owners (must already have a team in the league to be promotable — keeps the rule "co-commissioners are league members"). No different permission tiers among co-commissioners — all have the same powers as the primary. No co-commissioner can demote the primary; only the primary (or admin) can transfer. The Activity log section in Settings is read-only for non-commissioners (same as the standalone tab was).
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.91s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `7e7b110`
 
 ### v2.6.15.0 — 2026-06-01
 **Admin Show detail restructured: episode scoring uses the cast directly, rule list is simple-with-edit, template language differentiates from library.** Three changes the user asked for in one commit since they all touch the same screen.
