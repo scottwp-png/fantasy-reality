@@ -30,7 +30,7 @@
 - **Rule library editor moved to a modal** at `App.jsx:8526-8606` (new `RuleEditorModal` component). The inline-expand pattern from v2.6.19.0 was visually busy with long descriptions; the modal gives focused editing space. Each library row is now a simple one-liner — `[Base/Off pill]  Label  [points]  [Edit button]`. Click Edit → modal opens with label / category / points / description (5-row textarea) / isElimination checkbox. Save commits the patch; Delete confirms then removes; Cancel discards.
 - **What this commit does NOT do.** The auto-lock schedule UI doesn't preview the next lock fire time inline (the explainer string already tells you the recurring cadence). No per-week override (e.g., "this week only, lock 4h early because the show is going long"). The schedule editor doesn't pull airtime from external sources (TV listing APIs etc.) — admin enters it manually.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (3.12s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `ad854a7`
 
 ### v2.6.20.0 — 2026-06-01
 **Show-Wide Episode Scoring restructured as drill-in records.** Same UX pattern as My Leagues and Show Records — an index of episode cards at the top, tap one to enter the per-episode scoring view.
@@ -40,7 +40,7 @@
 - **Empty states**: "No episodes scored yet — tap + New Episode to start" when the season has no scored episodes; "No cast set up yet" when showCast for the season is missing (with a pointer back to the Show Cast section above).
 - **What this commit does NOT do.** No bulk-actions across episodes (copy events from one episode to another, etc.). No delete-episode button (clearing all scores in an episode currently requires editing all rules — could add a "Reset Episode" affordance later). The index card meta doesn't surface which RULES were scored — only counts; for that, drill in.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.98s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `bb4c3ea`
 
 ### v2.6.19.0 — 2026-06-01
 **Rule library / base template split + admin-authored descriptions.** Restructure of the admin Shows section per the user ask:
@@ -55,7 +55,7 @@
 - **Descriptions flow from admin to commissioner to manager**: admin authors in Rule Library (or imports from the existing compile-time defaults). New leagues seed with those descriptions. Commissioners can edit per-league in Settings > Scoring Rules > Edit. Players see the description in the Scoring tab event list and assign view (per v2.4.46.0).
 - **What this commit does NOT do.** No deletion of the old `scoringRuleLibrary/<show>` RTDB nodes — they stay as historical data; the new code reads from `scoringLibrary/<show>` only. No cross-show rule sharing (each show's library is independent). No version history on library edits. The Show-Wide Episode Scoring section still receives `mergedRules` as before (whole library, no isBase filter) because admin scores any event regardless of base inclusion.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.94s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `4987179`
 
 ### v2.6.18.1 — 2026-06-01
 **Hotfix: contradictory banners on My Roster.** Reported alongside the v2.6.18.0 batch — when a league had its rosters locked AND was on Episode 1, the My Roster page rendered two banners stacked: a yellow "Episode 1 — set your initial roster freely." and a red "Rosters are locked." Reader had to guess which was true (it's the lock).
