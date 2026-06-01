@@ -30,7 +30,7 @@ Profile modals (contestant photo lightbox, team profile modal) now FIT in the vi
 - **Cursor fix on the lightbox inner panel** — was implicitly `cursor: pointer` from the outer click-to-close handler, which made it feel like clicking the photo would do something. Explicit `cursor: "default"` on inner.
 - **What this commit does NOT do.** No sweep of generic `<Modal>` consumers (AddContestantModal, AddTeamModal, JoinConfirmModal) — those have shorter content and already fit comfortably within `maxHeight: 88vh`. If a future modal turns out to overflow, the same pattern applies: cap the wrapper, make the chrome `flexShrink: 0`, and let the content region absorb leftover space with internal scroll.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.35s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `cb0b189`
 
 ### v2.5.0.0 — 2026-06-01
 **Launch lockdown.** Three changes tightening the soft-launch experience: (1) only the Heroes format is selectable at league creation — Standard, Best Ball, Roto, Salary Cap, Survivor Pool, Elimination Pool, and Predictions are hidden behind a "more coming soon" notice until each format's UX is hardened; (2) clicking an invite link now lands directly on the joined league instead of pausing on AppHome with a confirmation modal; (3) the Cast-tab sort dropdown is cleaned up — "A–Z" rendered as escape-sequence text on some builds, the "Other" optgroup was needless (it held one entry), and "By Episode" / "By Week" simplifies to just the unit name.
