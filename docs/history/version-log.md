@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.37.0
+**Current Production Version:** v2.4.38.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~7,470
+**App.jsx Line Count:** ~7,460
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,25 @@
 ---
 
 ## Version Log
+
+### v2.4.38.0 — 2026-06-01
+**Cadence model refactor.** User pointed out that the `scoringCadence: "weekly" | "episode"` toggle conflated two things — scoring is *always* per-episode in practice (the commissioner enters scores as episodes air), and what actually varies between shows is **how many episodes air per week** (= how often rosters lock and the league advances a week). This commit collapses both concerns into a single `episodesPerWeek` field. The "Per-Episode Scoring" toggle is gone from Settings → General and CreateLeagueScreen, replaced with an "Episodes per Week" number input. Labels everywhere derive from a single helper (`effectiveEpisodesPerWeek(league)`) — when N=1, the unit reads "Week N" / "Wk N"; when N>1, it reads "Episode N" / "Ep N". The scoring engine's `getDraftWeek` drops its `scoringCadence !== "episode"` gate. Existing leagues that stored `scoringCadence === "episode"` continue working via a legacy fallback in the helper. All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **`effectiveEpisodesPerWeek(league)` helper** at `App.jsx:317-336`. Single source of truth for the cadence concept. Returns: explicit `league.episodesPerWeek` if set; else 2-or-preset for legacy leagues that have `scoringCadence === "episode"` without an explicit episodesPerWeek (gracefully preserves their "Episode" labels); else 1. All other cadence-aware code calls this helper instead of inspecting `scoringCadence` directly.
+- **Label helpers updated** at `App.jsx:347-348`. `cadenceWord(league)` and `cadenceShort(league)` now read `effectiveEpisodesPerWeek(league) > 1 ? "Episode"/"Ep" : "Week"/"Wk"`. `cadenceLabel(league, n)` unchanged (composes the above).
+- **SHOW_PRESETS rewritten** at `App.jsx:202-227`. `scoringCadence` is gone from every preset. New `episodesPerWeek` field per preset: Survivor / Top Chef / Bachelor / Bake Off / Traitors / Challenge / Drag Race / Amazing Race / Custom = 1; Big Brother = 3; Love is Blind = 3; Love Island = 6. CreateLeagueScreen's `useEffect([showType])` now seeds `episodesPerWeek` from the preset on show change (previously seeded `scoringCadence`).
+- **`formatInfo(arg)` refactored** at `App.jsx:244-278`. Reads from `effectiveEpisodesPerWeek(arg)` instead of `arg?.scoringCadence`. Call sites in CreateLeagueScreen now pass `{ episodesPerWeek }` (local state) instead of `{ scoringCadence }`. Format descriptions for Standard/Captains keep their conditional ", scoring per episode" clause for N>1 leagues.
+- **CreateLeagueScreen — toggle removed.** The "Per-Episode Scoring" checkbox at `App.jsx:1019-1029` is deleted. Replaced with an always-visible "Episodes per Week" number input in the League Settings section. The "Picks Per Manager" label inside the Standard config block hardcodes "per week" (was conditional). The `scoringCadence` local state hook and its setter are gone; `handleSave` no longer writes `scoringCadence` to the league object.
+- **SettingsTab — toggle removed.** The "Scoring Rhythm" card at `App.jsx:5807-5830` is replaced with an "Episodes per Week" card containing just the number input and explanatory copy. The conditional gating (`league.scoringCadence === "episode" && league.format === "standard"`) is gone — the input is now always visible for all formats (only matters for Standard's draft-week mapping, but the label change applies everywhere).
+- **Inline ternary cleanup** at six sites: `league.scoringCadence === "episode" ? "Episode" : "Weekly"` patterns now use `cadenceWord(league)` / `effectiveEpisodesPerWeek(league) > 1` directly. Sites: tab label for Elimination Pool (`App.jsx:1231`), Draft tab header + empty-state copy (`3164, 3243`), Captains swap counter (`4167`), Elimination Pool tab header (`4737`), Cancel Lock-In confirm copy (`5441`), Spoiler help copy (`5511`).
+- **`src/scoring.js` `getDraftWeek` change** at `scoring.js:12-24`. Dropped the `if (league?.scoringCadence !== "episode") return weekOrEpisode;` gate. Now the function returns the input unchanged only when `episodesPerWeek === 1` OR `format !== "standard"`. Comment updated to reflect that scoring is always per-episode and `episodesPerWeek > 1` is the only signal needed to enter the multi-episode draft-week mapping branch. Regression: 10/10 baselines pass byte-identical — none of them had the weird state (n > 1 with scoringCadence !== "episode") that the dropped gate was protecting against, so behavior is unchanged.
+- **Backwards compatibility.** Existing leagues stored `scoringCadence: "weekly"` or `"episode"` plus optional `episodesPerWeek`. After the refactor:
+  - Old `scoringCadence: "weekly"` + no `episodesPerWeek` → `effectiveEpisodesPerWeek` returns 1 → labels say "Week" (same as before).
+  - Old `scoringCadence: "episode"` + `episodesPerWeek: N` (N > 1) → returns N → labels say "Episode" (same).
+  - Old `scoringCadence: "episode"` + no `episodesPerWeek` → returns preset value (e.g., Love Island → 6, Big Brother → 3) or sentinel 2 → labels say "Episode" (same, gracefully).
+  - On the next league save, the `scoringCadence` field stays dormant (no writes); the new `episodesPerWeek` field can be set explicitly via Settings.
+- **Not yet smoke-tested in browser** — recommended smoke: (a) verify Settings → General now shows "Episodes per Week" as a number input (no toggle), pre-filled with the league's current effective value; (b) change it from 1 to 6 on a test league, verify labels everywhere flip from "Week" to "Episode"; (c) change back to 1, verify labels flip back; (d) verify CreateLeagueScreen no longer has the "Per-Episode Scoring" toggle and picking Love Island as the show pre-fills Episodes per Week with 6.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (3.95s). `src/scoring.js` gate simplified (one fewer condition); engine behavior unchanged on all baseline inputs.
+- **Commit:** `_pending_`
 
 ### v2.4.37.0 — 2026-06-01
 Polls grow up: a single poll can now have **1 to 5 questions**, each with its own per-manager contestant pick. Replaces v2.4.36.0's one-question-per-poll model so Snog/Marry/Pie is now a single poll named "Snog Marry Pie" with three questions (Snog, Marry, Pie) instead of three separate polls cluttering the list. Data shape updates from `polls[].question: string` + `picks: {teamId: contestantId}` to `polls[].questions: [{id, text}]` + `picks: {teamId: {questionId: contestantId}}`. A defensive read path on the display side handles legacy single-question polls (`{question: "X"}`) by treating them as a one-question poll, so any test polls created during v2.4.36.0's ~hour of life keep working. All 10 regression baselines pass byte-identical, `npm run build` clean.

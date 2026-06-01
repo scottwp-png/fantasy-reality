@@ -200,58 +200,55 @@ const DEFAULT_SCORING_RULES = [
 ];
 
 const SHOW_PRESETS = {
-  survivor: { name: "Survivor", emoji: "S", color: "#d4a24e", defaultFormat: "captains", scoringCadence: "weekly",
+  survivor: { name: "Survivor", emoji: "S", color: "#d4a24e", defaultFormat: "captains", episodesPerWeek: 1,
     scoringDefaults: ["loses_vote_due_to_risk","volunteers_for_journey___risk","gains_advantage___idol","finds_hidden_immunity_idol","successfully_splits_vote","uses_extra_vote_successfully","steals_vote_successfully","successfully_executes_blindside","1st_to_make_fire_for_their_tribe","wins_shot_in_the_dark","blamed_for_team_loss","last_place_team_immunity","last_place_team_reward","first_place_team_reward","first_place_team_immunity","picked_to_go_with_winner_of_individual_reward","wins_individual_reward","wins_individual_immunity","eliminated_with_idol_advantage","sv_eliminated","plays_hidden_immunity_idol_incorrectly","receives_a_vote","receives_zero_votes_at_tribal","correct_vote","saved_by_advantage","plays_hidden_immunity_idol_successfully","1st_member_of_the_jury","wins_final_4_fire_making_challenge","final_5","final_4","sv_winner"] },
-  top_chef: { name: "Top Chef", emoji: "TC", color: "#3dd6c8", defaultFormat: "captains", scoringCadence: "weekly",
+  top_chef: { name: "Top Chef", emoji: "TC", color: "#3dd6c8", defaultFormat: "captains", episodesPerWeek: 1,
     scoringDefaults: ["money_earned_per_1k","favorite_dish_in_quickfire","favorite_dish_in_elimination","win_quickfire","win_elimination","win_restaurant_wars","return_from_last_chance_kitchen","tc_final_3","tc_winner","least_favorite_dish_in_quickfire","least_favorite_dish_in_elimination","cuts_self","fails_to_get_all_components_on_plate","entirely_empty_plate","tc_eliminated"] },
-  love_island: { name: "Love Island", emoji: "LI", color: "#ff5da0", defaultFormat: "standard", scoringCadence: "episode",
+  love_island: { name: "Love Island", emoji: "LI", color: "#ff5da0", defaultFormat: "standard", episodesPerWeek: 6,
     scoringDefaults: ["li_coupled","li_dumped","li_recoupled","li_got_text","li_date","li_casa_loyal","li_casa_switched","li_public_vote_saved","li_public_vote_bottom","li_challenge_win","li_final_couple","li_winner","li_crying"] },
-  the_bachelor: { name: "The Bachelor/ette", emoji: "B", color: "#e86b8a", defaultFormat: "standard", scoringCadence: "weekly",
+  the_bachelor: { name: "The Bachelor/ette", emoji: "B", color: "#e86b8a", defaultFormat: "standard", episodesPerWeek: 1,
     scoringDefaults: ["ba_rose","ba_no_rose","ba_first_impression","ba_one_on_one","ba_group_date_rose","ba_two_on_one","ba_kiss","ba_self_elim","ba_crying","ba_limo_exit_drama","ba_hometown","ba_fantasy_suite","ba_final_rose","ba_engaged"] },
-  bake_off: { name: "Great British Bake Off", emoji: "BO", color: "#ffd23d", defaultFormat: "standard", scoringCadence: "weekly",
+  bake_off: { name: "Great British Bake Off", emoji: "BO", color: "#ffd23d", defaultFormat: "standard", episodesPerWeek: 1,
     scoringDefaults: ["bo_star_baker","bo_technical_1st","bo_technical_top3","bo_technical_bottom3","bo_technical_last","bo_hollywood","bo_raw_soggy","bo_praised","bo_criticized","bo_eliminated","bo_final","bo_winner"] },
-  custom: { name: "Custom Show", emoji: "TV", color: "#9d5dff", defaultFormat: "captains", scoringCadence: "weekly",
+  custom: { name: "Custom Show", emoji: "TV", color: "#9d5dff", defaultFormat: "captains", episodesPerWeek: 1,
     scoringDefaults: ["eliminated","survived","won_episode","crying","winner_of_the_show"] },
-  the_traitors: { name: "The Traitors", emoji: "T", color: "#e24b4a", defaultFormat: "captains", scoringCadence: "weekly",
+  the_traitors: { name: "The Traitors", emoji: "T", color: "#e24b4a", defaultFormat: "captains", episodesPerWeek: 1,
     scoringDefaults: ["tr_murdered","tr_banished","tr_banished_traitor","tr_banished_faithful","tr_won_shield","tr_recruited","tr_survived_roundtable","tr_mission_money","tr_accused","tr_traitor_survived","tr_final","tr_winner"] },
-  big_brother: { name: "Big Brother", emoji: "BB", color: "#4d8aff", defaultFormat: "captains", scoringCadence: "episode",
+  big_brother: { name: "Big Brother", emoji: "BB", color: "#4d8aff", defaultFormat: "captains", episodesPerWeek: 3,
     scoringDefaults: ["bb_won_hoh","bb_won_veto","bb_nominated","bb_used_veto_on_self","bb_veto_used_on_them","bb_backdoored","bb_survived_block","bb_evicted","bb_have_not","bb_won_luxury","bb_unanimous_vote","bb_final_2","bb_winner"] },
-  the_challenge: { name: "The Challenge", emoji: "CH", color: "#ff8a3d", defaultFormat: "captains", scoringCadence: "weekly",
+  the_challenge: { name: "The Challenge", emoji: "CH", color: "#ff8a3d", defaultFormat: "captains", episodesPerWeek: 1,
     scoringDefaults: ["ch_daily_win","ch_elim_win","ch_sent_in","ch_purged","ch_skull","ch_eliminated","ch_last_place_daily","ch_power_position","ch_called_out","ch_final","ch_winner"] },
-  drag_race: { name: "RuPaul's Drag Race", emoji: "DR", color: "#9d5dff", defaultFormat: "captains", scoringCadence: "weekly",
+  drag_race: { name: "RuPaul's Drag Race", emoji: "DR", color: "#9d5dff", defaultFormat: "captains", episodesPerWeek: 1,
     scoringDefaults: ["dr_won_maxi","dr_won_mini","dr_top2","dr_safe","dr_low","dr_bottom2","dr_shantay","dr_sashay","dr_runway_praised","dr_snatch_game_win","dr_final","dr_winner"] },
-  amazing_race: { name: "The Amazing Race", emoji: "AR", color: "#3ddc84", defaultFormat: "captains", scoringCadence: "weekly",
+  amazing_race: { name: "The Amazing Race", emoji: "AR", color: "#3ddc84", defaultFormat: "captains", episodesPerWeek: 1,
     scoringDefaults: ["ar_leg_first","ar_leg_2nd","ar_leg_3rd","ar_leg_last","ar_eliminated","ar_non_elim","ar_detour_first","ar_roadblock_complete","ar_uturn","ar_speed_bump","ar_express_pass","ar_won_prize","ar_final","ar_winner"] },
-  love_is_blind: { name: "Love is Blind", emoji: "LB", color: "#c084fc", defaultFormat: "captains", scoringCadence: "episode",
+  love_is_blind: { name: "Love is Blind", emoji: "LB", color: "#c084fc", defaultFormat: "captains", episodesPerWeek: 3,
     scoringDefaults: ["lb_pod_date","lb_engaged","lb_met_irl","lb_argument","lb_broke_up","lb_said_yes","lb_said_no","lb_still_together","lb_crying"] },
 };
 
 // Cadence-aware factory. Returns the same shape as the old static
-// FORMAT_INFO const (object keyed by format with name/desc/icon). Pass
-// arg = league or { scoringCadence }; cadence defaults to "weekly" when
-// arg is missing or scoringCadence is undefined.
+// FORMAT_INFO const (object keyed by format with name/desc/icon). Pass `arg`
+// as a league or as a small object with `episodesPerWeek` (CreateLeagueScreen
+// passes the latter because its local state isn't a league yet). Default
+// (episodesPerWeek === 1 or missing) reads identically to a weekly-cadence
+// show — that's the backwards-compat guarantee.
 //
-// CreateLeagueScreen MUST pass { scoringCadence } from local state, NOT
-// SHOW_PRESETS[showType]?.scoringCadence — Commit B's manual toggle
-// override makes presets non-authoritative inside the create form (same
-// trap the Heroes-config inline ternaries fell into pre-Commit-B fix).
-//
-// Compound semantic for standard/captains: scoring goes per-episode but
-// roster moves (snake redraft, captains swap) stay weekly per locked
-// Phase 4 design. Append-clause pattern (", scoring per episode")
-// reflects that — using a "Per-episode" adjective would advertise
-// behavior the league won't actually do.
+// Compound semantic for standard/captains when episodesPerWeek > 1: scoring
+// goes per-episode but roster moves (snake redraft, captains swap) stay
+// weekly per the locked Phase 4 design. Append-clause pattern (", scoring
+// per episode") reflects that — using a "Per-episode" adjective would
+// advertise behavior the league doesn't actually do.
 function formatInfo(arg) {
-  const cadence = arg?.scoringCadence === "episode" ? "episode" : "weekly";
+  const isMultiEp = effectiveEpisodesPerWeek(arg) > 1;
   return {
     standard: {
       name: "Standard",
-      desc: `Weekly snake redraft. Each manager picks contestants each week${cadence === "episode" ? ", scoring per episode" : ""}. Draft order is inverse of YTD standings. Season-long points race.`,
+      desc: `Weekly snake redraft. Each manager picks contestants each week${isMultiEp ? ", scoring per episode" : ""}. Draft order is inverse of YTD standings. Season-long points race.`,
       icon: "🔄",
     },
     captains: {
       name: "Heroes",
-      desc: `One-time draft to build a roster. Hero (2× pts), Side-Kick (1.5× pts), and Vigilante slots. Weekly swap of 1 contestant + reorganize depth chart${cadence === "episode" ? ", scoring per episode" : ""}. Multiple managers can roster the same contestant.`,
+      desc: `One-time draft to build a roster. Hero (2× pts), Side-Kick (1.5× pts), and Vigilante slots. Weekly swap of 1 contestant + reorganize depth chart${isMultiEp ? ", scoring per episode" : ""}. Multiple managers can roster the same contestant.`,
       icon: "🦸",
     },
     survivor_pool: {
@@ -261,7 +258,7 @@ function formatInfo(arg) {
     },
     predictions: {
       name: "Predictions",
-      desc: `Commissioner creates questions each ${cadence === "episode" ? "episode" : "week"}. Players predict outcomes (pick one, yes/no, rank these). Points for correct answers.`,
+      desc: `Commissioner creates questions each ${isMultiEp ? "episode" : "week"}. Players predict outcomes (pick one, yes/no, rank these). Points for correct answers.`,
       icon: "🔮",
     },
     salary_cap: {
@@ -271,7 +268,7 @@ function formatInfo(arg) {
     },
     elimination_pool: {
       name: "Elimination Pool",
-      desc: `Each ${cadence === "episode" ? "episode" : "week"}, pick one contestant you think will survive. Can't reuse picks. Points for correct calls, penalties for wrong ones.`,
+      desc: `Each ${isMultiEp ? "episode" : "week"}, pick one contestant you think will survive. Can't reuse picks. Points for correct calls, penalties for wrong ones.`,
       icon: "💀",
     },
   };
@@ -308,30 +305,45 @@ function getActiveSpoilerWeek(league, userProfile) {
   return weeks.length > 0 ? weeks[0] : null;
 }
 
-// ─── Cadence-aware UI labels ───
-// Pure label swap based on league.scoringCadence. Default ("weekly" or
-// missing) reads identically to pre-v2.4.4.0 — that's the backwards-compat
-// guarantee. UI strings only; src/scoring.js stays pure data-transform per
-// the no-go-zone rule.
+// ─── Cadence: episodes per week is the source of truth ───
+// v2.4.38.0 refactor: scoring is always per-episode in practice. What varies
+// between shows is HOW MANY episodes air per week (= how many scoring units
+// pass between roster changes). This helper is the canonical source of truth.
 //
+//   episodesPerWeek === 1 (or undefined): one episode per week. Labels say
+//                          "Week N" / "Wk N". Most shows (Survivor, Bachelor,
+//                          Bake Off, Top Chef, etc.).
+//   episodesPerWeek >  1 : multiple episodes per week. Labels say
+//                          "Episode N" / "Ep N" since the scoring unit no
+//                          longer maps 1:1 with a week. Shows like Love
+//                          Island (~6/wk) and Big Brother (3/wk).
+//
+// Legacy fallback: old leagues stored a `scoringCadence: "weekly" | "episode"`
+// flag that conflated two things ("how often to score" + "how often rosters
+// change"). v2.4.38.0 drops that conflation. For leagues created before the
+// refactor that have scoringCadence === "episode" without an explicit
+// episodesPerWeek, fall back to the showType's preset (or 2 as a sentinel
+// for "more than 1") so their labels don't silently flip to "Week".
+function effectiveEpisodesPerWeek(league) {
+  const explicit = Number(league?.episodesPerWeek) || 0;
+  if (explicit > 0) return explicit;
+  if (league?.scoringCadence === "episode") {
+    return Number(SHOW_PRESETS?.[league?.showType]?.episodesPerWeek) || 2;
+  }
+  return 1;
+}
+
+// ─── Cadence-aware UI labels ───
 // Three helpers, distinct surfaces:
 //   cadenceWord(league)   "Week"     | "Episode"   — full singular noun
 //   cadenceShort(league)  "Wk"       | "Ep"        — abbreviated form
 //   cadenceLabel(league, n)  "Week 3" | "Episode 3" — noun + number
 //                            null/undefined n -> just the unit word, so call
 //                            sites can pass possibly-missing values safely.
-//
-// cadenceShort does NOT derive from cadenceWord — note that
-// `cadenceWord(league).slice(0,2)` would yield "We"/"Ep" (wrong: "We" is not
-// the standard abbreviation for "Week"). Keep these as independent constants.
-//
-// For the few ASYMMETRIC adjective sites where "Weekly X" doesn't have a
-// clean "Episode X" mirror (e.g. "Weekly paired matchups" -> "Per-episode
-// paired matchups"), use an inline ternary at the call site rather than
-// adding a fourth helper. Symmetric "Weekly X" / "Episode X" sites also use
-// inline ternaries for consistency — see lines tagged with scoringCadence.
-const cadenceWord = (league) => league?.scoringCadence === "episode" ? "Episode" : "Week";
-const cadenceShort = (league) => league?.scoringCadence === "episode" ? "Ep" : "Wk";
+// cadenceShort does NOT derive from cadenceWord — `"Week".slice(0,2)` would
+// yield "We" (wrong abbreviation). Keep these independent.
+const cadenceWord = (league) => effectiveEpisodesPerWeek(league) > 1 ? "Episode" : "Week";
+const cadenceShort = (league) => effectiveEpisodesPerWeek(league) > 1 ? "Ep" : "Wk";
 const cadenceLabel = (league, n) => n != null ? `${cadenceWord(league)} ${n}` : cadenceWord(league);
 
 // ─── Episode metadata: lazy-seed { title, airDate } per episode key ───
@@ -782,7 +794,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
   const [regularSlots, setRegularSlots] = useState(3);
   const [picksPerManager, setPicksPerManager] = useState(2);
   const [genderedDraft, setGenderedDraft] = useState(false);
-  const [episodesPerWeek, setEpisodesPerWeek] = useState(1);
+  const [episodesPerWeek, setEpisodesPerWeek] = useState(SHOW_PRESETS["survivor"]?.episodesPerWeek || 1);
   const [genderedRoster, setGenderedRoster] = useState(false);
   const [minMale, setMinMale] = useState(2);
   const [minFemale, setMinFemale] = useState(2);
@@ -791,7 +803,6 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
   const [salaryBudget, setSalaryBudget] = useState(100);
   const [rotoScoring, setRotoScoring] = useState(false);
   const [decimalScoring, setDecimalScoring] = useState(true);
-  const [scoringCadence, setScoringCadence] = useState(SHOW_PRESETS["survivor"]?.scoringCadence || "weekly");
   const [scoringRules, setScoringRules] = useState([]);
 
   // Step 3: Teams
@@ -810,9 +821,10 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
     if (preset) {
       setFormat(preset.defaultFormat);
       setScoringRules(DEFAULT_SCORING_RULES.filter(r => preset.scoringDefaults.includes(r.id)));
-      // Cadence cascades from showType. Manual override (via the toggle) persists
-      // until the user changes showType again, at which point the preset wins.
-      setScoringCadence(preset.scoringCadence || "weekly");
+      // Episodes-per-week cascades from showType. Manual override via the
+      // number input persists until the user changes showType again, at
+      // which point the preset wins.
+      setEpisodesPerWeek(preset.episodesPerWeek || 1);
     }
   }, [showType]);
 
@@ -869,7 +881,6 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
       rotoScoring,
       decimalScoring,
       bestBall: format === "captains" ? bestBall : false,
-      scoringCadence,
       scoringRules,
       contestants: [],
       teams,
@@ -942,13 +953,13 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
                   fontSize:13,fontWeight:format===f?700:500,fontFamily:"'Outfit',sans-serif",
                   transition:"all 0.15s ease",flexShrink:0,opacity:isPreview?0.7:1,
                 }}>
-                  {formatInfo({ scoringCadence })[f]?.name||f}{isPreview ? " \ud83e\uddea" : ""}
+                  {formatInfo({ episodesPerWeek })[f]?.name||f}{isPreview ? " \ud83e\uddea" : ""}
                 </button>
               );
             })}
           </div>
           <div style={{ padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",marginBottom:16 }}>
-            <div style={{ color:"#e8e8f0",fontSize:13,lineHeight:1.6 }}>{formatInfo({ scoringCadence })[format]?.desc}</div>
+            <div style={{ color:"#e8e8f0",fontSize:13,lineHeight:1.6 }}>{formatInfo({ episodesPerWeek })[format]?.desc}</div>
           </div>
           {!["captains"].includes(format) && (
             <div style={{ padding:"10px 14px",background:"#f5a62311",borderRadius:8,border:"1px solid #f5a62333",marginBottom:16 }}>
@@ -986,15 +997,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
           {format === "standard" && (
             <div style={{ padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",marginBottom:16 }}>
               <div style={{ fontSize:12,fontWeight:600,color:"#4ecdc4",marginBottom:10 }}>STANDARD CONFIG</div>
-              <Input label={`Picks Per Manager (per ${scoringCadence === "episode" ? "episode" : "week"})`} type="number" min="1" max="10" value={picksPerManager} onChange={e=>setPicksPerManager(e.target.value)} />
-              {scoringCadence === "episode" && (
-                <div style={{ marginBottom:10 }}>
-                  <Input label="Episodes per week" type="number" min="1" max="14" value={episodesPerWeek} onChange={e=>setEpisodesPerWeek(e.target.value)} />
-                  <div style={{ fontSize:11,color:"#6a6a8a",marginTop:4,fontStyle:"italic",lineHeight:1.4 }}>
-                    How many episodes air per week. Drafts happen once per week; scoring stays per episode. Set to 1 if each episode is its own week.
-                  </div>
-                </div>
-              )}
+              <Input label="Picks Per Manager (per week)" type="number" min="1" max="10" value={picksPerManager} onChange={e=>setPicksPerManager(e.target.value)} />
               <label style={{ display:"flex",alignItems:"center",gap:8,cursor:"pointer",color:"#ccc",fontSize:13 }}>
                 <input type="checkbox" checked={genderedDraft} onChange={e=>setGenderedDraft(e.target.checked)} style={{ accentColor:"#e94560" }} />
                 Gendered draft (equal picks per gender category)
@@ -1002,19 +1005,13 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
             </div>
           )}
 
-          {/* Settings toggles */}
+          {/* Settings */}
           <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:8,marginTop:8,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>League Settings</label>
           <div style={{ display:"flex",flexDirection:"column",gap:8,marginBottom:16 }}>
-            <div>
-              <label style={{ display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",cursor:"pointer" }}>
-                <input type="checkbox" checked={scoringCadence === "episode"} onChange={e=>setScoringCadence(e.target.checked ? "episode" : "weekly")} style={{ accentColor:"#e94560",width:18,height:18 }} />
-                <div>
-                  <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>Per-Episode Scoring</div>
-                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>Score each episode individually. Best for shows that air multiple times per week (Big Brother, Love Island). Off = one rollup per week.</div>
-                </div>
-              </label>
-              <div style={{ fontSize:11,color:"#6a6a8a",marginTop:6,marginLeft:2,fontStyle:"italic",lineHeight:1.4 }}>
-                You can change this later. Switching mid-season may change weekly rollup behavior — recommended for new leagues.
+            <div style={{ padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+              <Input label="Episodes per Week" type="number" min="1" max="14" value={episodesPerWeek} onChange={e=>setEpisodesPerWeek(e.target.value)} />
+              <div style={{ fontSize:11,color:"#6a6a8a",marginTop:4,fontStyle:"italic",lineHeight:1.4 }}>
+                Scoring is always per episode. This sets how many episodes air per week — i.e., how often rosters lock and the league advances a week. Set to 1 for most shows (Survivor, Bachelor, Bake Off). Set higher for shows like Love Island (~6) or Big Brother (3) that air multiple episodes per week.
               </div>
             </div>
             {featureFlags?.h2h!==false && (format === "standard" || format === "captains") && (
@@ -1022,7 +1019,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
                 <input type="checkbox" checked={headToHead} onChange={e=>setHeadToHead(e.target.checked)} style={{ accentColor:"#e94560",width:18,height:18 }} />
                 <div>
                   <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>Head-to-Head Matchups <span style={{ fontSize:10,color:"#f5a623",marginLeft:6,fontWeight:700 }}>PREVIEW</span></div>
-                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>{scoringCadence === "episode" ? "Per-episode" : "Weekly"} paired matchups. W/L record determines standings instead of total points.</div>
+                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>{Number(episodesPerWeek) > 1 ? "Per-episode" : "Weekly"} paired matchups. W/L record determines standings instead of total points.</div>
                 </div>
               </label>
             )}
@@ -1031,7 +1028,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
                 <input type="checkbox" checked={bestBall} onChange={e=>setBestBall(e.target.checked)} style={{ accentColor:"#e94560",width:18,height:18 }} />
                 <div>
                   <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>Best Ball <span style={{ fontSize:10,color:"#f5a623",marginLeft:6,fontWeight:700 }}>PREVIEW</span></div>
-                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>Auto-optimizes your lineup each {scoringCadence === "episode" ? "episode" : "week"}. No roster management needed — just draft well.</div>
+                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>Auto-optimizes your lineup each {Number(episodesPerWeek) > 1 ? "episode" : "week"}. No roster management needed — just draft well.</div>
                 </div>
               </label>
             )}
@@ -1186,7 +1183,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
             <div style={{ fontSize:13,fontWeight:600,color:"#f0f0f5",marginBottom:6 }}>League Summary</div>
             <div style={{ fontSize:12,color:"#6a6a8a",lineHeight:1.6 }}>
               <div>{name || "Untitled"} · {preset?.name||showName||"Custom"} · {seasonName||"Season 1"}</div>
-              <div>{formatInfo({ scoringCadence })[format]?.name} format · {scoringRules.length} scoring rules · {teams.length} team{teams.length!==1?"s":""}</div>
+              <div>{formatInfo({ episodesPerWeek })[format]?.name} format · {scoringRules.length} scoring rules · {teams.length} team{teams.length!==1?"s":""}</div>
               {headToHead && <div style={{color:"#f5a623"}}>Head-to-Head matchups enabled</div>}
               {bestBall && <div style={{color:"#4ecdc4"}}>Best Ball enabled</div>}
               {rotoScoring && <div style={{color:"#9d5dff"}}>Categories/Roto scoring enabled</div>}
@@ -1231,7 +1228,7 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
     ...(league.format === "standard" ? [{ id:"weekly-draft",label:"Draft",icon:"grid",access:"commissioner" }] : []),
     ...(league.format === "captains" ? [{ id:"depth-chart",label:"My Roster",icon:"crown",access:"all" }] : []),
     ...(league.format === "survivor_pool" ? [{ id:"my-pick",label:"My Pick",icon:"star",access:"all" }] : []),
-    ...(league.format === "elimination_pool" ? [{ id:"weekly-pick",label:league.scoringCadence === "episode" ? "Episode Pick" : "Weekly Pick",icon:"star",access:"all" }] : []),
+    ...(league.format === "elimination_pool" ? [{ id:"weekly-pick",label:effectiveEpisodesPerWeek(league) > 1 ? "Episode Pick" : "Weekly Pick",icon:"star",access:"all" }] : []),
     ...(league.format === "salary_cap" ? [
       { id:"my-roster-cap",label:"My Roster",icon:"crown",access:"all" },
       { id:"set-prices",label:"Prices",icon:"settings",access:"commissioner" },
@@ -3164,7 +3161,7 @@ function WeeklyDraftTab({ league, onUpdate, standings }) {
   return (
     <div>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8 }}>
-        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>{league.scoringCadence === "episode" ? "Episode" : "Weekly"} Draft</h3>
+        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>{cadenceWord(league)} Draft</h3>
         <Select value={draftWeek} onChange={e=>setDraftWeek(e.target.value)}
           options={Array.from({length:Math.max(league.currentWeek||1,1)+2},(_,i)=>({value:String(i+1),label:cadenceLabel(league, i+1)}))} />
       </div>
@@ -3243,7 +3240,7 @@ function WeeklyDraftTab({ league, onUpdate, standings }) {
                 ? "No contestants in the Cast yet. Add contestants on the Cast tab before drafting."
                 : config.genderedDraft && available.length > 0
                 ? `No eligible contestants for ${currentTeam?.name||"this team"} — gender quota reached. Check Cast or league settings.`
-                : `No contestants available to draft this ${league.scoringCadence === "episode" ? "episode" : "week"}.`
+                : `No contestants available to draft this ${cadenceWord(league).toLowerCase()}.`
             }/>
           ) : (
           <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
@@ -4167,7 +4164,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
         }}>
           <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
             <div style={{ fontSize:12,fontWeight:600,color:swapLimitReached?"#e94560":"#4ecdc4" }}>
-              {league.scoringCadence === "episode" ? "Episode" : "Weekly"} Swap: {swapsMade} / 1 used
+              {cadenceWord(league)} Swap: {swapsMade} / 1 used
             </div>
             {swapLimitReached && <span style={{ fontSize:10,color:"#e94560" }}>Swap limit reached</span>}
           </div>
@@ -4737,7 +4734,7 @@ function EliminationPoolTab({ league, onUpdate, loggedInTeamId, isCommissioner }
   return (
     <div>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
-        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>{league.scoringCadence === "episode" ? "Episode" : "Weekly"} Pick</h3>
+        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>{cadenceWord(league)} Pick</h3>
         <Badge color="#f5a623">{cadenceLabel(league, currentWeek)}</Badge>
       </div>
       <div style={{ fontSize:13,color:"#6a6a8a",marginBottom:16 }}>Pick one contestant you think will survive this {cadenceWord(league).toLowerCase()}. You can't reuse picks.</div>
@@ -5441,7 +5438,7 @@ function FinalLockInCommishPanel({ league, onUpdate }) {
   }
 
   function cancelLockIn() {
-    if (!confirm(`Cancel Final Lock-In entirely?\n\nThis closes lock-in and clears ALL locked rosters on every team. Normal ${league.scoringCadence === "episode" ? "per-episode" : "weekly"} swapping resumes.`)) return;
+    if (!confirm(`Cancel Final Lock-In entirely?\n\nThis closes lock-in and clears ALL locked rosters on every team. Normal ${effectiveEpisodesPerWeek(league) > 1 ? "per-episode" : "weekly"} swapping resumes.`)) return;
     const updatedTeams = teams.map(t => ({ ...t, lockedRoster: null, lockInConfirmedAt: null }));
     onUpdate({ ...league, teams: updatedTeams, lockInStatus: "closed", lockInOpenedWeek: null, lockInOpenedAt: null });
   }
@@ -5511,7 +5508,7 @@ function SpoilerProtectionEditor({ league, onUpdate }) {
     <div style={{ padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
       <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>Spoiler Protection</div>
       <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:10,lineHeight:1.4 }}>
-        After you finalize {league?.scoringCadence === "episode" ? "an episode's" : "a week's"} scores, members won't see results until they choose to reveal them or the grace period expires.
+        After you finalize {effectiveEpisodesPerWeek(league) > 1 ? "an episode's" : "a week's"} scores, members won't see results until they choose to reveal them or the grace period expires.
       </div>
       <Input label="Grace Period (hours)" type="number" value={hours}
         onChange={e => setHours(Number(e.target.value) || 48)} />
@@ -5807,28 +5804,17 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing }) {
       {/* Linked Scoring */}
       <LinkedScoringSection league={league} allLeagues={allLeagues} onUpdate={onUpdate} />
 
-      {/* Scoring Rhythm */}
+      {/* Episodes per Week */}
       <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-        <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:12 }}>Scoring Rhythm</div>
-        <label style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38",cursor:"pointer" }}>
-          <input type="checkbox" checked={league.scoringCadence === "episode"} onChange={e=>onUpdate({...league, scoringCadence: e.target.checked ? "episode" : "weekly"})} style={{ accentColor:"#e94560",width:18,height:18 }} />
-          <div>
-            <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>Per-Episode Scoring</div>
-            <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>Score each episode individually. Best for shows that air multiple times per week (Big Brother, Love Island). Off = one rollup per week.</div>
-          </div>
-        </label>
-        {league.scoringCadence === "episode" && league.format === "standard" && (
-          <div style={{ marginTop:10,padding:"10px 12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38" }}>
-            <Input label="Episodes per week" type="number" min="1" max="14"
-              value={league.episodesPerWeek || 1}
-              onChange={e=>onUpdate({...league, episodesPerWeek: Number(e.target.value) || 1})} />
-            <div style={{ fontSize:11,color:"#6a6a8a",marginTop:4,fontStyle:"italic",lineHeight:1.4 }}>
-              How many episodes air per week. Drafts happen once per week; scoring stays per episode. Set to 1 if each episode is its own week.
-            </div>
-          </div>
-        )}
-        <div style={{ fontSize:11,color:"#6a6a8a",marginTop:10,fontStyle:"italic",lineHeight:1.4 }}>
-          You can change this later. Switching mid-season may change weekly rollup behavior — recommended for new leagues.
+        <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>Episodes per Week</div>
+        <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.5,marginBottom:10 }}>
+          Scoring is always per episode. This sets how many episodes air per week — i.e., how often the league advances a week and (for Standard format) when the snake redraft happens. Set to 1 for most shows; higher for shows like Love Island (~6) or Big Brother (3).
+        </div>
+        <Input label="Episodes per Week" type="number" min="1" max="14"
+          value={effectiveEpisodesPerWeek(league)}
+          onChange={e=>onUpdate({...league, episodesPerWeek: Number(e.target.value) || 1})} />
+        <div style={{ fontSize:11,color:"#6a6a8a",marginTop:4,fontStyle:"italic",lineHeight:1.4 }}>
+          Changing this mid-season switches the unit label between "Week" and "Episode". Existing scored data isn't reshuffled.
         </div>
       </div>
 
