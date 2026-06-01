@@ -6364,26 +6364,6 @@ export default function FantasyRealityTV() {
         pendingJoinCode={pendingJoinCode}
         allLeaguesCount={leagues.filter(l => l.commissionerUid === authUser?.uid).length} />}
       {view==="create" && <CreateLeagueScreen commissionerUid={authUser?.uid} featureFlags={featureFlags} onSave={async l=>{ await persist([...leagues,l]); setSelectedId(l.id);setView("league"); }} onCancel={()=>setView("home")} />}
-      {/* Feedback button */}
-      {authUser && view !== "login" && (
-        <button onClick={()=>{
-          const subject = encodeURIComponent("FRTV Feedback");
-          const body = encodeURIComponent("\n\n---\nApp: v2.4.1.0\nUser: " + (authUser?.email||"unknown") + "\nPage: " + view);
-          window.open("mailto:admin@fantasyrealitytv.com?subject=" + subject + "&body=" + body);
-        }} style={{
-          position:"fixed",bottom:20,right:20,width:44,height:44,borderRadius:22,
-          background:"linear-gradient(135deg,#e94560,#c23152)",border:"none",cursor:"pointer",
-          boxShadow:"0 4px 16px rgba(233,69,96,0.3)",display:"flex",alignItems:"center",justifyContent:"center",
-          zIndex:50,transition:"all .2s",
-        }}
-        onMouseEnter={e=>{e.currentTarget.style.transform="scale(1.1)"}}
-        onMouseLeave={e=>{e.currentTarget.style.transform="scale(1)"}}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-          </svg>
-        </button>
-      )}
-
       {view==="league" && selected && authUser && <LeagueDashboard league={selected} allLeagues={leagues}
         onUpdate={u=>{
           let updated = leagues.map(l=>l.id===u.id?u:l);
@@ -7136,6 +7116,12 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
         <div style={{ display:"flex",gap:8,alignItems:"center" }}>
           {isAdmin && <button onClick={onOpenAdmin} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",
             color:"#f5a623",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif",fontWeight:600 }}>Admin</button>}
+          <button onClick={()=>{
+            const subject = encodeURIComponent("FRTV Feedback");
+            const body = encodeURIComponent("\n\n---\nUser: " + (user?.email||"unknown"));
+            window.open("mailto:admin@fantasyrealitytv.com?subject=" + subject + "&body=" + body);
+          }} title="Send feedback or report a bug" style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",
+            color:"#6a6a8a",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>Support</button>
           <button onClick={onOpenSettings} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",
             color:"#6a6a8a",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>My Account</button>
 

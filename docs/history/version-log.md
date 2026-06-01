@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.32.0
+**Current Production Version:** v2.4.33.0
 **Last Deploy Date:** 2026-05-31
-**App.jsx Line Count:** ~7,220
+**App.jsx Line Count:** ~7,210
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,16 @@
 ---
 
 ## Version Log
+
+### v2.4.33.0 — 2026-05-31
+The floating support button (fixed-position chat-bubble at bottom-right, visible on every authenticated view) is removed — user reported it was "in the way" of content and bottom-right Save / Done buttons. Replaced with a discrete **Support** text button in the home screen header alongside the existing `Admin` and `My Account` buttons. Same mailto behavior (opens an email to admin@fantasyrealitytv.com), just unrooted from screen real estate everywhere else. All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **Floating button removed** at `App.jsx:6367-6385`. The 44px circular gradient button with the message-bubble SVG, the `position:"fixed",bottom:20,right:20` placement, the hover-scale animation, and the conditional render guard (`{authUser && view !== "login" && ...}`) are all deleted. Net file deletion: ~20 lines.
+- **Support button added to `AppHome` header** at `App.jsx:7140-7146`. Slotted between the existing conditional `Admin` button and the `My Account` button. Same outlined ghost-button styling (`background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",color:"#6a6a8a",fontSize:11`) so it visually matches its neighbors. `title="Send feedback or report a bug"` for tooltip hint on desktop. Mailto behavior preserved (subject "FRTV Feedback" + user email in the body) — only the surface changed.
+- **What changed for the user.** Previously: support button was a floating circle visible on every authenticated view (Home, League dashboard, Settings, Admin, Create) — accessible from anywhere but overlapping content. Now: support is one click from Home; if you're inside a league and want support, you back out to Home (one tap on the back button in the league header) and it's right there in the header. No content overlap anywhere.
+- **Why not in Settings.** Considered burying it in `SettingsScreen`'s account page. Rejected because non-commissioners and brand-new users hit the Home screen far more often than Settings, so the header is the more discoverable location for the common case. Settings already has an existing "Contact admin@fantasyrealitytv.com" text reference further down the page for anyone who finds themselves there.
+- **Not yet smoke-tested in browser** — recommended smoke: (a) verify the floating button is gone from every view including Home / League / Settings / Admin; (b) verify the Support button appears in the Home header next to My Account; (c) tap it and verify it opens a mailto link with the FRTV Feedback subject prefilled.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (5.50s — slower likely due to Windows AV). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.32.0 — 2026-05-31
 Inline explanations under every record cell. User flagged that they didn't know what "Wooden Spoon" meant — short italic descriptions are now baked into both the Recordbook panel (league-wide records) and the per-team Team Records section so each cell is self-documenting. No collapse/show toggle — descriptions are always visible because the cost of one extra italic line is small and the value is permanent self-documentation. All 10 regression baselines pass byte-identical, `npm run build` clean.
