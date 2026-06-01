@@ -291,8 +291,16 @@ const SHOW_PRESETS = {
 // the "episode aired but I haven't scored yet" gap so managers can't sneak
 // in a roster change before scoring.
 function getAutoLockState(league, now) {
-  const schedule = SHOW_PRESETS[league?.showType]?.airSchedule;
-  if (!schedule) return { autoLocked: false };
+  // v2.6.21.0: per-league override at `league.autoLockSchedule`. When set,
+  // wins over the SHOW_PRESETS default. `{ enabled: false }` disables auto-lock
+  // entirely (manual lock still works). Otherwise the override fields
+  // (dayOfWeek, hour, minute, lockLeadHours) shadow the preset.
+  const override = league?.autoLockSchedule;
+  if (override && override.enabled === false) return { autoLocked: false };
+  const schedule = override && override.enabled !== false
+    ? { ...(SHOW_PRESETS[league?.showType]?.airSchedule || {}), ...override }
+    : SHOW_PRESETS[league?.showType]?.airSchedule;
+  if (!schedule || (schedule.dayOfWeek == null && schedule.hour == null)) return { autoLocked: false };
   const currentWeek = String(league?.currentWeek || 1);
   if (league?.weekStatus?.[currentWeek]?.status === "finalized") return { autoLocked: false };
 
@@ -6806,6 +6814,131 @@ function CategoryMinimumsEditor({ league, onUpdate }) {
   );
 }
 
+// v2.6.21.0: auto-lock schedule editor. Shows the effective schedule (preset
+// default or league override), lets commissioners enable/disable, pick day
+// of week + time of day + lock-lead hours. Override lives at
+// `league.autoLockSchedule = { enabled, dayOfWeek, hour, minute, lockLeadHours }`.
+// Empty object inherits the preset; `{ enabled: false }` disables auto-lock.
+function AutoLockScheduleEditor({ league, onUpdate }) {
+  const preset = SHOW_PRESETS[league?.showType]?.airSchedule;
+  const override = league?.autoLockSchedule || {};
+  const enabled = override.enabled !== false;
+  // Effective values (override falls back to preset)
+  const eff = enabled ? { ...(preset || {}), ...override } : { ...(preset || {}) };
+  const hasAnySchedule = enabled && (eff.dayOfWeek != null || eff.hour != null);
+
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState({
+    enabled,
+    dayOfWeek: eff.dayOfWeek ?? 3,
+    hour: eff.hour ?? 20,
+    minute: eff.minute ?? 0,
+    lockLeadHours: eff.lockLeadHours ?? 2,
+  });
+  useEffect(() => {
+    setDraft({
+      enabled,
+      dayOfWeek: eff.dayOfWeek ?? 3,
+      hour: eff.hour ?? 20,
+      minute: eff.minute ?? 0,
+      lockLeadHours: eff.lockLeadHours ?? 2,
+    });
+  }, [league?.id, league?.autoLockSchedule]); // eslint-disable-line
+
+  function save() {
+    const payload = {
+      enabled: !!draft.enabled,
+      dayOfWeek: Number(draft.dayOfWeek),
+      hour: Number(draft.hour),
+      minute: Number(draft.minute),
+      lockLeadHours: Number(draft.lockLeadHours),
+    };
+    onUpdate({ ...league, autoLockSchedule: payload });
+    setEditing(false);
+  }
+  function resetToPreset() {
+    if (!confirm("Reset auto-lock schedule to the show's default? Any custom timing will be lost.")) return;
+    const next = { ...league };
+    delete next.autoLockSchedule;
+    onUpdate(next);
+    setEditing(false);
+  }
+  function turnOff() {
+    onUpdate({ ...league, autoLockSchedule: { enabled: false } });
+    setEditing(false);
+  }
+
+  const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const fmtTime = (h, m) => {
+    if (h == null) return "—";
+    const ampm = h >= 12 ? "PM" : "AM";
+    const h12 = ((h + 11) % 12) + 1;
+    return `${h12}:${String(m||0).padStart(2,"0")} ${ampm}`;
+  };
+  const isOverride = !!league?.autoLockSchedule;
+
+  return (
+    <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10 }}>
+        <div style={{ flex:1,minWidth:0 }}>
+          <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",display:"flex",alignItems:"center",gap:6 }}>
+            ⏰ Auto-Lock Schedule
+            {!enabled && <Badge color="#6a6a8a">Off</Badge>}
+            {isOverride && enabled && <Badge color="#f5a623">Custom</Badge>}
+          </div>
+          <div style={{ fontSize:12,color:"#6a6a8a",marginTop:4,lineHeight:1.5 }}>
+            {!enabled ? (
+              "Auto-lock is disabled. Use the manual Lock button above for any locking."
+            ) : hasAnySchedule ? (
+              <>Locks <strong style={{color:"#e8e8f0"}}>{eff.lockLeadHours}h before</strong> {days[eff.dayOfWeek]} at <strong style={{color:"#e8e8f0"}}>{fmtTime(eff.hour, eff.minute)}</strong> local time. Releases when the {cadenceWord(league).toLowerCase()} is finalized.</>
+            ) : (
+              <>No schedule set for {SHOW_PRESETS[league?.showType]?.name || "this show"} &mdash; auto-lock is inactive until configured.</>
+            )}
+          </div>
+        </div>
+        <Btn small variant={editing?"ghost":"secondary"} onClick={()=>setEditing(!editing)}>{editing?"Cancel":"Edit"}</Btn>
+      </div>
+
+      {editing && (
+        <div style={{ marginTop:12,padding:"12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38" }}>
+          <label style={{ display:"flex",alignItems:"center",gap:8,fontSize:13,color:"#e8e8f0",cursor:"pointer",marginBottom:12 }}>
+            <input type="checkbox" checked={!!draft.enabled} onChange={e=>setDraft(s=>({...s, enabled: e.target.checked}))} style={{ accentColor:"#f5a623",width:16,height:16 }} />
+            Enable auto-lock
+          </label>
+          {draft.enabled && (
+            <>
+              <div style={{ display:"flex",gap:8,marginBottom:10,flexWrap:"wrap" }}>
+                <div style={{ flex:"1 1 140px",minWidth:120 }}>
+                  <Select label="Day of week" value={String(draft.dayOfWeek)} onChange={e=>setDraft(s=>({...s, dayOfWeek: Number(e.target.value)}))} options={days.map((d, i) => ({ value: String(i), label: d }))} />
+                </div>
+                <div style={{ flex:"0 0 100px" }}>
+                  <Select label="Hour" value={String(draft.hour)} onChange={e=>setDraft(s=>({...s, hour: Number(e.target.value)}))} options={Array.from({length:24}, (_, i) => ({ value: String(i), label: fmtTime(i, 0) }))} />
+                </div>
+                <div style={{ flex:"0 0 90px" }}>
+                  <Select label="Minute" value={String(draft.minute)} onChange={e=>setDraft(s=>({...s, minute: Number(e.target.value)}))} options={[0,15,30,45].map(m => ({ value: String(m), label: `:${String(m).padStart(2,"0")}` }))} />
+                </div>
+              </div>
+              <Input label="Lock lead hours (how many hours before airtime to lock)" type="number" min="0" max="48" step="0.5" value={draft.lockLeadHours} onChange={e=>setDraft(s=>({...s, lockLeadHours: Number(e.target.value)}))} />
+            </>
+          )}
+          <div style={{ display:"flex",justifyContent:"space-between",gap:6,marginTop:8 }}>
+            {isOverride && <Btn small variant="ghost" onClick={resetToPreset}>Reset to show default</Btn>}
+            <div style={{ flex:1 }}/>
+            {enabled && <Btn small variant="danger" onClick={turnOff}>Turn Off</Btn>}
+            <Btn small onClick={save}>Save</Btn>
+          </div>
+        </div>
+      )}
+
+      {!editing && preset && hasAnySchedule && !isOverride && (
+        <div style={{ marginTop:8,fontSize:10,color:"#6a6a8a",fontStyle:"italic",lineHeight:1.4 }}>
+          Using the {SHOW_PRESETS[league.showType]?.name} default schedule. Tap Edit to customize for your league.
+        </div>
+      )}
+    </div>
+  );
+}
+
 // v2.6.16.0: co-commissioners list + add/remove. Co-commissioners are
 // identified by uid (Firebase Auth). The easiest add flow is promoting an
 // existing team owner — their uid is on team.uid (stamped at join time in
@@ -7157,6 +7290,11 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
           </div>
         );
       })()}
+
+      {/* v2.6.21.0: auto-lock schedule editor — surfaces the airtime
+          configuration that drives auto-lock. Without this, the schedule
+          was buried in SHOW_PRESETS with no commissioner override. */}
+      <AutoLockScheduleEditor league={league} onUpdate={onUpdate} />
 
       {/* ─── Final Lock-In (Heroes only) ─── */}
       {isLockInEligible(league) && (
@@ -8378,9 +8516,10 @@ function AdminShowDetail({ record, onBack }) {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
   // Section state: "template" = read-only base list, "library" = full editor.
-  // "manage-base" = inclusion picker for which library rules go into the base.
   const [view, setView] = useState("template");
-  const [expandedRuleId, setExpandedRuleId] = useState(null);
+  // v2.6.21.0: rule editor moved into a modal — clearer focus when editing
+  // long descriptions; the list itself stays as one-line rows.
+  const [editingRuleId, setEditingRuleId] = useState(null);
   const [adding, setAdding] = useState(false);
   const [newRule, setNewRule] = useState({ label:"", points:0, category:"Custom", description:"", isBase:true });
 
@@ -8593,56 +8732,100 @@ function AdminShowDetail({ record, onBack }) {
                 <div style={{ padding:"14px",textAlign:"center",color:"#6a6a8a",fontSize:12,background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a" }}>
                   No rules in the library yet. Add one with the + New Rule button above.
                 </div>
-              ) : libraryList.map(r => {
-                const isExpanded = expandedRuleId === r.id;
-                return (
-                  <div key={r.id} style={{ background:"#0d0d18",borderRadius:8,border:r.isBase?"1px solid #f5a62333":"1px solid #1e1e38",overflow:"hidden" }}>
-                    <div style={{ display:"flex",alignItems:"center",gap:8,padding:"10px 12px" }}>
-                      <button onClick={()=>toggleBase(r.id)} title={r.isBase?"Click to remove from base template":"Click to include in base template"} style={{ background:r.isBase?"#f5a62322":"#12121f",border:r.isBase?"1px solid #f5a62366":"1px solid #2a2a4a",borderRadius:99,color:r.isBase?"#f5a623":"#6a6a8a",height:22,padding:"0 10px",cursor:"pointer",fontSize:9,fontWeight:700,fontFamily:"'Outfit',sans-serif",textTransform:"uppercase",letterSpacing:"0.04em",flexShrink:0 }}>
-                        {r.isBase ? "Base" : "Off"}
-                      </button>
-                      <div style={{ flex:1,minWidth:0 }}>
-                        <div style={{ display:"flex",alignItems:"center",gap:6,flexWrap:"wrap" }}>
-                          <span style={{ fontSize:13,color:"#e8e8f0",fontWeight:600 }}>{r.label || "(no label)"}</span>
-                          {r.isElimination && <Badge color="#e94560">Elim</Badge>}
-                        </div>
-                        <div style={{ fontSize:10,color:"#6a6a8a",marginTop:2 }}>{r.category || "Other"}</div>
-                      </div>
-                      <div style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:14,color:(r.points||0)>=0?"#4ecdc4":"#e94560",minWidth:48,textAlign:"right" }}>
-                        {(r.points||0)>=0?"+":""}{r.points ?? 0}
-                      </div>
-                      <button onClick={()=>setExpandedRuleId(isExpanded ? null : r.id)} title={isExpanded?"Collapse":"Edit"} style={{ background:isExpanded?"#e9456022":"#1a1a30",border:"1px solid #2a2a4a",borderRadius:6,color:isExpanded?"#e94560":"#aaaabf",height:28,padding:"0 10px",cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"'Outfit',sans-serif",flexShrink:0 }}>
-                        {isExpanded ? "Done" : "Edit"}
-                      </button>
+              ) : libraryList.map(r => (
+                <div key={r.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"10px 12px",background:"#0d0d18",borderRadius:8,border:r.isBase?"1px solid #f5a62333":"1px solid #1e1e38" }}>
+                  <button onClick={()=>toggleBase(r.id)} title={r.isBase?"Click to remove from base template":"Click to include in base template"} style={{ background:r.isBase?"#f5a62322":"#12121f",border:r.isBase?"1px solid #f5a62366":"1px solid #2a2a4a",borderRadius:99,color:r.isBase?"#f5a623":"#6a6a8a",height:22,padding:"0 10px",cursor:"pointer",fontSize:9,fontWeight:700,fontFamily:"'Outfit',sans-serif",textTransform:"uppercase",letterSpacing:"0.04em",flexShrink:0 }}>
+                    {r.isBase ? "Base" : "Off"}
+                  </button>
+                  <div style={{ flex:1,minWidth:0 }}>
+                    <div style={{ display:"flex",alignItems:"center",gap:6,flexWrap:"wrap" }}>
+                      <span style={{ fontSize:13,color:"#e8e8f0",fontWeight:600 }}>{r.label || "(no label)"}</span>
+                      {r.isElimination && <Badge color="#e94560">Elim</Badge>}
                     </div>
-                    {isExpanded && (
-                      <div style={{ padding:"0 12px 12px",borderTop:"1px solid #1a1a30",paddingTop:10 }}>
-                        <div style={{ display:"flex",gap:6,alignItems:"center",marginBottom:6 }}>
-                          <input value={r.label || ""} onChange={e=>patchRule(r.id, { label: e.target.value })} placeholder="Label" style={{ flex:1,padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",minWidth:0 }} />
-                          <input value={r.category || ""} onChange={e=>patchRule(r.id, { category: e.target.value })} placeholder="Category" style={{ width:110,padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#8888aa",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none" }} />
-                          <input type="number" step="0.5" value={r.points ?? 0} onChange={e=>patchRule(r.id, { points: Number(e.target.value) })} style={{ width:64,padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:r.points>=0?"#4ecdc4":"#e94560",fontSize:12,fontWeight:700,fontFamily:"'Outfit',sans-serif",outline:"none",textAlign:"right" }} />
-                        </div>
-                        <textarea value={r.description || ""} onChange={e=>patchRule(r.id, { description: e.target.value })} placeholder="Description (shown to players in the Scoring tab; commissioners can edit per-league)" rows={3} style={{ width:"100%",padding:"6px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,color:"#aaaabf",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none",resize:"vertical",boxSizing:"border-box",lineHeight:1.4 }} />
-                        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:6,marginTop:8 }}>
-                          <label style={{ display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#8888aa",cursor:"pointer" }}>
-                            <input type="checkbox" checked={!!r.isElimination} onChange={e=>patchRule(r.id, { isElimination: e.target.checked })} style={{ accentColor:"#e94560" }} />
-                            Elimination rule (auto-flips contestant status on score)
-                          </label>
-                          <Btn small variant="danger" onClick={()=>{ deleteRule(r.id); setExpandedRuleId(null); }}>Delete</Btn>
-                        </div>
-                      </div>
-                    )}
+                    <div style={{ fontSize:10,color:"#6a6a8a",marginTop:2 }}>{r.category || "Other"}</div>
                   </div>
-                );
-              })}
+                  <div style={{ fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:14,color:(r.points||0)>=0?"#4ecdc4":"#e94560",minWidth:48,textAlign:"right" }}>
+                    {(r.points||0)>=0?"+":""}{r.points ?? 0}
+                  </div>
+                  <button onClick={()=>setEditingRuleId(r.id)} title="Edit rule" style={{ background:"#1a1a30",border:"1px solid #2a2a4a",borderRadius:6,color:"#aaaabf",height:28,padding:"0 10px",cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"'Outfit',sans-serif",flexShrink:0 }}>
+                    Edit
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
         )}
       </div>
 
+      {/* v2.6.21.0: rule editor modal */}
+      {editingRuleId && library[editingRuleId] && (
+        <RuleEditorModal
+          rule={{ id: editingRuleId, ...library[editingRuleId] }}
+          onSave={patch => { patchRule(editingRuleId, patch); setEditingRuleId(null); }}
+          onDelete={() => { deleteRule(editingRuleId); setEditingRuleId(null); }}
+          onClose={() => setEditingRuleId(null)}
+        />
+      )}
+
       <ShowCastSection selectedShow={selectedShow} lockedSeason={lockedSeason} />
       <ShowWideScoringSection selectedShow={selectedShow} mergedRules={mergedRules} lockedSeason={lockedSeason} />
     </div>
+  );
+}
+
+// v2.6.21.0: modal-based rule editor. Cleaner focus than the in-place expand
+// pattern, especially for long descriptions. Receives the rule as a prop;
+// applies edits via onSave({ ...patch }) once the user clicks Save.
+function RuleEditorModal({ rule, onSave, onDelete, onClose }) {
+  const [draft, setDraft] = useState({
+    label: rule.label || "",
+    category: rule.category || "Other",
+    points: rule.points ?? 0,
+    description: rule.description || "",
+    isElimination: !!rule.isElimination,
+  });
+  function save() {
+    onSave({
+      label: draft.label.trim(),
+      category: draft.category.trim() || "Other",
+      points: Number(draft.points) || 0,
+      description: draft.description.trim(),
+      isElimination: !!draft.isElimination,
+    });
+  }
+  function del() {
+    if (!confirm(`Permanently remove "${rule.label || rule.id}" from the library? Leagues that have this rule keep their copy; only the library entry goes away.`)) return;
+    onDelete();
+  }
+  return (
+    <Modal open title="Edit Rule" onClose={onClose}>
+      <Input label="Label" value={draft.label} onChange={e=>setDraft(s=>({...s, label: e.target.value}))} autoFocus />
+      <div style={{ display:"flex",gap:10 }}>
+        <div style={{ flex:1 }}>
+          <Input label="Category" value={draft.category} onChange={e=>setDraft(s=>({...s, category: e.target.value}))} />
+        </div>
+        <div style={{ width:120 }}>
+          <Input label="Points" type="number" step="0.5" value={draft.points} onChange={e=>setDraft(s=>({...s, points: e.target.value}))} />
+        </div>
+      </div>
+      <div style={{ marginBottom:14 }}>
+        <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>Description</label>
+        <textarea value={draft.description} onChange={e=>setDraft(s=>({...s, description: e.target.value}))} placeholder="What this rule actually counts — shown to players in the Scoring tab. Commissioners can edit per-league." rows={5} style={{
+          width:"100%",padding:"10px 14px",background:"#12121f",border:"1px solid #2a2a4a",
+          borderRadius:8,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",resize:"vertical",boxSizing:"border-box",outline:"none",lineHeight:1.5,
+        }} />
+      </div>
+      <label style={{ display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#aaaabf",cursor:"pointer",marginBottom:14 }}>
+        <input type="checkbox" checked={!!draft.isElimination} onChange={e=>setDraft(s=>({...s, isElimination: e.target.checked}))} style={{ accentColor:"#e94560" }} />
+        Elimination rule (auto-flips contestant status when scored)
+      </label>
+      <div style={{ display:"flex",gap:8 }}>
+        <Btn variant="danger" onClick={del}><Icon name="trash" size={14}/> Delete</Btn>
+        <div style={{ flex:1 }}/>
+        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+        <Btn onClick={save} disabled={!draft.label.trim()}>Save</Btn>
+      </div>
+    </Modal>
   );
 }
 

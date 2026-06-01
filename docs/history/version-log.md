@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.20.0
+**Current Production Version:** v2.6.21.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~9,500
+**App.jsx Line Count:** ~9,615
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,15 @@
 ---
 
 ## Version Log
+
+### v2.6.21.0 — 2026-06-01
+**Auto-lock schedule config UI + rule editor modal.**
+- **New `AutoLockScheduleEditor`** in Settings > Roster at `App.jsx:7053-7160` (renders right under Roster Lock). Shows the effective schedule (preset default OR league override) in natural language — "Locks 2h before Wed at 8:00 PM local time. Releases when the week is finalized." Tap Edit to open inline form with: enabled toggle, day-of-week select, hour select, minute select (15-min increments), lock-lead-hours number. Save writes to `league.autoLockSchedule = { enabled, dayOfWeek, hour, minute, lockLeadHours }`. Buttons: Turn Off (sets `{ enabled: false }`), Reset to show default (removes the override entirely so the preset wins again), Save. Badges surface the state: `Off` when disabled, `Custom` when overridden.
+- **`getAutoLockState` honors the override** at `App.jsx:293-303`. When `league.autoLockSchedule.enabled === false`, returns `{ autoLocked: false }` regardless of preset. When set with values, those shadow the preset. Empty / missing override falls through to the SHOW_PRESETS default as before. Backwards-compatible — every existing league inherits its show's preset until commissioner overrides.
+- **Rule library editor moved to a modal** at `App.jsx:8526-8606` (new `RuleEditorModal` component). The inline-expand pattern from v2.6.19.0 was visually busy with long descriptions; the modal gives focused editing space. Each library row is now a simple one-liner — `[Base/Off pill]  Label  [points]  [Edit button]`. Click Edit → modal opens with label / category / points / description (5-row textarea) / isElimination checkbox. Save commits the patch; Delete confirms then removes; Cancel discards.
+- **What this commit does NOT do.** The auto-lock schedule UI doesn't preview the next lock fire time inline (the explainer string already tells you the recurring cadence). No per-week override (e.g., "this week only, lock 4h early because the show is going long"). The schedule editor doesn't pull airtime from external sources (TV listing APIs etc.) — admin enters it manually.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (3.12s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.20.0 — 2026-06-01
 **Show-Wide Episode Scoring restructured as drill-in records.** Same UX pattern as My Leagues and Show Records — an index of episode cards at the top, tap one to enter the per-episode scoring view.
