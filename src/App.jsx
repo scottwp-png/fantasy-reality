@@ -1080,7 +1080,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
                   <div style={{ fontSize:12,color:"#aaaabf",lineHeight:1.5 }}>Pick the reality show your league will follow, then name it. You can change the season name later from Settings.</div>
                 </div>
               )}
-          <Input label="League Name" placeholder="e.g. Top Chef Fantasy 2026" value={name} onChange={e=>setName(e.target.value)} />
+          <Input label="League Name" placeholder={`e.g. Fantasy ${preset?.name || "Show"} ${new Date().getFullYear()}`} value={name} onChange={e=>setName(e.target.value)} />
 
           <Select label="Show" value={showType} onChange={e=>setShowType(e.target.value)} options={[
             { value:"survivor",label:"Survivor" },{ value:"top_chef",label:"Top Chef" },
