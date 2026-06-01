@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.21.1
+**Current Production Version:** v2.6.21.2
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~9,655
+**App.jsx Line Count:** ~9,685
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,16 @@
 ---
 
 ## Version Log
+
+### v2.6.21.2 — 2026-06-01
+**Hotfix bundle: missing RTDB rule for `scoringLibrary`, stuck Save buttons, delete-episode admin affordance.**
+- **Root cause of the "perpetual saving" report.** v2.6.19.0 introduced the new `scoringLibrary/<showType>/<ruleId>` path but `database.rules.json` only had a rule for the OLD `scoringRuleLibrary` path. Prod RTDB has no rule for `scoringLibrary` → parent-default-deny → admin saves rejected with permission-denied → `saveRootData` throws → the rule library `saveAll` skipped `setSaving(false)` because there was no try/finally → button stuck on "Saving..." forever. Local dev was unaffected (the seed-on-empty path made it look like writes worked, but reload didn't persist).
+- **Rule added** in `database.rules.json:42-50`: `scoringLibrary` mirrors `scoringRuleLibrary` (any-auth-read, admin-write). **Requires `firebase deploy --only database`** for prod to pick it up — the file change alone isn't sufficient.
+- **All three admin `saveAll` functions wrapped in try/finally** at `App.jsx:8680-8689` (rule library), `App.jsx:8937-8946` (show cast), `App.jsx:9229-9238` (per-episode scoring). On error, the catch surfaces an `alert("Save failed: …")` with the underlying message and notes that local edits are preserved. `finally` always resets `saving=false` so the button recovers.
+- **Delete-episode affordance** at `App.jsx:9119-9130` (the `deleteEpisode` function) and the redesigned episode card at `App.jsx:9180-9209`. Cards are now a flex row with the main open-button on the left and a small `Delete` chip on the right. Confirm dialog warns that leagues consuming show-wide scoring will lose this episode's points. `saveRootData(\`showScoring/<show>/<season>/<ep>\`, null)` deletes the RTDB node; local state drops the entry from `episodesMap`; if the user is currently inside that episode's detail, they get bounced back to the index.
+- **What this commit does NOT do.** No bulk-delete or "Reset Episode" within the detail view — only the index has the delete affordance. The old `scoringRuleLibrary` rule stays in `database.rules.json` (historical reads still resolve; not actively written to). No data migration from the deny-failed writes — those writes never succeeded, so there's nothing to recover; admin just re-enters the edits after the rule deploy.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.90s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.21.1 — 2026-06-01
 **Co-commissioner selector: admin uid backfill + visibility for unlinked owners.** Hotfix for an empty/single-entry selector in pre-launch leagues.

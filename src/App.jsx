@@ -8672,9 +8672,15 @@ function AdminShowDetail({ record, onBack }) {
 
   async function saveAll() {
     setSaving(true);
-    await saveRootData("scoringLibrary/" + selectedShow, library);
-    setSavedAt(Date.now());
-    setSaving(false);
+    try {
+      await saveRootData("scoringLibrary/" + selectedShow, library);
+      setSavedAt(Date.now());
+    } catch (e) {
+      console.error("Library save failed:", e);
+      alert("Save failed: " + (e?.message || "unknown error") + ". Your edits are preserved locally — try Save again, or refresh to discard.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   const showName = SHOW_PRESETS[selectedShow]?.name || selectedShow;
@@ -8925,9 +8931,15 @@ function ShowCastSection({ selectedShow, lockedSeason }) {
   async function saveAll() {
     if (!seasonKey) return;
     setSaving(true);
-    await saveRootData(`showCast/${selectedShow}/${seasonKey}`, { contestants: castList });
-    setSavedAt(Date.now());
-    setSaving(false);
+    try {
+      await saveRootData(`showCast/${selectedShow}/${seasonKey}`, { contestants: castList });
+      setSavedAt(Date.now());
+    } catch (e) {
+      console.error("Cast save failed:", e);
+      alert("Save failed: " + (e?.message || "unknown error") + ". Your edits are preserved locally — try Save again.");
+    } finally {
+      setSaving(false);
+    }
   }
   // v2.6.11.0: open the existing AddContestantModal against a fake league so
   // admin gets the full editor (photo file upload, paste-image, crop sliders,
@@ -9094,6 +9106,19 @@ function ShowWideScoringSection({ selectedShow, mergedRules, lockedSeason }) {
   function patchEpisodeScores(epNum, nextScores) {
     setEpisodesMap(prev => ({ ...prev, [epNum]: nextScores }));
   }
+  // v2.6.21.2: delete an episode record entirely (admin testing / mistakes).
+  // Writes null to the specific episode path — RTDB treats set(null) as remove.
+  async function deleteEpisode(epNum) {
+    if (!confirm(`Delete Episode ${epNum} scoring record? All assigned events for this episode will be removed. Leagues consuming show-wide scoring will lose this episode's points.`)) return;
+    try {
+      await saveRootData(`showScoring/${selectedShow}/${seasonKey}/${epNum}`, null);
+      setEpisodesMap(prev => { const { [epNum]: _, ...rest } = prev; return rest; });
+      if (selectedEpisode === String(epNum)) setSelectedEpisode(null);
+    } catch (e) {
+      console.error("Episode delete failed:", e);
+      alert("Delete failed: " + (e?.message || "unknown error"));
+    }
+  }
 
   // DETAIL VIEW
   if (selectedEpisode != null) {
@@ -9162,20 +9187,27 @@ function ShowWideScoringSection({ selectedShow, mergedRules, lockedSeason }) {
             const events = countEventsInEpisode(ep.data);
             const contestants = countContestantsInEpisode(ep.data);
             return (
-              <button key={ep.episode} onClick={()=>openEpisode(ep.episode)} style={{
-                display:"flex",alignItems:"center",gap:14,padding:"14px 16px",background:"#0d0d18",border:"1px solid #1e1e38",borderRadius:10,cursor:"pointer",textAlign:"left",width:"100%",fontFamily:"'Outfit',sans-serif",
+              <div key={ep.episode} style={{
+                display:"flex",alignItems:"center",gap:8,padding:"14px 16px",background:"#0d0d18",border:"1px solid #1e1e38",borderRadius:10,fontFamily:"'Outfit',sans-serif",
               }}>
-                <div style={{ width:40,height:40,borderRadius:10,background:"#9d5dff18",border:"1px solid #9d5dff33",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Anybody',sans-serif",fontSize:14,fontWeight:900,color:"#9d5dff",flexShrink:0 }}>
-                  E{ep.episode}
-                </div>
-                <div style={{ flex:1,minWidth:0 }}>
-                  <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:14,fontFamily:"'Anybody',sans-serif" }}>Episode {ep.episode}</div>
-                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>
-                    {events === 0 ? "No events scored yet" : `${events} event${events===1?"":"s"} · ${contestants} contestant${contestants===1?"":"s"}`}
+                <button onClick={()=>openEpisode(ep.episode)} style={{
+                  display:"flex",alignItems:"center",gap:14,flex:1,minWidth:0,background:"transparent",border:"none",padding:0,cursor:"pointer",textAlign:"left",fontFamily:"inherit",
+                }}>
+                  <div style={{ width:40,height:40,borderRadius:10,background:"#9d5dff18",border:"1px solid #9d5dff33",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Anybody',sans-serif",fontSize:14,fontWeight:900,color:"#9d5dff",flexShrink:0 }}>
+                    E{ep.episode}
                   </div>
-                </div>
-                <Icon name="chevron" size={16}/>
-              </button>
+                  <div style={{ flex:1,minWidth:0 }}>
+                    <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:14,fontFamily:"'Anybody',sans-serif" }}>Episode {ep.episode}</div>
+                    <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>
+                      {events === 0 ? "No events scored yet" : `${events} event${events===1?"":"s"} · ${contestants} contestant${contestants===1?"":"s"}`}
+                    </div>
+                  </div>
+                  <Icon name="chevron" size={16}/>
+                </button>
+                <button onClick={()=>deleteEpisode(ep.episode)} title={`Delete Episode ${ep.episode} record`} style={{
+                  background:"transparent",border:"1px solid #2a2a4a",borderRadius:8,padding:"6px 8px",color:"#ff6b6b",cursor:"pointer",fontFamily:"'Outfit',sans-serif",fontSize:11,fontWeight:600,
+                }}>Delete</button>
+              </div>
             );
           })}
         </div>
@@ -9216,9 +9248,15 @@ function ShowEpisodeDetail({ selectedShow, seasonKey, episode, castList, mergedR
 
   async function saveAll() {
     setSaving(true);
-    await saveRootData(`showScoring/${selectedShow}/${seasonKey}/${episode}`, scores);
-    setSavedAt(Date.now());
-    setSaving(false);
+    try {
+      await saveRootData(`showScoring/${selectedShow}/${seasonKey}/${episode}`, scores);
+      setSavedAt(Date.now());
+    } catch (e) {
+      console.error("Episode save failed:", e);
+      alert("Save failed: " + (e?.message || "unknown error") + ". Your edits are preserved locally — try Save again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   const rulesByCategory = useMemo(() => {

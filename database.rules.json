@@ -37,6 +37,16 @@
       ".write": "auth != null && auth.token.email === 'scottwpii@gmail.com'"
     },
 
+    // Restructured rule library (v2.6.19.0) — replaces scoringRuleLibrary.
+    // Path: scoringLibrary/<showType>/<ruleId> = { label, description, points,
+    // category, isElimination, isBase }. Same access pattern as the legacy
+    // path: any authenticated user can read so commissioners' "Add from
+    // Library" picker can pull admin-managed rules; only admin can write.
+    "scoringLibrary": {
+      ".read": "auth != null",
+      ".write": "auth != null && auth.token.email === 'scottwpii@gmail.com'"
+    },
+
     // Show-wide episode scoring (v2.6.3.0) — admin scores events that cascade
     // to opted-in leagues. Any authenticated user can read so each league can
     // merge in the events at render time; only admin can write.
