@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.19.0
+**Current Production Version:** v2.6.20.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~9,380
+**App.jsx Line Count:** ~9,500
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,16 @@
 ---
 
 ## Version Log
+
+### v2.6.20.0 — 2026-06-01
+**Show-Wide Episode Scoring restructured as drill-in records.** Same UX pattern as My Leagues and Show Records — an index of episode cards at the top, tap one to enter the per-episode scoring view.
+- **`ShowWideScoringSection` now hosts an index view** at `App.jsx:8791-8951`. Loads all episodes at `showScoring/<show>/<season>` once, derives a sorted list of `{ episode, data }` entries, renders each as a card showing `E{N}` icon + headline `Episode N` + meta `M events · K contestants`. Tapping a card opens the per-episode detail; `+ New Episode` button takes a number and opens an empty record.
+- **`ShowEpisodeDetail`** is a new sibling component at `App.jsx:8953-9090` that holds the events-and-assign UI (was previously inline in ShowWideScoringSection). Receives `castList`, `mergedRules`, `initialScores` as props; updates a local `scores` map; persists to RTDB on Save. Same rule-first navigation as before: rules grouped by category → tap a rule → assign view with the cast as a counter grid.
+- **No data model change** — `showScoring/<show>/<season>/<episode>/<contestantName>/<ruleId>` stays where it lives. The restructure is purely UI. Existing episodes light up as cards immediately; legacy admin workflows still work, just routed through one extra tap.
+- **Empty states**: "No episodes scored yet — tap + New Episode to start" when the season has no scored episodes; "No cast set up yet" when showCast for the season is missing (with a pointer back to the Show Cast section above).
+- **What this commit does NOT do.** No bulk-actions across episodes (copy events from one episode to another, etc.). No delete-episode button (clearing all scores in an episode currently requires editing all rules — could add a "Reset Episode" affordance later). The index card meta doesn't surface which RULES were scored — only counts; for that, drill in.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.98s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.19.0 — 2026-06-01
 **Rule library / base template split + admin-authored descriptions.** Restructure of the admin Shows section per the user ask:

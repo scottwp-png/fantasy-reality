@@ -8789,64 +8789,198 @@ function ShowCastSection({ selectedShow, lockedSeason }) {
 // admin types here, they won't match; the commissioner can rename their
 // league's contestants to align.
 function ShowWideScoringSection({ selectedShow, mergedRules, lockedSeason }) {
-  // v2.6.5.0: structured numeric Season # to match the league-side selector.
-  // v2.6.12.0: when `lockedSeason` is provided, the selector is hidden.
-  // v2.6.15.0: scoring UI now mirrors the in-league ScoringTab — load cast
-  // from showCast (no name typing); rule-first navigation; pick a rule to
-  // enter assign view with the full cast as a counter grid.
+  // v2.6.20.0: index/detail structure like My Leagues + Show Records. Outer
+  // view lists every episode that exists in showScoring/<show>/<season> as a
+  // card; tapping a card opens the per-episode scoring view (rule-first
+  // navigation, cast as the contestant pool).
   const [seasonNumber, setSeasonNumber] = useState(lockedSeason != null ? String(lockedSeason) : "");
   useEffect(() => { if (lockedSeason != null) setSeasonNumber(String(lockedSeason)); }, [lockedSeason]);
-  const [episode, setEpisode] = useState("1");
-  const [castList, setCastList] = useState([]); // from showCast
-  const [scores, setScores] = useState({}); // { [contestantName]: { [ruleId]: count } }
+  const [castList, setCastList] = useState([]);
+  const [episodesMap, setEpisodesMap] = useState({}); // { "1": {contestants...}, "2": {...} }
   const [loaded, setLoaded] = useState(false);
+  const [selectedEpisode, setSelectedEpisode] = useState(null); // null = index, "N" = detail
+  const [creating, setCreating] = useState(false);
+  const [newEpisode, setNewEpisode] = useState("");
+
+  const seasonKey = seasonNumber ? `season_${seasonNumber}` : "";
+
+  // Load cast + episode index whenever (show, season) changes.
+  useEffect(() => {
+    if (!seasonKey) { setCastList([]); setEpisodesMap({}); setLoaded(true); setSelectedEpisode(null); return; }
+    let cancelled = false;
+    setLoaded(false);
+    (async () => {
+      const [castData, allEpisodes] = await Promise.all([
+        loadRootData(`showCast/${selectedShow}/${seasonKey}`, null),
+        loadRootData(`showScoring/${selectedShow}/${seasonKey}`, {}),
+      ]);
+      if (cancelled) return;
+      setCastList(Array.isArray(castData?.contestants) ? castData.contestants : []);
+      setEpisodesMap(allEpisodes || {});
+      setLoaded(true);
+    })();
+    return () => { cancelled = true; };
+  }, [selectedShow, seasonKey]);
+
+  function countEventsInEpisode(epData) {
+    if (!epData) return 0;
+    let total = 0;
+    Object.values(epData).forEach(perContestant => {
+      if (perContestant && typeof perContestant === "object") {
+        Object.values(perContestant).forEach(n => { total += Number(n) || 0; });
+      }
+    });
+    return total;
+  }
+  function countContestantsInEpisode(epData) {
+    if (!epData) return 0;
+    return Object.keys(epData).length;
+  }
+
+  const episodeList = useMemo(() => {
+    return Object.keys(episodesMap || {})
+      .map(epNum => ({ episode: epNum, data: episodesMap[epNum] }))
+      .sort((a, b) => Number(a.episode) - Number(b.episode));
+  }, [episodesMap]);
+
+  function openEpisode(epNum) {
+    setSelectedEpisode(String(epNum));
+    if (!episodesMap[epNum]) {
+      // Reserve a placeholder so the index shows it after creation
+      setEpisodesMap(prev => ({ ...prev, [epNum]: {} }));
+    }
+  }
+  function startCreate() { setNewEpisode(""); setCreating(true); }
+  function confirmCreate() {
+    const n = Number(newEpisode);
+    if (!n || n < 1) return;
+    openEpisode(String(n));
+    setCreating(false);
+  }
+  function patchEpisodeScores(epNum, nextScores) {
+    setEpisodesMap(prev => ({ ...prev, [epNum]: nextScores }));
+  }
+
+  // DETAIL VIEW
+  if (selectedEpisode != null) {
+    return (
+      <ShowEpisodeDetail
+        selectedShow={selectedShow}
+        seasonKey={seasonKey}
+        episode={selectedEpisode}
+        castList={castList}
+        mergedRules={mergedRules}
+        initialScores={episodesMap[selectedEpisode] || {}}
+        onBack={() => setSelectedEpisode(null)}
+        onScoresChanged={next => patchEpisodeScores(selectedEpisode, next)}
+      />
+    );
+  }
+
+  // INDEX VIEW
+  return (
+    <div style={{ marginBottom:20,padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,gap:8,flexWrap:"wrap" }}>
+        <div style={{ flex:1,minWidth:0 }}>
+          <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>Show-Wide Episode Scoring</div>
+          <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>One record per episode. Tap to open and score; opted-in leagues consume at render time.</div>
+        </div>
+        <Btn small onClick={startCreate} disabled={!seasonKey || castList.length === 0}><Icon name="plus" size={12}/> New Episode</Btn>
+      </div>
+
+      {lockedSeason == null && (
+        <div style={{ marginBottom:12,maxWidth:200 }}>
+          <Select label="Season #" value={seasonNumber} onChange={e=>setSeasonNumber(e.target.value)} options={[
+            { value: "", label: "— Pick a season —" },
+            ...Array.from({length: 60}, (_, i) => ({ value: String(i+1), label: `Season ${i+1}` })),
+          ]} />
+        </div>
+      )}
+
+      {creating && (
+        <div style={{ marginBottom:12,padding:"12px 14px",background:"#0d0d18",borderRadius:8,border:"1px solid #f5a62333" }}>
+          <div style={{ fontSize:12,fontWeight:700,color:"#f5a623",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.05em" }}>New Episode Record</div>
+          <div style={{ display:"flex",gap:8 }}>
+            <Input label="Episode #" type="number" min="1" value={newEpisode} onChange={e=>setNewEpisode(e.target.value)} autoFocus />
+          </div>
+          <div style={{ display:"flex",gap:8,justifyContent:"flex-end",marginTop:6 }}>
+            <Btn small variant="ghost" onClick={()=>setCreating(false)}>Cancel</Btn>
+            <Btn small onClick={confirmCreate} disabled={!newEpisode}>Open</Btn>
+          </div>
+        </div>
+      )}
+
+      {!seasonKey ? (
+        <div style={{ padding:"14px",textAlign:"center",background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a",color:"#8888aa",fontSize:12,lineHeight:1.6 }}>
+          Pick a season number to start scoring. Leagues opt in via Settings &rsaquo; Roster &rsaquo; "Use show-wide scoring" and match by their structured <code style={{color:"#aaaabf"}}>seasonNumber</code>.
+        </div>
+      ) : !loaded ? (
+        <div style={{ padding:"20px",textAlign:"center",color:"#6a6a8a",fontSize:13 }}>Loading...</div>
+      ) : castList.length === 0 ? (
+        <div style={{ padding:"14px",textAlign:"center",color:"#8888aa",fontSize:12,background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a",lineHeight:1.6 }}>
+          No cast set up yet for {SHOW_PRESETS[selectedShow]?.name || selectedShow} Season {seasonNumber}. Populate the Show Cast section above first &mdash; episode scoring uses those contestants directly (no typing names).
+        </div>
+      ) : episodeList.length === 0 ? (
+        <EmptyState message={`No episodes scored yet. Tap "+ New Episode" to start scoring.`} />
+      ) : (
+        <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
+          {episodeList.map(ep => {
+            const events = countEventsInEpisode(ep.data);
+            const contestants = countContestantsInEpisode(ep.data);
+            return (
+              <button key={ep.episode} onClick={()=>openEpisode(ep.episode)} style={{
+                display:"flex",alignItems:"center",gap:14,padding:"14px 16px",background:"#0d0d18",border:"1px solid #1e1e38",borderRadius:10,cursor:"pointer",textAlign:"left",width:"100%",fontFamily:"'Outfit',sans-serif",
+              }}>
+                <div style={{ width:40,height:40,borderRadius:10,background:"#9d5dff18",border:"1px solid #9d5dff33",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Anybody',sans-serif",fontSize:14,fontWeight:900,color:"#9d5dff",flexShrink:0 }}>
+                  E{ep.episode}
+                </div>
+                <div style={{ flex:1,minWidth:0 }}>
+                  <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:14,fontFamily:"'Anybody',sans-serif" }}>Episode {ep.episode}</div>
+                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>
+                    {events === 0 ? "No events scored yet" : `${events} event${events===1?"":"s"} · ${contestants} contestant${contestants===1?"":"s"}`}
+                  </div>
+                </div>
+                <Icon name="chevron" size={16}/>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// v2.6.20.0: per-episode scoring detail view. The events/assign flow from
+// the in-league ScoringTab, scoped to one (show, season, episode). Pure UI —
+// state is hoisted from ShowWideScoringSection's episodesMap and persisted
+// directly to RTDB on Save.
+function ShowEpisodeDetail({ selectedShow, seasonKey, episode, castList, mergedRules, initialScores, onBack, onScoresChanged }) {
+  const [scores, setScores] = useState(initialScores || {});
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
   const [view, setView] = useState("events"); // "events" | "assign"
   const [selectedRuleId, setSelectedRuleId] = useState(null);
 
-  const seasonKey = seasonNumber ? `season_${seasonNumber}` : "";
-
-  // Load cast + this-episode scoring data whenever (show, season, episode) changes.
-  useEffect(() => {
-    if (!seasonKey) { setCastList([]); setScores({}); setLoaded(true); return; }
-    let cancelled = false;
-    setLoaded(false);
-    setView("events");
-    setSelectedRuleId(null);
-    (async () => {
-      const [castData, scoreData] = await Promise.all([
-        loadRootData(`showCast/${selectedShow}/${seasonKey}`, null),
-        loadRootData(`showScoring/${selectedShow}/${seasonKey}/${episode}`, {}),
-      ]);
-      if (cancelled) return;
-      setCastList(Array.isArray(castData?.contestants) ? castData.contestants : []);
-      setScores(scoreData || {});
-      setLoaded(true);
-      setSavedAt(null);
-    })();
-    return () => { cancelled = true; };
-  }, [selectedShow, seasonKey, episode]);
+  useEffect(() => { setScores(initialScores || {}); }, [initialScores]);
 
   function setCount(name, ruleId, count) {
-    const next = { ...scores };
-    const cScores = { ...(next[name] || {}) };
-    const n = Math.max(0, Number(count) || 0);
-    if (n === 0) delete cScores[ruleId];
-    else cScores[ruleId] = n;
-    if (Object.keys(cScores).length === 0) delete next[name];
-    else next[name] = cScores;
-    setScores(next);
+    setScores(prev => {
+      const next = { ...prev };
+      const cScores = { ...(next[name] || {}) };
+      const n = Math.max(0, Number(count) || 0);
+      if (n === 0) delete cScores[ruleId];
+      else cScores[ruleId] = n;
+      if (Object.keys(cScores).length === 0) delete next[name];
+      else next[name] = cScores;
+      onScoresChanged?.(next);
+      return next;
+    });
     setSavedAt(null);
   }
-  function getCount(name, ruleId) {
-    return Number(scores?.[name]?.[ruleId]) || 0;
-  }
-  function countAssigned(ruleId) {
-    return castList.reduce((sum, c) => sum + (getCount(c.name, ruleId) > 0 ? 1 : 0), 0);
-  }
+  function getCount(name, ruleId) { return Number(scores?.[name]?.[ruleId]) || 0; }
+  function countAssigned(ruleId) { return castList.reduce((s, c) => s + (getCount(c.name, ruleId) > 0 ? 1 : 0), 0); }
+
   async function saveAll() {
-    if (!seasonKey) return;
     setSaving(true);
     await saveRootData(`showScoring/${selectedShow}/${seasonKey}/${episode}`, scores);
     setSavedAt(Date.now());
@@ -8862,45 +8996,23 @@ function ShowWideScoringSection({ selectedShow, mergedRules, lockedSeason }) {
     });
     return g;
   }, [mergedRules]);
-
   const activeRule = mergedRules.find(r => r.id === selectedRuleId);
 
   return (
     <div style={{ marginBottom:20,padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,gap:8,flexWrap:"wrap" }}>
+      <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:14 }}>
+        <button onClick={onBack} title="Back to episodes" style={{ background:"none",border:"none",color:"#8888aa",cursor:"pointer",padding:4,display:"flex",alignItems:"center" }}>
+          <Icon name="back" size={18}/>
+        </button>
         <div style={{ flex:1,minWidth:0 }}>
-          <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>Show-Wide Episode Scoring</div>
-          <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>Pick a rule, tap contestants from the cast. Opted-in leagues consume events at render time.</div>
+          <div style={{ fontSize:11,color:"#6a6a8a",fontWeight:600,letterSpacing:"0.05em",textTransform:"uppercase" }}>Episode Scoring</div>
+          <div style={{ fontSize:16,fontWeight:800,color:"#e8e8f0",fontFamily:"'Anybody',sans-serif",letterSpacing:"-0.01em" }}>Episode {episode}</div>
         </div>
         {savedAt && <span style={{ fontSize:11,color:"#4ecdc4" }}>Saved</span>}
-        <Btn small onClick={saveAll} disabled={saving || !seasonKey}>{saving?"Saving...":"Save"}</Btn>
+        <Btn small onClick={saveAll} disabled={saving}>{saving?"Saving...":"Save"}</Btn>
       </div>
 
-      <div style={{ display:"flex",gap:8,marginBottom:12 }}>
-        {lockedSeason == null && (
-          <div style={{ flex:2 }}>
-            <Select label="Season #" value={seasonNumber} onChange={e=>setSeasonNumber(e.target.value)} options={[
-              { value: "", label: "— Pick a season —" },
-              ...Array.from({length: 60}, (_, i) => ({ value: String(i+1), label: `Season ${i+1}` })),
-            ]} />
-          </div>
-        )}
-        <div style={{ flex:1 }}>
-          <Input label="Episode" type="number" min="1" value={episode} onChange={e=>setEpisode(String(Number(e.target.value) || 1))} />
-        </div>
-      </div>
-
-      {!seasonKey ? (
-        <div style={{ padding:"14px",textAlign:"center",background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a",color:"#8888aa",fontSize:12,lineHeight:1.6 }}>
-          Pick a season number to start scoring. Leagues opt in via Settings &rsaquo; Roster &rsaquo; "Use show-wide scoring" and match by their structured <code style={{color:"#aaaabf"}}>seasonNumber</code>.
-        </div>
-      ) : !loaded ? (
-        <div style={{ padding:"20px",textAlign:"center",color:"#6a6a8a",fontSize:13 }}>Loading...</div>
-      ) : castList.length === 0 ? (
-        <div style={{ padding:"14px",textAlign:"center",color:"#8888aa",fontSize:12,background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a",lineHeight:1.6 }}>
-          No cast set up yet for {SHOW_PRESETS[selectedShow]?.name || selectedShow} Season {seasonNumber}. Populate the Show Cast section above first &mdash; episode scoring uses those contestants directly (no typing names).
-        </div>
-      ) : view === "assign" && activeRule ? (
+      {view === "assign" && activeRule ? (
         <div>
           <button onClick={()=>{ setView("events"); setSelectedRuleId(null); }} style={{
             background:"none",border:"none",color:"#8888aa",cursor:"pointer",padding:"4px 0",
@@ -8921,7 +9033,7 @@ function ShowWideScoringSection({ selectedShow, mergedRules, lockedSeason }) {
               {(activeRule.points||0)>=0?"+":""}{activeRule.points ?? 0} pts default &middot; each league applies its own points
             </div>
           </div>
-          <div style={{ display:"flex",flexDirection:"column",gap:6,maxHeight:480,overflowY:"auto" }}>
+          <div style={{ display:"flex",flexDirection:"column",gap:6,maxHeight:520,overflowY:"auto" }}>
             {castList.map(c => {
               const count = getCount(c.name, activeRule.id);
               const isOn = count > 0;
@@ -8949,8 +9061,7 @@ function ShowWideScoringSection({ selectedShow, mergedRules, lockedSeason }) {
           </div>
         </div>
       ) : (
-        // EVENTS view — list of rules grouped by category
-        <div style={{ display:"flex",flexDirection:"column",gap:16,maxHeight:520,overflowY:"auto" }}>
+        <div style={{ display:"flex",flexDirection:"column",gap:16,maxHeight:560,overflowY:"auto" }}>
           {Object.entries(rulesByCategory).map(([cat, rules]) => (
             <div key={cat}>
               <div style={{ fontSize:11,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6 }}>{cat}</div>
@@ -8983,10 +9094,6 @@ function ShowWideScoringSection({ selectedShow, mergedRules, lockedSeason }) {
           ))}
         </div>
       )}
-
-      <div style={{ marginTop:10,fontSize:10,color:"#6a6a8a",fontStyle:"italic",lineHeight:1.4 }}>
-        Cast pulled from the Show Cast section above. Each league applies its OWN point value to these counts &mdash; the default shown here is just for admin reference. Name match is case-insensitive trim.
-      </div>
     </div>
   );
 }
