@@ -486,6 +486,49 @@ function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
+// v2.4.50.0: generalized roster category minimums.
+// Captains-format leagues can require N of each category-value on a depth chart
+// (e.g. 2 Male + 2 Female, or 1 per tribe). The old schema only supported
+// gender via `captainsConfig.{genderedRoster, minMale, minFemale}`; the new
+// schema uses `captainsConfig.{minCategory, minimums}` where minCategory is
+// "gender" or "tribe" and minimums is an object mapping each value to a
+// required count (e.g. {Male: 2, Female: 2} or {Manulevu: 1, Yala: 1}).
+// Returns null when no minimums are active (most leagues), so consumers can
+// short-circuit cheaply.
+function getRosterMinimums(league) {
+  const cfg = league?.captainsConfig || {};
+  if (cfg.minCategory) {
+    const minimums = cfg.minimums || {};
+    const total = Object.values(minimums).reduce((s, v) => s + (Number(v) || 0), 0);
+    if (total === 0) return null;
+    return { category: cfg.minCategory, minimums, total };
+  }
+  // Legacy: genderedRoster flag with separate minMale/minFemale fields.
+  if (cfg.genderedRoster) {
+    const m = Number(cfg.minMale) || 0;
+    const f = Number(cfg.minFemale) || 0;
+    if (m + f === 0) return null;
+    return { category: "gender", minimums: { Male: m, Female: f }, total: m + f };
+  }
+  return null;
+}
+
+// Count a roster (array of contestant ids) by category value. Returns an
+// object like { Male: 2, Female: 1, unset: 0 } for gender, or
+// { Manulevu: 2, Yala: 1, unset: 0 } for tribe. Contestants who lack the
+// category attribute roll into "unset" so missing data is visible to commissioners.
+function countRosterByCategory(rosterIds, league, category) {
+  const counts = { unset: 0 };
+  const contestants = league?.contestants || [];
+  (rosterIds || []).filter(Boolean).forEach(cid => {
+    const c = contestants.find(x => x.id === cid);
+    const val = c?.[category];
+    if (!val) counts.unset++;
+    else counts[val] = (counts[val] || 0) + 1;
+  });
+  return counts;
+}
+
 // Lookup the current couple-partner for a contestant. Returns the other contestant's
 // id or null. Couples are stored at league.couples = [{ id, members: [id1, id2] }];
 // a contestant should appear in at most one couple at a time (the Manage > Couples
@@ -4103,37 +4146,35 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
     return count;
   }, [currentRosterIds, lastWeekRosterIds, lastWeekChart]);
 
-  // Gender constraint — pairs with league.captainsConfig.genderedRoster.
-  // Counts Male / Female / unset across the entire localChart (slot-agnostic).
-  const captainsCfg = league.captainsConfig || {};
-  const genderConstraintActive = !!captainsCfg.genderedRoster;
-  const minMaleNeeded = Number(captainsCfg.minMale) || 0;
-  const minFemaleNeeded = Number(captainsCfg.minFemale) || 0;
-  const genderCounts = useMemo(() => {
-    const counts = { Male: 0, Female: 0, unset: 0 };
-    const contestants = league.contestants || [];
+  // Roster category constraint — generalized in v2.4.50.0. The captains config
+  // can require N of each value of a category (gender or tribe). See
+  // getRosterMinimums() which normalizes the old gender-only schema into the
+  // new shape. Returns null when no constraint is active.
+  const rosterMinimums = getRosterMinimums(league);
+  const constraintActive = !!rosterMinimums;
+  const rosterCounts = useMemo(() => {
+    if (!rosterMinimums) return {};
     const allIds = [localChart.captain, localChart.coCaptain, ...(localChart.regulars||[])].filter(Boolean);
-    allIds.forEach(cid => {
-      const c = contestants.find(x => x.id === cid);
-      const g = c?.gender;
-      if (g === "Male") counts.Male++;
-      else if (g === "Female") counts.Female++;
-      else counts.unset++;
-    });
-    return counts;
-  }, [localChart, league.contestants]);
-  const genderConstraintMet = !genderConstraintActive || (
-    genderCounts.Male >= minMaleNeeded &&
-    genderCounts.Female >= minFemaleNeeded
+    return countRosterByCategory(allIds, league, rosterMinimums.category);
+  }, [localChart, league, rosterMinimums]);
+  const genderConstraintMet = !constraintActive || Object.entries(rosterMinimums.minimums).every(
+    ([val, need]) => (rosterCounts[val] || 0) >= (Number(need) || 0)
   );
+  // Kept the name `genderChipLabel` for back-compat with downstream JSX even
+  // though it now describes whatever category is active.
   const genderChipLabel = (() => {
-    if (!genderConstraintActive) return null;
+    if (!constraintActive) return null;
+    const shortVal = (v) => rosterMinimums.category === "gender" ? v[0] : v;
     const need = [];
-    if (genderCounts.Male < minMaleNeeded) need.push(`${minMaleNeeded - genderCounts.Male} more M`);
-    if (genderCounts.Female < minFemaleNeeded) need.push(`${minFemaleNeeded - genderCounts.Female} more F`);
-    const base = `${genderCounts.Male}M / ${genderCounts.Female}F`;
-    if (need.length === 0) return `${base} · OK`;
-    return `${base} · Need ${need.join(", ")}`;
+    Object.entries(rosterMinimums.minimums).forEach(([val, n]) => {
+      const have = rosterCounts[val] || 0;
+      if (have < (Number(n) || 0)) need.push(`${(Number(n)||0) - have} more ${shortVal(val)}`);
+    });
+    const summary = Object.entries(rosterMinimums.minimums)
+      .map(([val]) => `${rosterCounts[val] || 0}${shortVal(val)}`)
+      .join(" / ");
+    if (need.length === 0) return `${summary} · OK`;
+    return `${summary} · Need ${need.join(", ")}`;
   })();
 
   // While Final Lock-In is open (and this team hasn't confirmed yet), waive
@@ -4835,7 +4876,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
           display:"flex",flexDirection:"column",gap:8,alignItems:"stretch",boxShadow:`0 -4px 24px ${genderConstraintMet ? "rgba(78,205,196,0.15)" : "rgba(233,69,96,0.15)"}` }}>
           {!genderConstraintMet && (
             <div style={{ fontSize:12,color:"#e94560",fontWeight:600,textAlign:"center" }}>
-              Roster doesn't meet gender minimums — {genderChipLabel}
+              Roster doesn't meet {rosterMinimums?.category || ""} minimums — {genderChipLabel}
             </div>
           )}
           <div style={{ display:"flex",gap:10,justifyContent:"center",alignItems:"center" }}>
@@ -6122,6 +6163,101 @@ function ScoringRulesSection({ league, onUpdate }) {
   );
 }
 
+// v2.4.50.0: Generalized category-minimums editor. Replaces the old gender-
+// only inputs in SettingsTab. Lets commissioners pick a category (gender or
+// tribe) and set a minimum count per value. When no minimums are active, the
+// checkbox is unchecked. Migrates the legacy {genderedRoster, minMale,
+// minFemale} schema into the new shape on first toggle so old leagues keep
+// working without a separate migration step.
+function CategoryMinimumsEditor({ league, onUpdate }) {
+  const cfg = league.captainsConfig || {};
+  const totalSlots = (Number(cfg.regularSlots)||3) + 2;
+  const active = getRosterMinimums(league);
+  const category = active?.category || cfg.minCategory || "gender";
+  const minimums = active?.minimums || {};
+
+  // Available values for each category. Gender is fixed; tribe is read live
+  // from league.tribes so adding a new tribe automatically extends the list.
+  const tribeNames = Object.keys(league.tribes || {});
+  const valueOptions = category === "tribe" ? tribeNames : ["Male", "Female"];
+
+  function setEnabled(enabled) {
+    if (!enabled) {
+      // Disable entirely — write back to a clean state. Keep minCategory so
+      // turning it back on remembers the last category selection.
+      onUpdate({ ...league, captainsConfig: { ...cfg, genderedRoster: false, minCategory: cfg.minCategory || category, minimums: {} } });
+      return;
+    }
+    // Enable with a sensible default for the chosen category.
+    const defaults = category === "gender" ? { Male: 2, Female: 2 } : Object.fromEntries(valueOptions.slice(0, 3).map(v => [v, 1]));
+    onUpdate({ ...league, captainsConfig: { ...cfg, genderedRoster: false, minCategory: category, minimums: { ...minimums, ...defaults } } });
+  }
+
+  function setCategory(nextCategory) {
+    const nextValues = nextCategory === "tribe" ? tribeNames : ["Male", "Female"];
+    const defaults = nextCategory === "gender" ? { Male: 2, Female: 2 } : Object.fromEntries(nextValues.slice(0, 3).map(v => [v, 1]));
+    onUpdate({ ...league, captainsConfig: { ...cfg, genderedRoster: false, minCategory: nextCategory, minimums: defaults } });
+  }
+
+  function setMinimum(value, n) {
+    const next = { ...minimums, [value]: Number(n) || 0 };
+    onUpdate({ ...league, captainsConfig: { ...cfg, genderedRoster: false, minCategory: category, minimums: next } });
+  }
+
+  const total = Object.values(minimums).reduce((s, v) => s + (Number(v) || 0), 0);
+  const exceeds = total > totalSlots;
+  const isEnabled = !!active;
+
+  return (
+    <div style={{ marginTop:12,padding:"10px 12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38" }}>
+      <label style={{ display:"flex",alignItems:"center",gap:8,cursor:"pointer",color:"#ccc",fontSize:13 }}>
+        <input type="checkbox" checked={isEnabled} onChange={e=>setEnabled(e.target.checked)} style={{ accentColor:"#f5a623",width:16,height:16 }} />
+        Require category minimums
+      </label>
+      {isEnabled && (
+        <div style={{ marginTop:10 }}>
+          <div style={{ display:"flex",gap:8,marginBottom:10,flexWrap:"wrap" }}>
+            <span style={{ fontSize:11,fontWeight:600,color:"#8888aa",alignSelf:"center" }}>Category:</span>
+            {[
+              { id: "gender", label: "Gender", available: true },
+              { id: "tribe", label: "Tribe", available: tribeNames.length > 0 },
+            ].map(opt => (
+              <button key={opt.id} disabled={!opt.available} onClick={()=>setCategory(opt.id)} title={!opt.available ? "Add tribes on the Cast tab first" : ""} style={{
+                padding:"5px 12px",borderRadius:99,fontSize:11,fontWeight:600,cursor:opt.available?"pointer":"not-allowed",
+                background:category===opt.id?"#f5a62322":"transparent",
+                border:category===opt.id?"1px solid #f5a62366":"1px solid #2a2a4a",
+                color:category===opt.id?"#f5a623":opt.available?"#7a7a9a":"#3a3a4a",fontFamily:"'Outfit',sans-serif",
+              }}>{opt.label}</button>
+            ))}
+          </div>
+          {valueOptions.length === 0 ? (
+            <div style={{ fontSize:11,color:"#e94560",fontStyle:"italic",lineHeight:1.4 }}>
+              No values available for category "{category}". Add some on the Cast tab first.
+            </div>
+          ) : (
+            <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+              {valueOptions.map(val => (
+                <div key={val} style={{ flex:"1 1 100px",minWidth:90 }}>
+                  <Input label={`Min ${val}`} type="number" min="0" max={totalSlots} value={Number(minimums[val] || 0)}
+                    onChange={e=>setMinimum(val, e.target.value)} />
+                </div>
+              ))}
+            </div>
+          )}
+          {exceeds && (
+            <div style={{ fontSize:11,color:"#e94560",fontWeight:600,marginTop:2 }}>
+              Minimums ({total}) exceed roster size ({totalSlots}). Adjust to a valid configuration.
+            </div>
+          )}
+          <div style={{ fontSize:11,color:"#6a6a8a",marginTop:6,fontStyle:"italic",lineHeight:1.4 }}>
+            Each manager's depth chart must include at least this many of each {category}. Remaining slots can be any {category}.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing }) {
   const [editingInfo, setEditingInfo] = useState(false);
   const [leagueInfo, setLeagueInfo] = useState({
@@ -6242,45 +6378,7 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing }) {
         <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.5 }}>{formatInfo(league)[league.format]?.desc}</div>
         {league.format==="captains" && <div style={{ fontSize:12,color:"#6a6a8a",marginTop:6 }}>Regular slots: {league.captainsConfig?.regularSlots||3}</div>}
         {league.format==="standard" && <div style={{ fontSize:12,color:"#6a6a8a",marginTop:6 }}>Picks/manager: {league.standardConfig?.picksPerManager||2} · Gendered: {league.standardConfig?.genderedDraft?"Yes":"No"}</div>}
-        {league.format === "captains" && (() => {
-          const cfg = league.captainsConfig || {};
-          const totalSlots = (Number(cfg.regularSlots)||3) + 2;
-          const minM = Number(cfg.minMale) || 0;
-          const minF = Number(cfg.minFemale) || 0;
-          const exceeds = (minM + minF) > totalSlots;
-          return (
-            <div style={{ marginTop:12,padding:"10px 12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38" }}>
-              <label style={{ display:"flex",alignItems:"center",gap:8,cursor:"pointer",color:"#ccc",fontSize:13 }}>
-                <input type="checkbox" checked={!!cfg.genderedRoster}
-                  onChange={e=>onUpdate({...league, captainsConfig: { ...cfg, genderedRoster: e.target.checked, minMale: minM, minFemale: minF }})}
-                  style={{ accentColor:"#f5a623",width:16,height:16 }} />
-                Require gender minimums
-              </label>
-              {cfg.genderedRoster && (
-                <div style={{ marginTop:10 }}>
-                  <div style={{ display:"flex",gap:10 }}>
-                    <div style={{ flex:1 }}>
-                      <Input label="Min Male" type="number" min="0" max={totalSlots} value={minM}
-                        onChange={e=>onUpdate({...league, captainsConfig: { ...cfg, minMale: Number(e.target.value) || 0 }})} />
-                    </div>
-                    <div style={{ flex:1 }}>
-                      <Input label="Min Female" type="number" min="0" max={totalSlots} value={minF}
-                        onChange={e=>onUpdate({...league, captainsConfig: { ...cfg, minFemale: Number(e.target.value) || 0 }})} />
-                    </div>
-                  </div>
-                  {exceeds && (
-                    <div style={{ fontSize:11,color:"#e94560",fontWeight:600,marginTop:2 }}>
-                      Minimums ({minM+minF}) exceed roster size ({totalSlots}). Adjust to a valid configuration.
-                    </div>
-                  )}
-                  <div style={{ fontSize:11,color:"#6a6a8a",marginTop:4,fontStyle:"italic",lineHeight:1.4 }}>
-                    Each manager's depth chart must include at least this many of each gender. Remaining slots can be any gender.
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })()}
+        {league.format === "captains" && <CategoryMinimumsEditor league={league} onUpdate={onUpdate} />}
       </div>
       </>}
 

@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.49.0
+**Current Production Version:** v2.4.50.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~7,840
+**App.jsx Line Count:** ~7,940
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,19 @@
 ---
 
 ## Version Log
+
+### v2.4.50.0 — 2026-06-01
+The old "Require gender minimums" feature was a special case of a more general pattern: "every depth chart must include at least N of each value of some contestant category." Most useful for Survivor (where tribes matter early-season) but also for other shows where contestants differ along non-gender axes. Generalized to **Require category minimums** with `gender` or `tribe` as the category, fully backwards-compatible with existing leagues using the old fields.
+- **New helpers** `getRosterMinimums(league)` and `countRosterByCategory(rosterIds, league, category)` at `App.jsx:447-488`. The first reads either schema (new `captainsConfig.{minCategory, minimums}` or legacy `{genderedRoster, minMale, minFemale}`) and returns a normalized `{ category, minimums, total }` object or `null` when no constraints are active. The second counts a roster array by category-value (e.g. Male/Female for gender, tribe names for tribe), with missing data rolled into an "unset" bucket so commissioners can spot incomplete contestant records.
+- **DepthChartTab uses the helpers** at `App.jsx:4142-4176`. The old gender-specific block (`genderConstraintActive`, `minMaleNeeded`, `minFemaleNeeded`, `genderCounts`) was replaced with `rosterMinimums` (from `getRosterMinimums`) + `rosterCounts` (from `countRosterByCategory`). The constraint-met check now iterates over `Object.entries(rosterMinimums.minimums)` so any number of values can be enforced (2 for gender, N-tribes for Survivor). `genderChipLabel` keeps its variable name for downstream JSX but now formats the active category — short form for gender (`2M / 1F`), full name for tribe (`Manulevu 2 / Yala 1`).
+- **Roster warning text** at `App.jsx:4870` reads "Roster doesn't meet {category} minimums" instead of hard-coded "gender minimums" so the message matches what the commissioner configured.
+- **New `CategoryMinimumsEditor` component** at `App.jsx:6107-6193`. Replaces the inline gender editor in SettingsTab. Renders a category select (Gender / Tribe — Tribe is disabled when the league has no tribes) and a dynamic input list. Switching category resets the minimums map to sensible defaults for that category (`{Male: 2, Female: 2}` for gender, `{value: 1}` for each of the first three tribes). Toggling off via the checkbox writes `genderedRoster: false, minimums: {}` (keeps `minCategory` so re-enabling remembers the last choice). The legacy `genderedRoster` flag is force-false anywhere the new editor writes so a league can't be in both schemas simultaneously.
+- **SettingsTab integration** at `App.jsx:6296`: the old 40-line inline editor block became one line — `<CategoryMinimumsEditor league={league} onUpdate={onUpdate} />`. The format-info card (Heroes / Standard) above is unchanged; only the gender-specific inputs were extracted.
+- **CreateLeagueScreen left on legacy fields** — at creation time, tribes don't exist yet (contestants come post-create), so only the gender path is meaningful at that moment. The wizard / advanced screens still write `{genderedRoster, minMale, minFemale}`; the helper reads them. Switching to tribe minimums happens post-create from Settings. Cleaner than asking a user to configure tribe minimums for tribes they haven't created.
+- **Backwards compatibility verified.** `getRosterMinimums` checks `cfg.minCategory` first; only falls through to the legacy fields when it's undefined. Existing leagues with `{genderedRoster: true, minMale: 2, minFemale: 2}` still validate exactly as before. The first edit in the new editor migrates that league to the new schema in-place; subsequent edits go through the new path. The legacy fields stay on the league object harmlessly (helper ignores them once `minCategory` is set).
+- **What this commit does NOT do.** No "custom category" beyond gender / tribe (no per-league user-defined axes like "rookie vs returning"). Tribes from the merge are handled normally — once merged, tribes still exist as historical assignments and the minimum enforces against the contestant's current `tribe` field. The validation alert text in CreateLeagueScreen `handleSave` still references "Gender minimums" — that's fine because CreateLeagueScreen only supports the gender path at creation.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.10s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.49.0 — 2026-06-01
 Three small commissioner-quality-of-life fixes. (1) Scoring someone as Eliminated used to require a second trip into Settings → Roster → Contestant Status to also flip their `status` and `eliminatedWeek` — that's now automatic. (2) Linked Scoring is hidden behind a comment (will be replaced by the planned Show-Wide Scoring layer). (3) Finale Mode moved from General to the Roster section of Settings (it's a roster-shape override, not a general league setting).
