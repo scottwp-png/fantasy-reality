@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.38.0
+**Current Production Version:** v2.4.39.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~7,460
+**App.jsx Line Count:** ~7,580
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,24 @@
 ---
 
 ## Version Log
+
+### v2.4.39.0 — 2026-06-01
+Polls v3 — submit flow, lock-after-submit, optional constraints. Picks now stage in local component state as the manager fills out the form, and only commit on **Submit My Picks**. Once submitted, picks are locked — managers can no longer edit. Commissioners can clear a specific team's picks (which unlocks that team to resubmit). Two optional poll-level constraints are added: **Unique picks across questions** (Snog/Marry/Pie rule — each question must pick a different contestant) and **Restrict pool to Male/Female only** (run the poll twice for gender-split games). Pill in My Roster renamed **Game Log → Team History**. All 10 regression baselines pass byte-identical, `npm run build` clean.
+- **Submit flow** at `App.jsx:3473-3494`. New `drafts` state in `PollsSection` — keyed by `pollId → questionId → contestantId`. Picker dropdowns write to local draft (via `setDraftPick`) instead of writing to the league immediately. `submitPoll(pollId)` validates that every question is answered, validates the uniqueness constraint if enabled, builds the team's per-question picks object, writes it to `league.polls[i].picks[teamId]` in one atomic update, then clears the local draft. The Submit button is disabled until all answers are valid; helper text below explains why (e.g., "Pick different contestants for each question").
+- **Lock after submit** at `App.jsx:3593-3608`. Once `allPicks[team.id]` exists for a poll, the manager sees a green-bordered "✓ Your picks (locked)" panel instead of the picker form. Picks render Q1/Q2/Q3 with question text and the contestant they picked. No edit, no clear from the manager side.
+- **Commissioner-only clear** at `App.jsx:3500-3512`. Replaces the prior per-pick / poll-wide "Clear my picks" buttons that managers could trigger. Each poll now has a "Commissioner — clear a team's picks" footer (visible only to commissioner, only when at least one team has submitted) with one `× TeamName` button per submitted team. Confirms before clearing. After clearing, that team can submit again.
+- **Unique-picks constraint** at `App.jsx:3450-3454`. New `draftUnique` checkbox in the create-poll form ("Each manager must pick a different contestant for each question"). Stored as `poll.uniquePerPoll: true` on the poll. When set:
+  - **Picker filtering** at `App.jsx:3620`: each question's dropdown options exclude contestants already picked in OTHER questions of THE SAME draft (your current pick for the question stays in its own dropdown so it's not unselectable).
+  - **Submit validation** at `App.jsx:3491-3493`: rejects submit if the set of picked contestants has fewer entries than the number of questions (duplicates detected).
+- **Gender filter** at `App.jsx:3455-3459`. New `draftGender` select in the create-poll form ("Restrict pool to: All / Male only / Female only"). Stored as `poll.genderFilter: "Male" | "Female"` on the poll (omitted when "All"). Filters the picker pool: `activeContestants.filter(c => !poll.genderFilter || c.gender === poll.genderFilter)`. To run gender-split SMP, the commissioner posts twin polls — one with genderFilter="Male", one with genderFilter="Female" — each named accordingly.
+- **Constraint chips** at `App.jsx:3576-3581`. When a poll has `uniquePerPoll` and/or `genderFilter` set, small pill chips render below the poll header: a teal `UNIQUE PICKS` chip and an orange `MALE ONLY` / `FEMALE ONLY` chip. Lets managers see the rules at a glance before submitting.
+- **Pill rename** at `App.jsx:4014`. The middle pill in My Roster's pill bar changes from `Game Log` → `Team History`. The section heading at `App.jsx:4143` and the empty-state message at `App.jsx:4204` update to match.
+- **Removed manager actions.** The per-question Clear button (next to each picker) and the poll-wide "Clear my picks for this poll" footer button are both gone. Managers commit once and that's the answer; if a pick was genuinely wrong, the commissioner intervenes.
+- **Data shape** is backward-compatible. Existing polls (no `uniquePerPoll` or `genderFilter` fields, or v2.4.36.0-era polls with a singular `question` string) still render correctly via the existing `poll.questions || (poll.question ? [...] : [])` fallback at `App.jsx:3568`. No data migration needed.
+- **What this commit does NOT do.** No SMP "twin poll" linking — the commissioner manually creates a Boys poll and a Girls poll; the app doesn't auto-pair them. No anonymous submission mode (picks are always attributed to the team). No edit-after-clear notification (if a commissioner clears your picks, you don't get a heads-up; you'll just see the picker reappear next time you open the polls). No "all submitted" celebration.
+- **Not yet smoke-tested in browser** — recommended smoke: (a) as commissioner, create a poll named "Snog Marry Pie — Guys" with three questions, check the Unique picks box, set Restrict pool to "Male only", verify both constraint chips show in the poll header; (b) as a manager, verify the picker dropdowns only show male contestants and that picking Q1 = Aidan removes Aidan from Q2/Q3's options; (c) verify the Submit button is disabled until all three are answered, then submit, verify the green-bordered locked view appears with your picks; (d) as commissioner, click the team's `× Name` button in the commissioner clear row, verify their picks are cleared and they can resubmit; (e) verify the renamed Team History pill works the same as the old Game Log.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (3.92s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.38.0 — 2026-06-01
 **Cadence model refactor.** User pointed out that the `scoringCadence: "weekly" | "episode"` toggle conflated two things — scoring is *always* per-episode in practice (the commissioner enters scores as episodes air), and what actually varies between shows is **how many episodes air per week** (= how often rosters lock and the league advances a week). This commit collapses both concerns into a single `episodesPerWeek` field. The "Per-Episode Scoring" toggle is gone from Settings → General and CreateLeagueScreen, replaced with an "Episodes per Week" number input. Labels everywhere derive from a single helper (`effectiveEpisodesPerWeek(league)`) — when N=1, the unit reads "Week N" / "Wk N"; when N>1, it reads "Episode N" / "Ep N". The scoring engine's `getDraftWeek` drops its `scoringCadence !== "episode"` gate. Existing leagues that stored `scoringCadence === "episode"` continue working via a legacy fallback in the helper. All 10 regression baselines pass byte-identical, `npm run build` clean.
