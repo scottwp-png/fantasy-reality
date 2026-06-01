@@ -31,7 +31,7 @@ Three Cast-tab polish items from real-tester feedback: (1) default filter showed
 - **Sort + display wired through to the `week:<N>` case** at `App.jsx:2090-2093` (sort comparator) and `App.jsx:2339` (per-card `bigVal`/`bigLabel`/`subtitle`). When sorting by `week:5`, contestant cards rank by that week's points (descending) and the big number / label on each card shows week-5 points instead of season total. Subtitle shows season total for context.
 - **What this commit does NOT do.** No new badge or chip indicating merged state — relying on contestants' tribe field (which post-merge points at the merged tribe). No dropdown grouping with `<optgroup>` — uses disabled separator rows because `<optgroup>` styles weakly across browsers and the visual cue was the point. The Cast tab still uses card-style rows, not the dense-table look of StandingsTab; "mirror the standings tab" was interpreted as functional parity (rank, expand for detail, sort) not visual identity.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.61s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `e5cb556`
 
 ### v2.4.50.0 — 2026-06-01
 The old "Require gender minimums" feature was a special case of a more general pattern: "every depth chart must include at least N of each value of some contestant category." Most useful for Survivor (where tribes matter early-season) but also for other shows where contestants differ along non-gender axes. Generalized to **Require category minimums** with `gender` or `tribe` as the category, fully backwards-compatible with existing leagues using the old fields.
