@@ -33,7 +33,7 @@
 - **Score-manipulation risk** is mitigated separately by the existing audit log: every roster edit while locked or by commissioner-on-someone-else's-team writes a `roster-locked` entry, and Activity (now under Settings) is visible to every league member with a red FLAGGED badge on those entries. So even with elevated powers, abuse leaves a public trail.
 - **What this commit does NOT do.** No finer-grained per-action ACL (e.g. "this co-com can score but not edit rules"). No invite-by-email — co-coms must already be team owners (per v2.6.16.0). No reverse: primary can't be demoted to co-com without the full transfer flow.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.37s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `3d63cd3`
 
 ### v2.6.16.0 — 2026-06-01
 **Settings/menu cleanup + co-commissioner role + show-dependent category minimums + Roster section reorder.** Four asks bundled.
