@@ -801,23 +801,32 @@ function ContestantPhotoLightbox({ contestant, league, onClose }) {
   if (!contestant) return null;
   const color = getTribeColor(league, contestant);
   const hasPhoto = !!contestant.photoUrl;
+  // v2.5.1.0: lightbox must FIT the viewport — no body scroll. Outer container
+  // is full-screen with no overflow; inner is a flex column with caps so the
+  // photo + name + bio + close button all visible without scroll. If bio is
+  // exceptionally long, the bio region scrolls internally — never the whole
+  // modal — so the photo and close button stay visible.
   return ReactDOM.createPortal(
     <div onClick={onClose} style={{
       position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.92)",
-      display:"flex",alignItems:"flex-start",justifyContent:"center",zIndex:9999,cursor:"pointer",
-      padding:"40px 20px",overflowY:"auto",WebkitOverflowScrolling:"touch"
+      display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,cursor:"pointer",
+      padding:"20px",boxSizing:"border-box",
     }}>
-      <div style={{ maxWidth:400,width:"100%",textAlign:"center",flexShrink:0 }} onClick={e=>e.stopPropagation()}>
+      <div style={{
+        maxWidth:400,width:"100%",maxHeight:"100%",
+        display:"flex",flexDirection:"column",alignItems:"center",gap:10,
+        cursor:"default",
+      }} onClick={e=>e.stopPropagation()}>
         {hasPhoto ? (
-          <img src={contestant.photoUrl} alt={contestant?.name} style={{ width:"100%",maxWidth:360,borderRadius:14,objectFit:"contain",border:`3px solid ${color}` }} />
+          <img src={contestant.photoUrl} alt={contestant?.name} style={{ maxWidth:"100%",maxHeight:"45vh",borderRadius:14,objectFit:"contain",border:`3px solid ${color}`,flexShrink:0 }} />
         ) : (
-          <div style={{ width:"min(360px,80vw)",aspectRatio:"1/1",borderRadius:14,background:color,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto",fontFamily:"'Anybody',sans-serif",fontSize:140,fontWeight:900,color:"#fff",border:`3px solid ${color}` }}>
+          <div style={{ width:"min(45vh,80vw)",aspectRatio:"1/1",borderRadius:14,background:color,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Anybody',sans-serif",fontSize:"min(140px,18vh)",fontWeight:900,color:"#fff",border:`3px solid ${color}`,flexShrink:0 }}>
             {contestant.name?.[0] || "?"}
           </div>
         )}
-        <div style={{ marginTop:12,color:"#e8e8f0",fontFamily:"'Anybody',sans-serif",fontSize:22,fontWeight:700 }}>{contestant?.name}</div>
+        <div style={{ color:"#e8e8f0",fontFamily:"'Anybody',sans-serif",fontSize:22,fontWeight:700,textAlign:"center",flexShrink:0 }}>{contestant?.name}</div>
         {contestant?.bio && (
-          <div style={{ marginTop:12,textAlign:"left",padding:"0 8px",fontSize:13,lineHeight:1.8 }}>
+          <div style={{ flex:"1 1 0",minHeight:0,overflowY:"auto",textAlign:"left",padding:"0 8px",fontSize:13,lineHeight:1.7,width:"100%",boxSizing:"border-box" }}>
             {contestant.bio.split("\n").map((line, i) => {
               const colonIdx = line.indexOf(":");
               if (colonIdx > 0 && colonIdx < 30 && i < 10) {
@@ -830,7 +839,7 @@ function ContestantPhotoLightbox({ contestant, league, onClose }) {
             })}
           </div>
         )}
-        <button onClick={onClose} style={{ marginTop:16,marginBottom:20,background:"#2a2a4a",border:"none",borderRadius:8,padding:"8px 20px",color:"#ccc",fontSize:13,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>Close</button>
+        <button onClick={onClose} style={{ background:"#2a2a4a",border:"none",borderRadius:8,padding:"8px 20px",color:"#ccc",fontSize:13,cursor:"pointer",fontFamily:"'Outfit',sans-serif",flexShrink:0 }}>Close</button>
       </div>
     </div>,
     document.body
@@ -1894,8 +1903,11 @@ function TeamProfileModal({ team, league, standings, onClose }) {
               </>}
             </div>
           </div>
-          <div style={{ width:"100%",flexShrink:0,marginTop:4 }}>
-            <div style={{ fontSize:10,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6,textAlign:"center" }}>
+          {/* v2.5.1.0: roster region is the flexible-shrink child so the avatar
+              and name stay anchored at the top while a long roster scrolls
+              internally — never the whole modal. */}
+          <div style={{ width:"100%",flex:"1 1 0",minHeight:0,display:"flex",flexDirection:"column",marginTop:4 }}>
+            <div style={{ fontSize:10,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6,textAlign:"center",flexShrink:0 }}>
               {league.format === "captains" ? "Depth Chart" : `Current ${cadenceWord(league)} Roster`}
             </div>
             {roster.length === 0 ? (
@@ -1903,7 +1915,7 @@ function TeamProfileModal({ team, league, standings, onClose }) {
                 Empty roster
               </div>
             ) : (
-              <div style={{ display:"flex",flexDirection:"column",background:"#12121f",borderRadius:8,border:"1px solid #1e1e38",overflow:"hidden" }}>
+              <div style={{ display:"flex",flexDirection:"column",background:"#12121f",borderRadius:8,border:"1px solid #1e1e38",overflow:"auto",minHeight:0 }}>
                 {roster.map((c,idx) => (
                   <div key={c.id+"_"+idx} style={{ display:"flex",alignItems:"center",gap:8,padding:"7px 12px",borderBottom:idx<roster.length-1?"1px solid #1a1a30":"none" }}>
                     <span style={{ fontSize:10,fontWeight:700,color:c.role==="captain"?"#f5a623":c.role==="coCaptain"?"#4ecdc4":"#6a6a8a",width:62,flexShrink:0,textTransform:"uppercase",letterSpacing:"0.04em" }}>

@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.5.0.0
+**Current Production Version:** v2.5.1.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~7,975
+**App.jsx Line Count:** ~7,985
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,15 @@
 ---
 
 ## Version Log
+
+### v2.5.1.0 — 2026-06-01
+Profile modals (contestant photo lightbox, team profile modal) now FIT in the viewport — no body-level scroll. Tall contestant photos used to push the bio + Close button below the fold; users had to scroll to dismiss. Long rosters in TeamProfileModal could push the avatar off-screen.
+- **ContestantPhotoLightbox redesigned to fit viewport** at `App.jsx:794-843`. Outer container is full-screen with no overflow (was `overflowY: "auto"`). Inner is a flex column with caps: photo `maxHeight: 45vh, objectFit: contain` (was unbounded), photoless initial-avatar uses `min(45vh, 80vw)` aspect-ratio. Bio region is `flex: 1 1 0, minHeight: 0, overflowY: auto` so an exceptionally long bio scrolls inside its own region — the photo and Close button always stay visible. Alignment changed from `flex-start` to `center` to vertically center smaller content.
+- **TeamProfileModal roster scrolls internally** at `App.jsx:1906-1916`. Roster region was `flexShrink: 0` — could push the avatar off-screen with many entries. Changed to `flex: "1 1 0", minHeight: 0` so the avatar + name stay anchored; the roster list itself has `overflow: auto, minHeight: 0` to scroll within. Avatar caps unchanged (`min(360px, 42vh)`).
+- **Cursor fix on the lightbox inner panel** — was implicitly `cursor: pointer` from the outer click-to-close handler, which made it feel like clicking the photo would do something. Explicit `cursor: "default"` on inner.
+- **What this commit does NOT do.** No sweep of generic `<Modal>` consumers (AddContestantModal, AddTeamModal, JoinConfirmModal) — those have shorter content and already fit comfortably within `maxHeight: 88vh`. If a future modal turns out to overflow, the same pattern applies: cap the wrapper, make the chrome `flexShrink: 0`, and let the content region absorb leftover space with internal scroll.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.35s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.5.0.0 — 2026-06-01
 **Launch lockdown.** Three changes tightening the soft-launch experience: (1) only the Heroes format is selectable at league creation — Standard, Best Ball, Roto, Salary Cap, Survivor Pool, Elimination Pool, and Predictions are hidden behind a "more coming soon" notice until each format's UX is hardened; (2) clicking an invite link now lands directly on the joined league instead of pausing on AppHome with a confirmation modal; (3) the Cast-tab sort dropdown is cleaned up — "A–Z" rendered as escape-sequence text on some builds, the "Other" optgroup was needless (it held one entry), and "By Episode" / "By Week" simplifies to just the unit name.
