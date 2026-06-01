@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.22.0
+**Current Production Version:** v2.6.22.1
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~9,775
+**App.jsx Line Count:** ~9,890
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,17 @@
 ---
 
 ## Version Log
+
+### v2.6.22.1 — 2026-06-01
+**Bulk-add rules via spreadsheet paste.** Admin can paste many rules at once (TSV from Excel/Sheets, or comma-separated lines) instead of clicking through the modal 15+ times.
+- **`Bulk Add` button** next to `+ New Rule` in the Rule Library view at `App.jsx:8800-8804`. Opens a new `BulkAddRulesModal`.
+- **`BulkAddRulesModal`** at `App.jsx:9098-9189`. Single textarea, monospaced; format hint at the top shows a 3-line example. Auto-detects separator per line — if the line contains a tab, splits on tabs (so a paste from Excel/Sheets just works); otherwise splits on commas. Columns: `label`, `points`, `category`, `description`. Lines with empty labels are silently skipped (covers stray blank lines from spreadsheets).
+- **Live preview** below the textarea — shows the parsed rule count, lists the first 50 rules with their final label/category/points, and flags any new categories the paste would introduce (so admin doesn't accidentally typo "Challenges" as "Challenge" and create a duplicate). Updates on every keystroke.
+- **Modal-level defaults**: `Default Category` (used when a row omits the third column — defaults to "Custom"), `Include all in Base Template` checkbox (defaults on — most bulk pastes are seeding the base template, so the default matches the common case). Per-row override of `isBase` isn't supported in this first cut — bulk paste is for fast entry; uncheck the default and toggle individually after if you need finer control.
+- **`bulkAddRules` helper** at `App.jsx:8772-8794`. Takes the parsed rows + the default-base flag and appends them in a single `setLibrary` call. ID collisions get numeric suffixes (same scheme as `addNewRule`). Local-state-only — admin clicks the section's main Save button to persist, same as any other library edit.
+- **What this commit does NOT do.** No bulk-EDIT for existing rules — that's a meaningfully different UI (spreadsheet-style inline grid) and the bulk-add path covers the actual "15 new rules" pain. If bulk-edit becomes a thing, a separate v2.6.23.x. No xlsx parsing — the user pastes from the clipboard; the xlsx dep is for league import, not rule entry. No per-row Base/Elim toggles in the modal — the modal applies the modal-level defaults uniformly; per-row tweaks happen after via the existing row editor.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.67s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.22.0 — 2026-06-01
 **Rule library drag-and-drop reordering + category grouping.** Admin can now structure each show's library by category, with row-level ordering inside each category and rules movable across categories by drag.

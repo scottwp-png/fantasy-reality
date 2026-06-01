@@ -8784,6 +8784,32 @@ function AdminShowDetail({ record, onBack }) {
     setNewRule({ label:"", points:0, category:"Custom", description:"", isBase:true });
     setAdding(false);
   }
+  // v2.6.22.1: bulk-add support. Takes the parsed rows from BulkAddRulesModal
+  // and appends them all in one setLibrary call. ID collisions get numeric
+  // suffixes (same scheme as addNewRule). Each row inherits the modal's
+  // isBase choice unless the row's last column overrides it.
+  function bulkAddRules(rows, defaultBase) {
+    if (!rows || rows.length === 0) return;
+    setLibrary(prev => {
+      const next = { ...prev };
+      rows.forEach(row => {
+        if (!row.label) return;
+        const baseId = "lib_" + selectedShow + "_" + row.label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/_+$/, "");
+        let id = baseId; let n = 2;
+        while (next[id]) { id = `${baseId}_${n++}`; }
+        next[id] = {
+          label: row.label,
+          description: row.description || "",
+          points: Number(row.points) || 0,
+          category: row.category || "Custom",
+          isElimination: !!row.isElimination,
+          isBase: row.isBase != null ? !!row.isBase : !!defaultBase,
+        };
+      });
+      return next;
+    });
+  }
+  const [bulkAdding, setBulkAdding] = useState(false);
 
   async function saveAll() {
     setSaving(true);
@@ -8890,9 +8916,12 @@ function AdminShowDetail({ record, onBack }) {
           // change the rule's category); drop onto a category header to
           // append to that category.
           <div>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:6,marginBottom:8 }}>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:6,marginBottom:8,flexWrap:"wrap" }}>
               <div style={{ fontSize:10,color:"#6a6a8a",fontStyle:"italic" }}>Drag a rule by its grip handle to reorder or move between categories.</div>
-              <Btn small variant={adding?"ghost":"secondary"} onClick={()=>setAdding(!adding)}>{adding?"Cancel":"+ New Rule"}</Btn>
+              <div style={{ display:"flex",gap:6 }}>
+                <Btn small variant="secondary" onClick={()=>setBulkAdding(true)}>Bulk Add</Btn>
+                <Btn small variant={adding?"ghost":"secondary"} onClick={()=>setAdding(!adding)}>{adding?"Cancel":"+ New Rule"}</Btn>
+              </div>
             </div>
             {adding && (
               <div style={{ marginBottom:10,padding:"12px",background:"#0d0d18",borderRadius:8,border:"1px solid #f5a62333" }}>
@@ -8988,6 +9017,15 @@ function AdminShowDetail({ record, onBack }) {
         />
       )}
 
+      {/* v2.6.22.1: bulk add modal — paste TSV/CSV from a spreadsheet */}
+      {bulkAdding && (
+        <BulkAddRulesModal
+          existingCategories={categoryNames}
+          onAdd={(rows, defaultBase) => { bulkAddRules(rows, defaultBase); setBulkAdding(false); }}
+          onClose={() => setBulkAdding(false)}
+        />
+      )}
+
       <ShowCastSection selectedShow={selectedShow} lockedSeason={lockedSeason} />
       <ShowWideScoringSection selectedShow={selectedShow} mergedRules={mergedRules} lockedSeason={lockedSeason} />
     </div>
@@ -9045,6 +9083,109 @@ function RuleEditorModal({ rule, onSave, onDelete, onClose }) {
         <div style={{ flex:1 }}/>
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
         <Btn onClick={save} disabled={!draft.label.trim()}>Save</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// v2.6.22.1: bulk-add modal. Admin pastes TSV/CSV from a spreadsheet (or
+// types rows by hand) and gets a live preview before committing. Auto-detects
+// tab-vs-comma separator per line — handles spreadsheet copy (TSV) and
+// simple comma lists equally well. Columns: label, points, category,
+// description. Lines with empty labels are silently skipped.
+function BulkAddRulesModal({ existingCategories, onAdd, onClose }) {
+  const [text, setText] = useState("");
+  const [defaultBase, setDefaultBase] = useState(true);
+  const [defaultCategory, setDefaultCategory] = useState("Custom");
+
+  // Parse on every change — cheap, and the live preview is the whole point.
+  const parsed = useMemo(() => {
+    if (!text.trim()) return [];
+    const rows = [];
+    const lines = text.split(/\r?\n/);
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) continue;
+      const sep = line.includes("\t") ? "\t" : ",";
+      const cells = line.split(sep).map(c => c.trim());
+      const label = cells[0];
+      if (!label) continue;
+      const pointsRaw = cells[1];
+      const points = pointsRaw === "" || pointsRaw == null ? 0 : (Number(pointsRaw) || 0);
+      const category = (cells[2] || "").trim() || defaultCategory.trim() || "Custom";
+      const description = (cells[3] || "").trim();
+      rows.push({ label, points, category, description });
+    }
+    return rows;
+  }, [text, defaultCategory]);
+
+  const newCategoriesPreview = useMemo(() => {
+    const existing = new Set(existingCategories || []);
+    const seen = new Set();
+    parsed.forEach(r => { if (r.category && !existing.has(r.category)) seen.add(r.category); });
+    return Array.from(seen);
+  }, [parsed, existingCategories]);
+
+  return (
+    <Modal open title="Bulk Add Rules" onClose={onClose}>
+      <div style={{ fontSize:12,color:"#8888aa",marginBottom:10,lineHeight:1.5 }}>
+        Paste rows from a spreadsheet (tab-separated) or type them by hand (comma-separated). One rule per line.
+        <div style={{ marginTop:6,padding:"8px 10px",background:"#0d0d18",borderRadius:6,border:"1px solid #1e1e38",fontFamily:"monospace",fontSize:11,color:"#aaaabf",whiteSpace:"pre" }}>
+          {"label\tpoints\tcategory\tdescription\nImmunity Win\t5\tChallenges\tWin individual immunity\nIdol Played\t3\tStrategy\tCorrectly play hidden idol"}
+        </div>
+      </div>
+
+      <div style={{ display:"flex",gap:10,marginBottom:10 }}>
+        <div style={{ flex:1 }}>
+          <Input label="Default Category" value={defaultCategory} onChange={e=>setDefaultCategory(e.target.value)} placeholder="Used when a row omits category" />
+        </div>
+        <label style={{ display:"flex",alignItems:"flex-end",gap:6,fontSize:12,color:"#aaaabf",cursor:"pointer",paddingBottom:10 }}>
+          <input type="checkbox" checked={defaultBase} onChange={e=>setDefaultBase(e.target.checked)} style={{ accentColor:"#f5a623" }} />
+          Include all in Base Template
+        </label>
+      </div>
+
+      <div style={{ marginBottom:10 }}>
+        <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>Rules</label>
+        <textarea
+          value={text}
+          onChange={e=>setText(e.target.value)}
+          autoFocus
+          rows={10}
+          placeholder={"Immunity Win\t5\tChallenges\nIdol Played\t3\tStrategy"}
+          style={{
+            width:"100%",padding:"10px 14px",background:"#12121f",border:"1px solid #2a2a4a",
+            borderRadius:8,color:"#e8e8f0",fontSize:13,fontFamily:"monospace",resize:"vertical",
+            boxSizing:"border-box",outline:"none",lineHeight:1.5,whiteSpace:"pre",
+          }}
+        />
+      </div>
+
+      {parsed.length > 0 && (
+        <div style={{ marginBottom:10,padding:"10px 12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38" }}>
+          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:6 }}>
+            <div style={{ fontSize:11,fontWeight:700,color:"#4ecdc4",textTransform:"uppercase",letterSpacing:"0.05em" }}>Preview &middot; {parsed.length} rule{parsed.length===1?"":"s"}</div>
+            {newCategoriesPreview.length > 0 && (
+              <div style={{ fontSize:10,color:"#f5a623" }}>+ {newCategoriesPreview.length} new categor{newCategoriesPreview.length===1?"y":"ies"}: {newCategoriesPreview.join(", ")}</div>
+            )}
+          </div>
+          <div style={{ maxHeight:160,overflowY:"auto",display:"flex",flexDirection:"column",gap:3 }}>
+            {parsed.slice(0, 50).map((r, i) => (
+              <div key={i} style={{ display:"flex",gap:8,alignItems:"center",fontSize:12,color:"#aaaabf" }}>
+                <div style={{ flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:"#e8e8f0" }}>{r.label}</div>
+                <div style={{ color:"#6a6a8a",fontSize:10 }}>{r.category}</div>
+                <div style={{ fontFamily:"'Anybody',sans-serif",fontWeight:700,color:r.points>=0?"#4ecdc4":"#e94560",minWidth:36,textAlign:"right" }}>{r.points>=0?"+":""}{r.points}</div>
+              </div>
+            ))}
+            {parsed.length > 50 && <div style={{ fontSize:10,color:"#6a6a8a",fontStyle:"italic",marginTop:4 }}>…+ {parsed.length - 50} more</div>}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display:"flex",gap:8 }}>
+        <div style={{ flex:1 }}/>
+        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+        <Btn onClick={()=>onAdd(parsed, defaultBase)} disabled={parsed.length === 0}>Add {parsed.length || ""} to Library</Btn>
       </div>
     </Modal>
   );
