@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.5.1.1
+**Current Production Version:** v2.5.2.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~7,975
+**App.jsx Line Count:** ~8,045
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,19 @@
 ---
 
 ## Version Log
+
+### v2.5.2.0 — 2026-06-01
+The Cast tab sort dropdown's per-week options now group episodes into **draft weeks** for multi-episode shows (Love Island, Big Brother, Love is Blind — episodesPerWeek > 1). Selecting "Week N" on a multi-ep league sorts by the week's combined points AND renders a row of per-episode score chips on each contestant card. Tapping a chip opens a per-episode game-log modal showing the breakdown of scoring events for that contestant in that single episode. Single-ep leagues (Survivor, Top Chef, Bachelor, etc.) get no visible change — each "draft week" has exactly one episode so the dropdown labels and card layout are identical to before.
+- **`draftWeeksGrouped` derived state** at `App.jsx:2062-2076`. For `episodesPerWeek === 1`, returns `[{ num: w, episodes: [w] }, ...]` — each draft week is a single episode. For multi-ep, groups episodes by `Math.ceil(episode / episodesPerWeek)` so episodes 1-6 are draft week 1 (Love Island, 6/wk), 7-12 are week 2, etc. The episodes array within each group is sorted numerically so chips render in order.
+- **Sort comparator handles multi-ep** at `App.jsx:2092-2098`. `sortBy === "week:N"` now resolves to the draft week's episode list and sums points across those episodes for each contestant before comparing. Single-ep leagues see no behavior change — the episode list has one entry, and the sum equals the per-episode total.
+- **Dropdown shows draft weeks** at `App.jsx:2235-2239`. The "Week" optgroup iterates `draftWeeksGrouped` (instead of raw `weeks`) and labels each `Week ${dw.num}`. Single-ep leagues see one entry per week (same as before); multi-ep leagues see one entry per draft week (was one entry per episode, which was misleading).
+- **Card big-value for draft weeks** at `App.jsx:2377`. When `sortBy.startsWith("week:")`, `bigVal` sums points across the draft week's episodes, `bigLabel` is `week N`, and `subtitle` shows `"${count} episodes"` for multi-ep (lets users see at a glance how many episodes contributed) or season total for single-ep.
+- **Per-episode chip row** at `App.jsx:2406-2429` — only renders when `epsPerWk > 1 && sortBy.startsWith("week:")`. Renders one chip per episode in the selected draft week, color-coded by points (teal positive / red negative), labeled `Ep N: +XX`. Each chip is a `<button>` with `e.stopPropagation()` so tapping doesn't toggle the card's expand state. Tapping sets `episodeModal = { contestantId, episode }`.
+- **EpisodeGameLogModal** at `App.jsx:2495-2531` — when `episodeModal` is set, renders a `<Modal>` with the contestant's avatar, episode total, and a list of every scored rule for that contestant in that episode. Each entry shows rule label + count + description (the v2.4.46.0 descriptions pay off here — players can see "what does this rule mean?" in the very moment they're looking at the score). Reuses the existing `getWeekDetail` helper. Empty-state message when no events scored.
+- **Why grouping ALWAYS happens (even single-ep)**: keeping the code path unified avoids a branch in every consumer. For single-ep leagues, `draftWeeksGrouped` has shape `[{ num: "1", episodes: ["1"] }, ...]`. The sort comparator's `eps.reduce` sums one entry. The dropdown shows one option per week. The chip row is gated on `epsPerWk > 1` separately, so single-ep cards don't get cluttered.
+- **What this commit does NOT do.** Episode-level statistics (best-episode-of-best-week, etc.) — current Best/Worst/Last still use per-episode entries from `weeklyTotals`. For multi-ep shows that mismatch (Best Episode vs Best Week) is acceptable for the soft launch; we can add a "Best Week" sort that sums per-draft-week later. No way to navigate between episodes within the modal (e.g., "next episode" arrows) — close modal, tap next chip is fine for now.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.31s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.5.1.1 — 2026-06-01
 v2.5.1.0 went too far stripping the profile modals — the original layouts were basically right, they just needed the photo capped so portrait images didn't push the close button below the fold on small viewports. Reverted both modals to their pre-v2.5.1.0 layout (outer scroll, photo as natural-width, no internal scroll regions) and added a single line: `maxHeight: 55vh` on the contestant photo's `<img>`. The TeamProfileModal didn't need any change — kept its v2.4.x roster layout.

@@ -2034,6 +2034,26 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
   const tribes = league.tribes || {};
   const tribeNames = Object.keys(tribes);
   const isMerged = league.merged || false;
+  // v2.5.2.0: group per-episode score entries into draft weeks for multi-episode
+  // shows (Love Island ~6/wk, Big Brother 3/wk). For single-episode shows
+  // (Survivor etc.), each draft week has one episode and the behavior is
+  // identical to before. Used by the sort dropdown (draft-week labels) and the
+  // per-week card rendering (episode chips when multi-ep).
+  const epsPerWk = league.episodesPerWeek || 1;
+  const draftWeeksGrouped = useMemo(() => {
+    if (epsPerWk === 1) return weeks.map(w => ({ num: w, episodes: [w] }));
+    const groups = {};
+    weeks.forEach(w => {
+      const dw = String(Math.ceil(Number(w) / epsPerWk));
+      if (!groups[dw]) groups[dw] = [];
+      groups[dw].push(w);
+    });
+    return Object.entries(groups)
+      .map(([num, eps]) => ({ num, episodes: eps.sort((a,b) => +a - +b) }))
+      .sort((a,b) => +a.num - +b.num);
+  }, [weeks, epsPerWk]);
+  // For multi-ep, opens the per-episode game-log modal when a chip is tapped.
+  const [episodeModal, setEpisodeModal] = useState(null); // { contestantId, episode } | null
 
   const contestantStats = useMemo(() => {
     return (league.contestants||[]).map(c => {
@@ -2064,8 +2084,11 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
     if (sortBy === "best") return b.bestWeekPts - a.bestWeekPts;
     if (sortBy === "worst") return a.worstWeekPts - b.worstWeekPts;
     if (sortBy.startsWith("week:")) {
-      const w = sortBy.slice(5);
-      return (b.weeklyTotals?.[w] || 0) - (a.weeklyTotals?.[w] || 0);
+      const dw = sortBy.slice(5);
+      const eps = draftWeeksGrouped.find(g => g.num === dw)?.episodes || [];
+      const sumA = eps.reduce((s, e) => s + (a.weeklyTotals?.[e] || 0), 0);
+      const sumB = eps.reduce((s, e) => s + (b.weeklyTotals?.[e] || 0), 0);
+      return sumB - sumA;
     }
     return a.name.localeCompare(b.name);
   });
@@ -2163,9 +2186,9 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
             <option value="lastWeek">Last {cadenceWord(league)}</option>
             <option value="name">{"A\u2013Z"}</option>
           </optgroup>
-          {weeks.length > 0 && (
-            <optgroup label={cadenceWord(league)}>
-              {weeks.map(w => <option key={w} value={`week:${w}`}>{cadenceLabel(league, w)}</option>)}
+          {draftWeeksGrouped.length > 0 && (
+            <optgroup label="Week">
+              {draftWeeksGrouped.map(dw => <option key={dw.num} value={`week:${dw.num}`}>Week {dw.num}</option>)}
             </optgroup>
           )}
         </select>
@@ -2351,7 +2374,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
             else if(sortBy==="lastWeek"){bigVal=c.lastWeekPts;bigLabel=`${cadenceShort(league).toLowerCase()} ${(league.currentWeek||1)-1}`;subtitle=`Season: ${formatPts(c.total, league)}`;}
             else if(sortBy==="best"){bigVal=c.bestWeekPts;bigLabel=c.bestWeekNum?`${cadenceShort(league).toLowerCase()} ${c.bestWeekNum}`:null;subtitle=`Season: ${formatPts(c.total, league)}`;}
             else if(sortBy==="worst"){bigVal=c.worstWeekPts;bigLabel=c.worstWeekNum?`${cadenceShort(league).toLowerCase()} ${c.worstWeekNum}`:null;subtitle=`Season: ${formatPts(c.total, league)}`;}
-            else if(sortBy.startsWith("week:")){const w=sortBy.slice(5);bigVal=c.weeklyTotals?.[w]||0;bigLabel=`${cadenceShort(league).toLowerCase()} ${w}`;subtitle=`Season: ${formatPts(c.total, league)}`;}
+            else if(sortBy.startsWith("week:")){const dw=sortBy.slice(5);const eps=draftWeeksGrouped.find(g=>g.num===dw)?.episodes||[];bigVal=eps.reduce((s,e)=>s+(c.weeklyTotals?.[e]||0),0);bigLabel=`week ${dw}`;subtitle=epsPerWk>1?`${eps.length} episodes`:`Season: ${formatPts(c.total, league)}`;}
             else{bigVal=c.total;bigLabel=null;subtitle=null;}
             return(<div key={c.id} style={{borderRadius:12,background:"#12121f",border:"1px solid #1e1e38",opacity:c.status==="eliminated"?0.5:1,overflow:"hidden",transition:"all 0.2s"}}>
               <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",cursor:"pointer"}} onClick={()=>setExpandedId(isExp?null:c.id)}>
@@ -2372,6 +2395,33 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                 </div>
                 <div style={{transform:isExp?"rotate(90deg)":"none",transition:"transform 0.15s ease",color:"#4a4a6a"}}><Icon name="chevron" size={14}/></div>
               </div>
+              {/* v2.5.2.0: per-episode chip row for multi-episode shows when a
+                  draft week is selected. Each chip shows the episode's points
+                  and opens the per-episode game log modal on tap. */}
+              {epsPerWk > 1 && sortBy.startsWith("week:") && (() => {
+                const dw = sortBy.slice(5);
+                const eps = draftWeeksGrouped.find(g => g.num === dw)?.episodes || [];
+                if (eps.length === 0) return null;
+                return (
+                  <div style={{display:"flex",flexWrap:"wrap",gap:6,padding:"0 14px 12px",borderTop:"1px solid #1a1a30",paddingTop:10}}>
+                    {eps.map(ep => {
+                      const pts = c.weeklyTotals?.[ep] || 0;
+                      const color = pts > 0 ? "#4ecdc4" : pts < 0 ? "#e94560" : "#6a6a8a";
+                      return (
+                        <button key={ep} onClick={e=>{e.stopPropagation();setEpisodeModal({ contestantId: c.id, episode: ep });}}
+                          style={{
+                            padding:"5px 10px",borderRadius:6,border:`1px solid ${color}33`,
+                            background:`${color}11`,color:color,fontSize:11,fontWeight:600,
+                            cursor:"pointer",fontFamily:"'Outfit',sans-serif",display:"inline-flex",alignItems:"center",gap:6,
+                          }}>
+                          <span style={{ color:"#8888aa" }}>Ep {ep}</span>
+                          <span>{pts>0?"+":""}{formatPts(pts, league)}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
               {isExp&&(<div style={{padding:"0 14px 14px",borderTop:"1px solid #1a1a30"}}>
                 {c.bio&&<div style={{color:"#6a6a8a",fontSize:11,padding:"8px 0",lineHeight:1.4}}>{c.bio}</div>}
 
@@ -2434,6 +2484,46 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
           })}
         </div>
       )}
+      {episodeModal && (() => {
+        const c = (league.contestants||[]).find(x => x.id === episodeModal.contestantId);
+        if (!c) return null;
+        const ep = episodeModal.episode;
+        const dets = getWeekDetail(c.id, ep);
+        const wP = (league.weeklyScores?.[ep]?.[c.id]) ? Object.values(league.weeklyScores[ep][c.id]).reduce((s,v)=>s+v,0) : 0;
+        return (
+          <Modal open title={`${c.name} · Episode ${ep}`} onClose={()=>setEpisodeModal(null)}>
+            <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:16}}>
+              <ContestantAvatar contestant={c} league={league} size={56} />
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{color:"#e8e8f0",fontWeight:700,fontFamily:"'Anybody',sans-serif",fontSize:18}}>{c.name}</div>
+                <div style={{color:"#6a6a8a",fontSize:12,marginTop:2}}>Episode {ep} game log</div>
+              </div>
+              <div style={{textAlign:"right",fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:24,color:wP>0?"#4ecdc4":wP<0?"#e94560":"#6a6a8a"}}>
+                {wP>0?"+":""}{formatPts(wP, league)}
+              </div>
+            </div>
+            {dets.length === 0 ? (
+              <div style={{padding:"20px",textAlign:"center",color:"#6a6a8a",fontSize:13,background:"#12121f",borderRadius:8,border:"1px dashed #2a2a4a"}}>
+                No scoring events recorded for this episode.
+              </div>
+            ) : (
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {dets.map(d => (
+                  <div key={d.rule.id} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",borderRadius:8,background:d.rule.points>=0?"#4ecdc411":"#e9456011",border:`1px solid ${d.rule.points>=0?"#4ecdc433":"#e9456033"}`}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{color:"#e8e8f0",fontSize:13,fontWeight:600}}>{d.rule.label}{d.count>1?` ×${d.count}`:""}</div>
+                      {d.rule.description && <div style={{color:"#8888aa",fontSize:11,marginTop:3,lineHeight:1.4}}>{d.rule.description}</div>}
+                    </div>
+                    <div style={{fontFamily:"'Anybody',sans-serif",fontWeight:700,fontSize:14,color:d.rule.points>=0?"#4ecdc4":"#e94560",flexShrink:0}}>
+                      {d.pts>0?"+":""}{formatPts(d.pts, league)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Modal>
+        );
+      })()}
     </div>
   );
 }
