@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.7.0
+**Current Production Version:** v2.6.8.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~8,700
+**App.jsx Line Count:** ~8,685
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -23,6 +23,15 @@
 
 ## Version Log
 
+### v2.6.8.0 — 2026-06-01
+**Library picker locked to the league's show.** The show selector dropdown added in v2.4.45.0 let commissioners browse rules from any show preset (with the current show as default). In practice, cross-show rules don't apply to this league's contestants — the dropdown was decision-noise. Removed the selector, the `libraryShow` state, and the "All shows" option. The Add-from-Library picker now shows only the rules from `SHOW_PRESETS[league.showType].scoringDefaults` minus what's already in the league.
+- **Removed at `App.jsx:6300-6305`**: `libraryShow` state.
+- **Removed at `App.jsx:6618-6627`**: the `<select>` block and its container `<div>`.
+- **`libraryAvailable` simplified** at `App.jsx:6314-6321`: always filters against the league's show preset, no conditional branch on "all". Custom rules (commissioner-added) live in `league.scoringRules` already and aren't show-bound, so they're unaffected.
+- **What this commit does NOT do.** No removal of the show selector elsewhere (admin Shows tab still has one — that's where the admin manages cross-show base rules and library add-ons). Existing leagues that had a cross-show rule added before this release still have that rule in `league.scoringRules`; removal isn't retroactive — only the picker UI is locked down.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.90s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
+
 ### v2.6.7.0 — 2026-06-01
 **Auto-import show cast at league creation when admin has it set up.** Universal-cast principle: the same (show, season) means the same contestants for every league. Commissioners shouldn't redo the data entry the admin already did.
 - **`handleSave` in `CreateLeagueScreen` is now async** at `App.jsx:1109-1184`. When the commissioner picks a season number, the create flow does a `loadData("showCast/<showType>/season_<N>")` call before constructing the league object. If the admin populated the cast, every contestant is cloned into the new league with a freshly-generated id, preserving name / photoUrl / photoCropY / gender / tribe. Status defaults to `"active"`; bio defaults to empty (commissioner can edit any field after).
@@ -31,7 +40,7 @@
 - **One-time backfill executed**: contestants from the existing "Fantasy Love Island" / "Series 13" league (id `mpu4onvos07eq`) were written to `showCast/love_island/season_13` via `firebase database:set`. The league was also patched with `seasonNumber: 13` so the opt-in toggle works for it. Any NEW Love Island Series 13 league created from this point auto-inherits those 12 contestants (with photos, gender, etc.) without any commissioner setup.
 - **What this commit does NOT do.** No ongoing sync — if the admin updates the cast (renames a contestant, adds a returnee mid-season), already-existing leagues don't see it automatically. Commissioners can re-run the Import Cast button on the Cast tab to pull updates (skips dupes by case-insensitive name). No bulk auto-update across all leagues sharing a season key (could be done as a future feature; out of scope for the soft launch).
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.99s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `408b7ab`
 
 ### v2.6.6.0 — 2026-06-01
 **Admin-managed show cast + one-click commissioner import + per-team uid for accurate user count.** Solves the "set up 20 contestants manually for every league" pain point and makes the Stats user count work without requiring the rules deploy.

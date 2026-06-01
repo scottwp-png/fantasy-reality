@@ -6419,12 +6419,6 @@ function ScoringRulesSection({ league, onUpdate, userProfile }) {
   const [newCategory, setNewCategory] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
-  // v2.4.45.0: library was showing all 133 default rules across every show
-  // preset — Survivor commissioners saw Top Chef / Bake Off / Drag Race
-  // entries cluttering the picker. Default the filter to this league's show
-  // (so Survivor sees only Survivor rules), with a dropdown to switch to a
-  // different show or "All shows" for the rare cross-show borrow case.
-  const [libraryShow, setLibraryShow] = useState(league.showType || "all");
 
   // Group rules by category, preserving the order they appear in the league array
   const grouped = useMemo(() => {
@@ -6439,13 +6433,14 @@ function ScoringRulesSection({ league, onUpdate, userProfile }) {
   }, [rules]);
 
   const existingIds = new Set(rules.map(r => r.id));
-  // Filter the library by show: when libraryShow points at a known preset,
-  // intersect against its scoringDefaults list of rule IDs; "all" returns
-  // every default rule. Already-added rules are still excluded.
+  // v2.6.8.0: library is locked to THIS league's show — no cross-show picker.
+  // Rules from other shows aren't meaningful for this league's scoring; the
+  // selector was cognitive noise. Custom rules (commissioner-added) live in
+  // league.scoringRules already and aren't show-bound.
   const libraryAvailable = useMemo(() => {
-    const showIds = libraryShow !== "all" ? new Set(SHOW_PRESETS[libraryShow]?.scoringDefaults || []) : null;
-    return DEFAULT_SCORING_RULES.filter(r => !existingIds.has(r.id) && (!showIds || showIds.has(r.id)));
-  }, [libraryShow, existingIds]);
+    const showIds = new Set(SHOW_PRESETS[league.showType]?.scoringDefaults || []);
+    return DEFAULT_SCORING_RULES.filter(r => !existingIds.has(r.id) && showIds.has(r.id));
+  }, [league.showType, existingIds]);
 
   function updateRulePoints(ruleId, nextPts) {
     const rule = rules.find(r => r.id === ruleId);
@@ -6620,18 +6615,7 @@ function ScoringRulesSection({ league, onUpdate, userProfile }) {
       <div style={{ marginBottom:20,padding:"14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:pickerOpen?12:0,flexWrap:"wrap" }}>
           <div style={{ fontSize:13,fontWeight:700,color:"#e8e8f0" }}>Add from Library ({libraryAvailable.length} available)</div>
-          <div style={{ display:"flex",gap:8,alignItems:"center" }}>
-            <select value={libraryShow} onChange={e=>setLibraryShow(e.target.value)} title="Filter library by show" style={{
-              padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
-              color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",cursor:"pointer",outline:"none",
-            }}>
-              {Object.entries(SHOW_PRESETS).map(([id, p]) => (
-                <option key={id} value={id}>{p.name}</option>
-              ))}
-              <option value="all">All shows</option>
-            </select>
-            <Btn small variant={pickerOpen?"ghost":"secondary"} onClick={()=>setPickerOpen(!pickerOpen)} disabled={libraryAvailable.length===0}>{pickerOpen?"Close":"Browse"}</Btn>
-          </div>
+          <Btn small variant={pickerOpen?"ghost":"secondary"} onClick={()=>setPickerOpen(!pickerOpen)} disabled={libraryAvailable.length===0}>{pickerOpen?"Close":"Browse"}</Btn>
         </div>
         {pickerOpen && libraryAvailable.length > 0 && (
           <div style={{ maxHeight:300,overflow:"auto",background:"#0d0d18",borderRadius:6,padding:8 }}>
