@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.16.0
+**Current Production Version:** v2.6.17.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~9,230
+**App.jsx Line Count:** ~9,245
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,18 @@
 ---
 
 ## Version Log
+
+### v2.6.17.0 — 2026-06-01
+**Two-tier commissioner permissions.** v2.6.16.0 gave co-commissioners full parity with the primary, which exposed two genuinely risky surfaces: a rogue co-com could (a) transfer the primary role away from the real commissioner, or (b) demote the primary's other trusted co-coms / promote their own friends. Locked both to primary only.
+- **`isPrimaryCommissioner` derivation** added alongside `isCommissioner` at the top-level FantasyRealityTV component (`App.jsx:7870`). True for: admin, `league.commissionerUid === authUser.uid`, or the legacy `commissionerTeamId` activation match. Crucially does NOT OR in the `coCommissioners` array — that's the entire point.
+- **Threaded through to `SettingsTab`** at `App.jsx:1746, 6749` (new prop). From there, gates two specific surfaces:
+  - **Transfer Commissioner (Danger Zone)** at `App.jsx:7233-7268`. The picker only renders for primary; co-coms see a read-only notice explaining the restriction.
+  - **CoCommissionersEditor (Invite & Teams)** at `App.jsx:6815-6892`. Co-coms see the LIST (who else holds the role) but the Remove button per row, the Promote dropdown, and the explainer "Only the primary commissioner can add or remove co-commissioners" replace the editor controls.
+- **Co-commissioners keep**: scoring, lock toggles (manual + auto), finalize / reverse / advance weeks, cast management, scoring-rule edits, polls, predictions, team management (add/remove teams, regenerate invite codes), edit-other-team-rosters (audit-logged with FLAGGED badge), settings (general / scoring rules / roster). Everything not transfer-of-primary-or-co-com-list.
+- **Score-manipulation risk** is mitigated separately by the existing audit log: every roster edit while locked or by commissioner-on-someone-else's-team writes a `roster-locked` entry, and Activity (now under Settings) is visible to every league member with a red FLAGGED badge on those entries. So even with elevated powers, abuse leaves a public trail.
+- **What this commit does NOT do.** No finer-grained per-action ACL (e.g. "this co-com can score but not edit rules"). No invite-by-email — co-coms must already be team owners (per v2.6.16.0). No reverse: primary can't be demoted to co-com without the full transfer flow.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.37s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.16.0 — 2026-06-01
 **Settings/menu cleanup + co-commissioner role + show-dependent category minimums + Roster section reorder.** Four asks bundled.

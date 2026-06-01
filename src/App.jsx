@@ -1639,7 +1639,7 @@ function LeagueActivityTab({ league }) {
   );
 }
 
-function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissioner, allLeagues, userProfile, onRevealSpoiler }) {
+function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissioner, isPrimaryCommissioner, allLeagues, userProfile, onRevealSpoiler }) {
   const [tab, setTab] = useState("standings");
   const [modal, setModal] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
@@ -1742,7 +1742,7 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
         {tab === "set-prices" && isCommissioner && <SalaryCapPricesTab league={league} onUpdate={onUpdate} />}
         {tab === "predict" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><PredictionsPlayerTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} /></SpoilerBlur>}
         {tab === "manage-questions" && isCommissioner && <PredictionsCommishTab league={league} onUpdate={onUpdate} />}
-        {tab === "settings" && <SettingsTab league={league} onUpdate={onUpdate} allLeagues={allLeagues} setModal={setModal} setEditing={setEditingItem} userProfile={userProfile} isCommissioner={isCommissioner} />}
+        {tab === "settings" && <SettingsTab league={league} onUpdate={onUpdate} allLeagues={allLeagues} setModal={setModal} setEditing={setEditingItem} userProfile={userProfile} isCommissioner={isCommissioner} isPrimaryCommissioner={isPrimaryCommissioner} />}
       </div>
 
       {isCommissioner && (
@@ -6748,7 +6748,7 @@ function CategoryMinimumsEditor({ league, onUpdate }) {
 // v2.6.6.0). Pre-v2.6.6.0 teams without uid get a "Save roster once" prompt
 // so they get stamped. Admin auto-counts as commissioner via the isAdmin
 // check; this UI is for non-admin commissioners.
-function CoCommissionersEditor({ league, onUpdate, userProfile }) {
+function CoCommissionersEditor({ league, onUpdate, userProfile, isPrimaryCommissioner = false }) {
   const co = Array.isArray(league.coCommissioners) ? league.coCommissioners : [];
   const teams = league.teams || [];
   const primaryUid = league.commissionerUid;
@@ -6787,7 +6787,8 @@ function CoCommissionersEditor({ league, onUpdate, userProfile }) {
     <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
       <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:4 }}>Co-Commissioners</div>
       <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:10,lineHeight:1.5 }}>
-        Promote a team owner to share commissioner powers — scoring, lock toggles, settings, everything except transferring the primary commissioner role. Co-commissioners show up in the Activity log just like you do.
+        Elevated league powers — scoring, lock toggles, cast/rule management, finalize weeks, polls, team management. Reserved for the primary commissioner: transferring the primary role and managing this co-commissioner list. Co-commissioners show up in the Activity log just like the primary.
+        {!isPrimaryCommissioner && <span style={{ display:"block",marginTop:6,color:"#f5a623",fontSize:11,fontStyle:"italic" }}>Only the primary commissioner can add or remove co-commissioners.</span>}
       </div>
 
       {co.length === 0 ? (
@@ -6805,14 +6806,14 @@ function CoCommissionersEditor({ league, onUpdate, userProfile }) {
                   <div style={{ color:"#6a6a8a",fontSize:11,marginTop:1 }}>{t ? `Team ${t.name}` : `uid: ${uid.slice(0,12)}…`}</div>
                 </div>
                 <Badge color="#9d5dff">Co-Commissioner</Badge>
-                <Btn small variant="danger" onClick={()=>demote(uid)}>Remove</Btn>
+                {isPrimaryCommissioner && <Btn small variant="danger" onClick={()=>demote(uid)}>Remove</Btn>}
               </div>
             );
           })}
         </div>
       )}
 
-      {eligible.length > 0 ? (
+      {!isPrimaryCommissioner ? null : eligible.length > 0 ? (
         <div style={{ display:"flex",gap:8 }}>
           <select value={pickTeamId} onChange={e=>setPickTeamId(e.target.value)} style={{
             flex:1,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",
@@ -6836,7 +6837,7 @@ function CoCommissionersEditor({ league, onUpdate, userProfile }) {
   );
 }
 
-function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userProfile, isCommissioner = false }) {
+function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userProfile, isCommissioner = false, isPrimaryCommissioner = false }) {
   const [editingInfo, setEditingInfo] = useState(false);
   const [leagueInfo, setLeagueInfo] = useState({
     name: league.name || "",
@@ -7212,11 +7213,11 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
         )}
       </div>
 
-      {/* v2.6.16.0: Co-commissioners — additional users with commissioner
-          powers on this league. They show up alongside team owners. Promote
-          existing team owners; cannot remove the primary commissioner (use
-          Transfer Commissioner in Danger Zone instead). */}
-      <CoCommissionersEditor league={league} onUpdate={onUpdate} userProfile={userProfile} />
+      {/* v2.6.16.0: Co-commissioners — additional users with elevated (but
+          not full) powers. v2.6.17.0: only the PRIMARY commissioner can
+          manage this list — co-commissioners see it as a read-only roster so
+          they know who else holds the role but can't reshape it themselves. */}
+      <CoCommissionersEditor league={league} onUpdate={onUpdate} userProfile={userProfile} isPrimaryCommissioner={isPrimaryCommissioner} />
       </>}
 
       {/* ─── ACTIVITY SECTION ─── v2.6.16.0: moved in from a top-level tab
@@ -7228,8 +7229,9 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
       {section === "danger" && <>
       {/* Spoiler Protection */}
       <SpoilerProtectionEditor league={league} onUpdate={onUpdate} />
-      {/* Transfer Commissioner */}
-      {(league.teams||[]).length > 0 && (
+      {/* Transfer Commissioner — v2.6.17.0: primary-only. Co-commissioners
+          see a read-only notice instead of the picker. */}
+      {(league.teams||[]).length > 0 && isPrimaryCommissioner && (
         <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
           <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:4 }}>Transfer Commissioner</div>
           <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:10,lineHeight:1.4 }}>
@@ -7257,6 +7259,12 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
             </div>
           )}
           {league.commissionerName && <div style={{ marginTop:8,fontSize:11,color:"#4ecdc4" }}>Current commissioner: {league.commissionerName}</div>}
+        </div>
+      )}
+
+      {!isPrimaryCommissioner && (league.teams||[]).length > 0 && (
+        <div style={{ marginBottom:20,padding:"12px 14px",background:"#0d0d18",borderRadius:10,border:"1px solid #1e1e38",fontSize:11,color:"#6a6a8a",lineHeight:1.5,fontStyle:"italic" }}>
+          Transferring the primary commissioner role is reserved for the primary commissioner. Co-commissioners can do everything else (scoring, locks, finalize, cast / rule management, polls, team management).
         </div>
       )}
 
@@ -7959,6 +7967,7 @@ export default function FantasyRealityTV() {
         onBack={()=>{refreshLeagues();setView("home")}}
         loggedInTeamId={(isAdmin || selected?.commissionerUid === authUser?.uid || (selected?.coCommissioners||[]).includes(authUser?.uid)) ? (selected.adminTeamId || myTeamIn(selected.id)) : myTeamIn(selected.id)}
         isCommissioner={isAdmin || selected?.commissionerUid === authUser?.uid || (selected?.coCommissioners||[]).includes(authUser?.uid) || (selected?.commissionerTeamId && userProfile?.activations?.[selected.id] === selected.commissionerTeamId)}
+        isPrimaryCommissioner={isAdmin || selected?.commissionerUid === authUser?.uid || (selected?.commissionerTeamId && userProfile?.activations?.[selected.id] === selected.commissionerTeamId)}
         userProfile={userProfile}
         onRevealSpoiler={handleRevealSpoiler}
         />}
