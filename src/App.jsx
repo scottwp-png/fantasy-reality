@@ -2135,24 +2135,37 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
           merge state still shows naturally per-contestant (tribe field reflects
           the merged tribe name). Commissioners can still toggle merge from the
           Manage \u203a Tribes panel below. */}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:6}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
+        {/* v2.4.52.0: order Active first (default), then All. Eliminated removed \u2014
+            it was rarely used and added clutter; users can still see eliminated
+            contestants by switching to All. */}
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-          {["all","active","eliminated"].map(f=>(<button key={f} onClick={()=>setFilter(f)} style={{padding:"6px 14px",borderRadius:99,border:filter===f?"1px solid #e9456044":"1px solid #1e1e38",cursor:"pointer",fontSize:12,fontWeight:600,textTransform:"capitalize",background:filter===f?"#e9456018":"transparent",color:filter===f?"#e94560":"#7a7a9a",fontFamily:"'Outfit',sans-serif",transition:"all .15s"}}>{f}{f==="all"?` (${league.contestants?.length||0})`:""}</button>))}
+          {["active","all"].map(f=>(<button key={f} onClick={()=>setFilter(f)} style={{padding:"6px 14px",borderRadius:99,border:filter===f?"1px solid #e9456044":"1px solid #1e1e38",cursor:"pointer",fontSize:12,fontWeight:600,textTransform:"capitalize",background:filter===f?"#e9456018":"transparent",color:filter===f?"#e94560":"#7a7a9a",fontFamily:"'Outfit',sans-serif",transition:"all .15s"}}>{f}{f==="all"?` (${league.contestants?.length||0})`:""}</button>))}
         </div>
         {/* v2.4.51.0: 5-pill sort \u2192 1 dropdown so per-week options can live in
-            the same control without taking horizontal space per week. */}
+            the same control. v2.4.52.0: capped maxWidth to keep the select on
+            one row next to the filter pills and dropped the disabled separator
+            rows (they rendered weirdly in some browsers); per-week options now
+            grouped via <optgroup> instead. */}
         <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={{
           padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
           color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",cursor:"pointer",outline:"none",
+          maxWidth:200,
         }}>
-          <option value="total">Season Total</option>
-          <option value="best">Best {cadenceWord(league)}</option>
-          <option value="worst">Worst {cadenceWord(league)}</option>
-          <option value="lastWeek">Last {cadenceWord(league)}</option>
-          {weeks.length > 0 && <option disabled>\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500</option>}
-          {weeks.map(w => <option key={w} value={`week:${w}`}>{cadenceLabel(league, w)}</option>)}
-          {weeks.length > 0 && <option disabled>\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500</option>}
-          <option value="name">A\u2013Z</option>
+          <optgroup label="Overall">
+            <option value="total">Season Total</option>
+            <option value="best">Best {cadenceWord(league)}</option>
+            <option value="worst">Worst {cadenceWord(league)}</option>
+            <option value="lastWeek">Last {cadenceWord(league)}</option>
+          </optgroup>
+          {weeks.length > 0 && (
+            <optgroup label={`By ${cadenceWord(league)}`}>
+              {weeks.map(w => <option key={w} value={`week:${w}`}>{cadenceLabel(league, w)}</option>)}
+            </optgroup>
+          )}
+          <optgroup label="Other">
+            <option value="name">A\u2013Z</option>
+          </optgroup>
         </select>
       </div>
       {/* Manage Contestants panel */}
@@ -7859,6 +7872,12 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
   const [inviteCode, setInviteCode] = useState(pendingJoinCode || "");
   const [error, setError] = useState("");
   const [joining, setJoining] = useState(false);
+  // v2.4.52.0: Join-via-code box collapses behind an explicit "Join" button
+  // next to "Create". Was always-visible above My Leagues, which felt like
+  // clutter for the common case (user just wants to open a league they're
+  // already in). URL-based invite links still auto-apply via the useEffect
+  // below — the button is only for the bare-code-via-text/Discord path.
+  const [showJoin, setShowJoin] = useState(false);
 
 
 
@@ -7929,29 +7948,40 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
         </div>
       )}
       <div style={{ padding:"10px 20px 20px" }}>
-        {/* Join a league via invite code. Note: invite LINKS (?join=CODE in
-            URL) bypass this form entirely — they're auto-applied at app boot.
-            This box is for when someone texts you a bare code instead. */}
-        <div style={{ marginBottom:20,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-          <div style={{ fontSize:12,fontWeight:600,color:"#8888aa",marginBottom:2 }}>Have an invite code?</div>
-          <div style={{ fontSize:11,color:"#6a6a8a",marginBottom:8,lineHeight:1.4 }}>If someone shared an invite link, just tap it — no code entry needed.</div>
+        {/* League list */}
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,gap:6,flexWrap:"wrap" }}>
+          <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>My Leagues</h3>
           <div style={{ display:"flex",gap:6 }}>
-            <input value={inviteCode} onChange={e=>setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,""))}
-              placeholder="Enter code" maxLength={8} onKeyDown={e=>{if(e.key==="Enter")handleJoin()}}
-              style={{ flex:1,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
-                color:"#e8e8f0",fontSize:16,fontFamily:"monospace",letterSpacing:"0.15em",textAlign:"center" }} />
-            <Btn small onClick={handleJoin} disabled={inviteCode.length<6 || joining}>
-              {joining ? "Checking..." : "Join"}
+            <Btn small variant="ghost" onClick={()=>{ setShowJoin(s => !s); setError(""); }}>
+              <Icon name="plus" size={12}/> Join League
             </Btn>
+            {(isAdmin || (allLeaguesCount || 0) < 3) && (
+              <Btn small onClick={onCreateLeague}><Icon name="plus" size={12}/> Create League</Btn>
+            )}
           </div>
-          {error && <div style={{ color:"#e94560",fontSize:12,marginTop:8,padding:"8px 10px",background:"#e9456011",borderRadius:6,border:"1px solid #e9456033" }}>{error}</div>}
         </div>
 
-        {/* League list */}
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
-          <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>My Leagues</h3>
-          {(isAdmin || (allLeaguesCount || 0) < 3) && <Btn small onClick={onCreateLeague}><Icon name="plus" size={12}/> New League</Btn>}
-        </div>
+        {/* Invite-code entry — collapsed by default, revealed by Join League button.
+            URL-based invite LINKS bypass this entirely (auto-applied at app boot). */}
+        {showJoin && (
+          <div style={{ marginBottom:20,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6 }}>
+              <div style={{ fontSize:12,fontWeight:600,color:"#8888aa" }}>Have an invite code?</div>
+              <button onClick={()=>{ setShowJoin(false); setError(""); setInviteCode(""); }} title="Cancel" style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#8888aa",fontSize:10,cursor:"pointer",padding:"3px 8px",fontFamily:"'Outfit',sans-serif" }}>× Cancel</button>
+            </div>
+            <div style={{ fontSize:11,color:"#6a6a8a",marginBottom:8,lineHeight:1.4 }}>If someone shared an invite link, just tap it &mdash; no code entry needed.</div>
+            <div style={{ display:"flex",gap:6 }}>
+              <input value={inviteCode} onChange={e=>setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,""))}
+                placeholder="Enter code" maxLength={8} autoFocus onKeyDown={e=>{if(e.key==="Enter")handleJoin()}}
+                style={{ flex:1,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                  color:"#e8e8f0",fontSize:16,fontFamily:"monospace",letterSpacing:"0.15em",textAlign:"center" }} />
+              <Btn small onClick={handleJoin} disabled={inviteCode.length<6 || joining}>
+                {joining ? "Checking..." : "Join"}
+              </Btn>
+            </div>
+            {error && <div style={{ color:"#e94560",fontSize:12,marginTop:8,padding:"8px 10px",background:"#e9456011",borderRadius:6,border:"1px solid #e9456033" }}>{error}</div>}
+          </div>
+        )}
 
         {leagues.length > 0 ? (
           <div style={{ display:"flex",flexDirection:"column",gap:10 }}>

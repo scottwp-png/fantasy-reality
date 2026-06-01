@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.4.51.0
+**Current Production Version:** v2.4.52.0
 **Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~7,945
+**App.jsx Line Count:** ~7,975
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,17 @@
 ---
 
 ## Version Log
+
+### v2.4.52.0 — 2026-06-01
+Two changes: (1) Home → My Leagues now has explicit `+ Join League` and `+ Create League` buttons; the invite-code box is collapsed behind Join instead of always-on. (2) Cast tab filter pills reordered (Active first, default) with Eliminated removed; sort dropdown refined with `<optgroup>` instead of disabled-separator rows.
+- **Home: explicit Join + Create buttons** at `App.jsx:7972-7984`. The My Leagues header row had a single `+ New League` button on the right. Now it has two: `+ Join League` (ghost variant) and `+ Create League` (primary, gated by the existing admin / count-under-3 check). The Create button still triggers `onCreateLeague`; the Join button toggles a local `showJoin` flag.
+- **Collapsed invite-code box** at `App.jsx:7986-8006`. Was always-visible above My Leagues; now only renders when `showJoin === true`. Includes a `× Cancel` chip in the header to dismiss without joining, and `autoFocus` on the input so tapping Join + immediately typing works. Clearing the code + error when cancelling avoids stale state on the next open.
+- **Why a toggle instead of a modal**: keeps the input in the same place where users see leagues — they don't lose context. Lighter weight than a modal for what's a one-input form. URL-based invite links continue to bypass this entirely (auto-applied at app boot via `useEffect`).
+- **Cast tab pill order Active → All, Eliminated dropped** at `App.jsx:2199-2204`. Active first (matches the default filter from v2.4.51.0), All second. Eliminated was rarely used — the All filter still surfaces eliminated contestants alongside active ones, which is sufficient for the look-up-an-eliminated-contestant case.
+- **Sort selector uses `<optgroup>`** at `App.jsx:2213-2226`. The disabled `──────────` separator rows from v2.4.51.0 rendered inconsistently across browsers — Safari showed the literal dashes, Chrome dimmed them, Firefox showed them with mixed alignment. Replaced with native `<optgroup>` labels: "Overall" (Season Total / Best / Worst / Last), "By {Unit}" (per-week list, only when at least one week is scored), "Other" (A–Z). `maxWidth: 200` cap keeps the select on the same row as the filter pills on smaller viewports.
+- **What this commit does NOT do.** No empty-state CTA (when a user has no leagues, the two buttons are still small — could be promoted to large center-of-screen buttons, but defer until we hear from a tester it's not obvious enough). No first-time tutorial overlay. Join button stays visible regardless of league count.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (4.39s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.4.51.0 — 2026-06-01
 Three Cast-tab polish items from real-tester feedback: (1) default filter showed "All" so eliminated contestants from past episodes cluttered the leaderboard; (2) the orange "Merged into X — individual game" banner ran across the top permanently after merge, which testers found nag-y; (3) the 5 sort pills (Season / Last Wk / Best / Worst / A-Z) didn't include a way to view a specific past week's scores, so users couldn't answer "who killed it in episode 4?" without expanding each card.
