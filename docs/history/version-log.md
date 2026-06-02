@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.23.4
+**Current Production Version:** v2.6.23.5
 **Last Deploy Date:** 2026-06-02
-**App.jsx Line Count:** ~10,125
+**App.jsx Line Count:** ~10,145
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,15 @@
 ---
 
 ## Version Log
+
+### v2.6.23.5 — 2026-06-02
+**Duplicate-team-on-join bug fix + standings default to season total.** Reported from Reddit traffic — users joining via the league-wide invite link were getting 5–6 teams created for their single account.
+- **Root cause.** `doJoin` had no server-side idempotency check. The existence guard upstream in `handleJoinViaCode` reads `userProfile.activations` (local React state); when `doJoin` is invoked multiple times in rapid succession — AppHome `useEffect` re-firing on mount after auth state settles, a double-tap on the join button, or any other re-entry — the local state hasn't updated yet, the guard passes, and each call appends a fresh team to the league. RTDB's `update()` writes pile up as full-array overwrites: call 1 writes `[team1]`, call 2 reads `[team1]` and writes `[team1, team2]`, call 3 reads `[team1, team2]` and writes `[team1, team2, team3]`, … 5–6 teams emerge for one user.
+- **Fix** at `App.jsx:8074-8093` — before constructing a new team, scan the freshly-loaded league's teams for one whose `uid === authUser.uid`. If found, that user already has a team in this league; just align their `activations` to point at it (if it doesn't already) and bail out to the league view. Per-call idempotent — N invocations produce one team, not N teams. Race during the very first concurrent pair still allows a brief overlap (both see no existing team, both write — last writer wins on `update()`, so only one team survives), so the worst-case from a true race is now 1 team, not 5–6.
+- **Default standings breakdown period** at `App.jsx:1893` switched from `String(league.currentWeek || 1)` to `"season"`. The headline number on a standings tab should be the season-long story; per-week drill-down stays available in the dropdown.
+- **What this commit does NOT do.** No `runTransaction`-based atomic join (the team-array overwrite race is fundamentally unsafe across concurrent clients regardless of how we read it; the proper fix is moving teams out of an array into a keyed map at `frtv/league_<id>/teams/<teamId>`, which is a bigger refactor). No retroactive cleanup of leagues that already have duplicate teams from this bug — admin can prune them via the existing Team management UI. No reconciliation of `activations` for users who had multiple teams in one league (only one activation can exist per user-league pair; the others are orphan teams the admin or commissioner needs to remove).
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.87s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.23.4 — 2026-06-02
 **Two small polish items.** Differentiate same-named leagues in My Leagues + let users upload a team-avatar photo instead of pasting a URL.

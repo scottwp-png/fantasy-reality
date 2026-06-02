@@ -1890,7 +1890,10 @@ function StandingsTab({ league, standings, onUpdate, isCommissioner, myTeamId })
   // Includes a "season" option that sums all weeks. Standings rankings themselves
   // continue to use season totals (unchanged); the selector only affects expanded
   // roster scoring detail.
-  const [viewWeek, setViewWeek] = useState(String(league.currentWeek || 1));
+  // v2.6.23.5: default the standings breakdown period to season total —
+  // it's the headline number for the season-long story. Per-week view stays
+  // available via the dropdown for drilling into a specific episode.
+  const [viewWeek, setViewWeek] = useState("season");
   const weekOpts = [
     ...Array.from({length:Math.max(league.currentWeek||1,1)},(_,i)=>({value:String(i+1),label:cadenceLabel(league, i+1)})),
     { value:"season", label:"Season Total" },
@@ -8072,6 +8075,29 @@ export default function FantasyRealityTV() {
       const freshLeague = freshLeagues.find(l => l.id === league.id) || league;
 
       if (type === "league") {
+        // v2.6.23.5: idempotency check. Reddit-driven invite traffic was
+        // producing leagues with 5–6 teams owned by the same uid. Root cause:
+        // doJoin can be invoked multiple times for the same user (AppHome
+        // useEffect remount during in-flight save, double-click on the join
+        // button, auth listener re-fires) and the upstream `activations`
+        // guard reads stale React state, so each call passed through and
+        // appended another team. Server-side: check the FRESH league teams
+        // for an existing uid match. If found, this user already has a
+        // team — just align their `activations` to it and bail.
+        const existingTeam = (freshLeague.teams || []).find(t => t.uid === authUser.uid);
+        if (existingTeam) {
+          const updatedProfile = { ...userProfile, activations: { ...(userProfile.activations || {}), [league.id]: existingTeam.id } };
+          if (userProfile.activations?.[league.id] !== existingTeam.id) {
+            await saveUserProfile(authUser.uid, updatedProfile);
+            setUserProfile(updatedProfile);
+          }
+          setPendingJoin(null);
+          setPendingJoinCode("");
+          setConfirmJoinError("");
+          setSelectedId(league.id);
+          setView("league");
+          return null;
+        }
         const newTeamId = generateId();
         const displayName = userProfile.displayName || authUser.email?.split("@")[0] || "Player";
         const newTeam = {
