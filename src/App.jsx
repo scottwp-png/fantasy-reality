@@ -1942,19 +1942,27 @@ function StandingsTab({ league, standings, onUpdate, isCommissioner, myTeamId })
               ? weeks.reduce((s,w) => s + calcTeamWeekPoints(league, team, w), 0)
               : calcTeamWeekPoints(league, team, viewWeek)
             ) : 0;
+            // v2.6.23.1: derive medal/colors from team.rank (tie-aware) instead
+            // of array index — ties share their rank's medal/styling, the
+            // next non-tied team gets the position after the tied group.
+            const rank = team.rank || (i + 1);
+            const tied = !!team.tied;
+            const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : null;
             return (
               <div key={team.id} style={{
                 overflow:"hidden",borderRadius:12,
-                background:i===0?"linear-gradient(135deg,rgba(255,77,106,0.1),rgba(255,210,61,0.05))":i===1?"linear-gradient(135deg,rgba(200,200,220,0.06),transparent)":i===2?"linear-gradient(135deg,rgba(205,127,50,0.06),transparent)":"#12121f",
-                border:i===0?"1px solid rgba(255,77,106,0.25)":i<3?"1px solid rgba(200,200,220,0.1)":"1px solid #1e1e38",
+                background:rank===1?"linear-gradient(135deg,rgba(255,77,106,0.1),rgba(255,210,61,0.05))":rank===2?"linear-gradient(135deg,rgba(200,200,220,0.06),transparent)":rank===3?"linear-gradient(135deg,rgba(205,127,50,0.06),transparent)":"#12121f",
+                border:rank===1?"1px solid rgba(255,77,106,0.25)":rank<=3?"1px solid rgba(200,200,220,0.1)":"1px solid #1e1e38",
                 transition:"all 0.2s",
               }}>
                 <div style={{ display:"flex",alignItems:"center",gap:12,padding:"16px",cursor:"pointer" }} onClick={()=>setExpanded(isExp?null:team.id)}>
                 <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                  <div style={{ fontSize:i<3?22:14,width:28,textAlign:"center",flexShrink:0,
+                  <div style={{ fontSize:rank<=3?22:14,minWidth:28,textAlign:"center",flexShrink:0,
                     fontFamily:"'Anybody',sans-serif",fontWeight:800,
-                    color:i===0?"#ff4d6a":i===1?"#c0c0d0":i===2?"#cd7f32":"#4a4a6a" }}>
-                    {i===0?"🥇":i===1?"🥈":i===2?"🥉":(i+1)}
+                    color:rank===1?"#ff4d6a":rank===2?"#c0c0d0":rank===3?"#cd7f32":"#4a4a6a",
+                    display:"flex",flexDirection:"column",alignItems:"center",lineHeight:1 }}>
+                    <span>{medal || rank}</span>
+                    {tied && <span style={{ fontSize:8,fontWeight:700,letterSpacing:"0.05em",color:"#6a6a8a",marginTop:2 }}>TIED</span>}
                   </div>
                   {team.teamAvatar ? (
                     <img src={team.teamAvatar} alt={team.name}
@@ -2163,9 +2171,12 @@ function TeamProfileModal({ team, league, standings, onClose }) {
   }
 
   // Look up the team's rank from the passed standings (already computed by the parent).
+  // v2.6.23.1: prefer the tie-aware `rank` field attached by attachRanks;
+  // falls back to array index for any callers that pre-date the helper.
+  const standingTeam = (standings || []).find(s => s.id === team.id) || null;
   const rankIdx = (standings || []).findIndex(s => s.id === team.id);
-  const standingTeam = rankIdx >= 0 ? standings[rankIdx] : null;
-  const rank = rankIdx >= 0 ? rankIdx + 1 : null;
+  const rank = standingTeam?.rank ?? (rankIdx >= 0 ? rankIdx + 1 : null);
+  const tied = !!standingTeam?.tied;
   const rankMedal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : null;
   const rankColor = rank === 1 ? "#ff4d6a" : rank === 2 ? "#c0c0d0" : rank === 3 ? "#cd7f32" : "#8888aa";
 
@@ -2203,7 +2214,7 @@ function TeamProfileModal({ team, league, standings, onClose }) {
                 <span style={{ color:"#3a3a5a" }}>·</span>
                 <span style={{ display:"inline-flex",alignItems:"center",gap:3,color:rankColor,fontWeight:700 }}>
                   {rankMedal && <span style={{ fontSize:13 }}>{rankMedal}</span>}
-                  #{rank} of {standings.length}
+                  {tied ? "T-" : "#"}{rank} of {standings.length}
                 </span>
                 {standingTeam && (standingTeam.h2hRecord ? (
                   <><span style={{ color:"#3a3a5a" }}>·</span><span>{standingTeam.h2hRecord}</span></>

@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.23.0
+**Current Production Version:** v2.6.23.1
 **Last Deploy Date:** 2026-06-02
-**App.jsx Line Count:** ~10,055
+**App.jsx Line Count:** ~10,065
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,17 @@
 ---
 
 ## Version Log
+
+### v2.6.23.1 — 2026-06-02
+**Standings: competition-style tie ranking.** Reported from a real league screenshot — three teams tied at 5.00 pts were displayed as 2nd / 3rd / 4th instead of all T-2. Now they share the rank and the next non-tied team skips ahead by the tie count.
+- **`attachRanks(sorted, keyFn)`** in `src/scoring.js:237-252` — walks a sorted standings array once, attaches `rank` (1-based competition ranking) and `tied` (bool) to each entry. Tied entries share the same rank; the next position jumps by the tie count — totals `[10, 5, 5, 5, 0]` → ranks `[1, 2, 2, 2, 5]`. Caller is responsible for the prior sort + supplying a key function that captures the tie criterion (just `total` for regular standings; `(wins, total)` for H2H; `rotoTotal` for roto; `(isAlive, weeksAlive)` for survivor pool).
+- **All four `calcStandings` branches** updated to attach ranks before return: regular at `scoring.js:234`, survivor pool at `scoring.js:117`, roto at `scoring.js:184`, H2H at `scoring.js:233`.
+- **Leaderboard display** at `App.jsx:1945-1971` — was using array index `i` to drive medal + background gradient + rank number. Now reads `team.rank` (tie-aware) and `team.tied`; tied teams get the same medal/background, and a small `TIED` subscript under the rank number signals the tie. Color and gradient now keyed off `rank` so three teams tied at 2nd all show the silver styling.
+- **Team detail modal** at `App.jsx:2173-2178, 2216` — same migration. Header chip reads `T-2 of 8` when tied, `#2 of 8` when not.
+- **Regression baselines re-captured** — the standings output gained two public fields (`rank`, `tied`) so the captured `.standings.json` files needed a refresh. 10/10 pass byte-identical after re-capture; this is a contract change (the engine now exports more, but doesn't compute existing fields differently).
+- **What this commit does NOT do.** No tiebreaker logic to BREAK ties (head-to-head record, best week, etc.) — that's a follow-up the user explicitly deferred. Ties just display as ties for now. No "T-N" prefix on the leaderboard rank itself (kept the column compact — the medal/background + subscript TIED communicate it). No re-rank for the cast standings or per-week-team contestant ranking (those use looser rank semantics and the issue was specifically about team standings).
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS after re-capture. `npm run build` clean (3.28s).
+- **Commit:** `_pending_`
 
 ### v2.6.23.0 — 2026-06-02
 **End-of-season "Mark Season Complete" mechanic.** Lets primary commissioners archive a finished season so the league shows that state explicitly and admin Stats stops counting it as Active.

@@ -104,7 +104,7 @@ export function calcStandings(league) {
   const weeks = Object.keys(league.weeklyScores || {}).sort((a, b) => +a - +b);
 
   if (league.format === "survivor_pool") {
-    return league.teams.map(team => {
+    const sorted = league.teams.map(team => {
       const pick = team.survivorPoolPick;
       const contestant = pick ? (league.contestants||[]).find(c=>c.id===pick) : null;
       const isAlive = contestant && contestant.status !== "eliminated";
@@ -114,6 +114,7 @@ export function calcStandings(league) {
       if (a.isAlive !== b.isAlive) return a.isAlive ? -1 : 1;
       return b.total - a.total;
     });
+    return attachRanks(sorted, t => (t.isAlive ? 1 : 0) * 1e6 + t.total);
   }
 
   // Calculate base weekly points for all teams
@@ -169,7 +170,7 @@ export function calcStandings(league) {
       sorted.forEach((t, i) => { catRanks[t.id][cat] = i + 1; });
     });
 
-    return teamsWithPoints.map(team => {
+    const rotoSorted = teamsWithPoints.map(team => {
       const ranks = catRanks[team.id];
       const rotoTotal = Object.values(ranks).reduce((s,v) => s + v, 0);
       return {
@@ -181,6 +182,7 @@ export function calcStandings(league) {
         total: rotoTotal,
       };
     }).sort((a, b) => a.rotoTotal - b.rotoTotal); // Lower roto total = better
+    return attachRanks(rotoSorted, t => t.rotoTotal);
   }
 
   // Head-to-Head: calculate W/L record from weekly matchups
@@ -217,7 +219,7 @@ export function calcStandings(league) {
       });
     });
 
-    return teamsWithPoints.map(team => ({
+    const h2hSorted = teamsWithPoints.map(team => ({
       ...team,
       h2h: records[team.id],
       h2hRecord: records[team.id].wins + "-" + records[team.id].losses + (records[team.id].ties ? "-" + records[team.id].ties : ""),
@@ -227,7 +229,29 @@ export function calcStandings(league) {
       if (a.h2h.wins !== b.h2h.wins) return b.h2h.wins - a.h2h.wins;
       return b.total - a.total;
     });
+    // Tied only when BOTH wins and total match — H2H already uses total as
+    // tiebreaker, so identical-rank entries are genuine ties.
+    return attachRanks(h2hSorted, t => t.h2h.wins * 1e8 + t.total);
   }
 
-  return teamsWithPoints.sort((a, b) => b.total - a.total);
+  return attachRanks(teamsWithPoints.sort((a, b) => b.total - a.total), t => t.total);
+}
+
+// v2.6.23.1: competition-style ranking with tie handling. Given a sorted
+// standings array, attaches `rank` (1-based) and `tied` (bool) to each
+// entry. Tied entries share the same rank, the next position skips ahead by
+// the tie count — e.g., totals [10, 5, 5, 5, 0] produce ranks [1, 2, 2, 2, 5].
+// `keyFn` extracts the comparison value (default: total). Caller is
+// responsible for the prior sort; we only walk it once and label.
+export function attachRanks(sorted, keyFn) {
+  const k = keyFn || (t => t.total);
+  if (!sorted || sorted.length === 0) return sorted || [];
+  const ranks = [];
+  for (let i = 0; i < sorted.length; i++) {
+    if (i === 0 || k(sorted[i]) !== k(sorted[i-1])) ranks.push(i + 1);
+    else ranks.push(ranks[i-1]);
+  }
+  const counts = {};
+  ranks.forEach(r => { counts[r] = (counts[r] || 0) + 1; });
+  return sorted.map((t, i) => ({ ...t, rank: ranks[i], tied: counts[ranks[i]] > 1 }));
 }
