@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.24.0
+**Current Production Version:** v2.6.24.1
 **Last Deploy Date:** 2026-06-02
-**App.jsx Line Count:** ~10,460
+**App.jsx Line Count:** ~10,580
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,22 @@
 ---
 
 ## Version Log
+
+### v2.6.24.1 — 2026-06-02
+**Notification bell + Lounge unread badges + click-through navigation.** Second half of the communication ask. Audit-log mirror was scrapped in favor of actionable-only events; tapping a notification now lands in the relevant area.
+- **`NotificationBell`** at `App.jsx:11211-11305` in the AppHome header. Aggregates events across every league the user is in, filters out their own actions (best-effort actorName match), sorts newest first, badges count with red pill (caps at 99+). Three event kinds surface — exactly the moments a user would want to click into:
+  - **New polls** (pink dot, "New poll: …") sourced from `league.polls[].createdAt`.
+  - **Scoring saved** (amber dot, "Alex updated scoring for Episode 1") from audit `type: "scoring"`.
+  - **Week finalized** (blue dot, "Alex finalized Episode 1") from audit `type: "finalize"`.
+- **Click-through navigation** at `App.jsx:11270-11279`. Each event passes a `target` payload (`{ tab, loungeSection? }`) to the parent's `onSelectLeague` — polls land on `Lounge > Polls`, scoring/finalize land on `Standings`. The parent stores it as `navTarget` state, threads to `LeagueDashboard`, and `LeagueDashboard` applies it on mount via a `useEffect` that consumes-and-clears it. Same-league re-clicks work via prop re-fire.
+- **Chat subscription lifted to LeagueDashboard** at `App.jsx:1801-1808`. Was inside ChatTab; moved up so chat unread can be counted from outside the Lounge tab. One `subscribeLeagueChat` listener per currently-open league. ChatTab now takes messages as a prop. Loading state dropped (the parent's empty initial array renders the empty-state for ~1 frame, then real data; no perceptible flash).
+- **Lounge unread badges** at three layers:
+  - Main tab strip: red `N` badge on the Lounge tab button when there are unread messages OR new polls in this league since the user's last Lounge visit; hides while `tab === "lounge"`.
+  - Sub-pill: red `N` badge on the inactive sub-pill (`Chat` or `Polls`) when that section has unread; clears when activated.
+  - Per-league timestamp stored at `userProfile.loungeLastSeenAt[leagueId]`. Set to `Date.now()` automatically when the user enters the Lounge tab. Own chat messages don't count as unread.
+- **What this commit does NOT do.** Chat notifications in the bell — deferred. Doing it well would need either subscribing to every league's chat path on app load (N subscriptions × every user) or maintaining a denormalized `lastMessageAt` field per league. The Lounge unread badge fills the gap within the open league. No per-message read tracking — the lastSeen timestamp is binary "you visited Lounge after this happened" or not. No grouping of consecutive same-kind events (5 finalize events from the same commissioner show as 5 separate rows).
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.11s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.24.0 — 2026-06-02
 **League chat + Lounge tab (Chat + Polls) + tab strip scroll affordance.** First half of the communication ask (in-app feed deferred to a follow-up). Engagement plumbing for the post-Reddit-launch traffic.

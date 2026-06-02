@@ -1745,8 +1745,54 @@ function LeagueActivityTab({ league }) {
   );
 }
 
-function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissioner, isPrimaryCommissioner, allLeagues, userProfile, authUser, onRevealSpoiler }) {
+function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissioner, isPrimaryCommissioner, allLeagues, userProfile, authUser, onUpdateProfile, navTarget, onConsumeNavTarget, onRevealSpoiler }) {
   const [tab, setTab] = useState("standings");
+  // v2.6.24.2: Lounge sub-section, lifted from LoungeTab so notification
+  // bell taps can land on the right sub-pill (Chat vs Polls).
+  const [loungeSection, setLoungeSection] = useState("chat");
+
+  // v2.6.24.2: chat subscription lifted from ChatTab so unread can be
+  // counted from outside Lounge. One onValue listener per currently-open
+  // league. ChatTab consumes the messages array as a prop.
+  const [chatMessages, setChatMessages] = useState([]);
+  useEffect(() => {
+    if (!league?.id) return;
+    const unsub = subscribeLeagueChat(league.id, setChatMessages);
+    return unsub;
+  }, [league?.id]);
+
+  // v2.6.24.2: consume navTarget on mount / when it changes. Notification
+  // bell taps set this to { tab, loungeSection } so we land in the right
+  // area. Parent clears it after consumption.
+  useEffect(() => {
+    if (!navTarget) return;
+    if (navTarget.tab) setTab(navTarget.tab);
+    if (navTarget.loungeSection) setLoungeSection(navTarget.loungeSection);
+    onConsumeNavTarget?.();
+  }, [navTarget]);
+
+  // v2.6.24.2: lounge unread count. New chat messages + new polls since the
+  // user's last Lounge visit for this league. Stored at
+  // userProfile.loungeLastSeenAt[leagueId]. When the user is currently
+  // viewing the Lounge tab, mark seen via the effect below.
+  const loungeLastSeen = userProfile?.loungeLastSeenAt?.[league?.id] || 0;
+  const unreadChatCount = useMemo(() => {
+    return chatMessages.filter(m => (m.createdAt || 0) > loungeLastSeen && m.uid !== authUser?.uid).length;
+  }, [chatMessages, loungeLastSeen, authUser?.uid]);
+  const unreadPollsCount = useMemo(() => {
+    return (league?.polls || []).filter(p => (p.createdAt || 0) > loungeLastSeen).length;
+  }, [league?.polls, loungeLastSeen]);
+  const loungeUnreadTotal = unreadChatCount + unreadPollsCount;
+
+  useEffect(() => {
+    if (tab !== "lounge" || !userProfile || !onUpdateProfile || !league?.id) return;
+    if (loungeUnreadTotal === 0) return;
+    const next = {
+      ...userProfile,
+      loungeLastSeenAt: { ...(userProfile.loungeLastSeenAt || {}), [league.id]: Date.now() },
+    };
+    onUpdateProfile(next);
+  }, [tab, loungeUnreadTotal]);
   const [modal, setModal] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
 
@@ -1846,6 +1892,15 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
               display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap",fontFamily:"'Outfit',sans-serif",transition:"all 0.15s ease",flexShrink:0,
             }}>
               <Icon name={t.icon} size={12}/> {t.label}
+              {/* v2.6.24.2: unread badge on the Lounge tab. Combines new
+                  chat messages + new polls since last visit for this league. */}
+              {t.id === "lounge" && loungeUnreadTotal > 0 && tab !== "lounge" && (
+                <span style={{
+                  background:"#e94560",color:"#fff",borderRadius:99,minWidth:16,height:16,padding:"0 5px",
+                  fontSize:9,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",
+                  fontFamily:"'Outfit',sans-serif",
+                }}>{loungeUnreadTotal > 99 ? "99+" : loungeUnreadTotal}</span>
+              )}
             </button>
           ))}
         </div>
@@ -1859,7 +1914,7 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
 
       <div style={{ padding:20 }}>
         {tab === "standings" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><StandingsTab league={league} standings={standings} onUpdate={onUpdate} isCommissioner={isCommissioner} myTeamId={loggedInTeamId} /></SpoilerBlur>}
-        {tab === "lounge" && <LoungeTab league={league} team={loggedInTeam} authUser={authUser} userProfile={userProfile} onUpdate={onUpdate} isCommissioner={isCommissioner} />}
+        {tab === "lounge" && <LoungeTab league={league} team={loggedInTeam} authUser={authUser} userProfile={userProfile} onUpdate={onUpdate} isCommissioner={isCommissioner} chatMessages={chatMessages} section={loungeSection} onSetSection={setLoungeSection} unreadChatCount={unreadChatCount} unreadPollsCount={unreadPollsCount} />}
         {tab === "contestants" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><ContestantsTab league={league} onUpdate={isCommissioner?onUpdate:null} setModal={isCommissioner?setModal:()=>{}} setEditing={isCommissioner?setEditingItem:()=>{}} readOnly={!isCommissioner} /></SpoilerBlur>}
         {tab === "scoring" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><ScoringTab league={league} onUpdate={isCommissioner ? onUpdate : null} isCommissioner={isCommissioner} userProfile={userProfile} /></SpoilerBlur>}
         {tab === "weekly-draft" && isCommissioner && <WeeklyDraftTab league={league} onUpdate={onUpdate} standings={standings} />}
@@ -4275,26 +4330,17 @@ function flattenGroupQuestions(groups) {
 // the bottom on new messages. Members can delete their own; commissioners
 // can delete anyone's. Limited to the last 200 messages on the subscription
 // side — the path can hold more but the client only renders the tail.
-function ChatTab({ league, authUser, userProfile, isCommissioner }) {
-  const [messages, setMessages] = useState([]);
+function ChatTab({ league, authUser, userProfile, isCommissioner, messages = [] }) {
+  // v2.6.24.2: messages now come in as a prop (subscription lifted to
+  // LeagueDashboard so unread can be counted from outside Lounge).
   const [draft, setDraft] = useState("");
-  const [loaded, setLoaded] = useState(false);
   const [sending, setSending] = useState(false);
   const feedRef = useRef(null);
   const inputRef = useRef(null);
 
   useEffect(() => {
-    if (!league?.id) return;
-    const unsub = subscribeLeagueChat(league.id, (list) => {
-      setMessages(list);
-      setLoaded(true);
-    });
-    return unsub;
-  }, [league?.id]);
-
-  useEffect(() => {
     if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight;
-  }, [messages.length, loaded]);
+  }, [messages.length]);
 
   async function send() {
     const text = draft.trim();
@@ -4351,9 +4397,7 @@ function ChatTab({ league, authUser, userProfile, isCommissioner }) {
         flex:1,overflowY:"auto",padding:"4px 2px 10px",maxHeight:"65vh",minHeight:280,
         display:"flex",flexDirection:"column",gap:10,
       }}>
-        {!loaded ? (
-          <div style={{ padding:"40px 0",textAlign:"center",color:"#6a6a8a",fontSize:13 }}>Loading…</div>
-        ) : messages.length === 0 ? (
+        {messages.length === 0 ? (
           <EmptyState message="No messages yet. Be the first to say something." />
         ) : messages.map((m, i) => {
           const team = teamForUid(m.uid);
@@ -4425,25 +4469,37 @@ function ChatTab({ league, authUser, userProfile, isCommissioner }) {
 // here from StandingsTab to lift their visibility — they were buried under
 // the leaderboard. Chat is the default sub-tab; users hit the Lounge tab
 // and land in active conversation.
-function LoungeTab({ league, team, authUser, userProfile, onUpdate, isCommissioner }) {
-  const [section, setSection] = useState("chat");
+function LoungeTab({ league, team, authUser, userProfile, onUpdate, isCommissioner, chatMessages = [], section = "chat", onSetSection, unreadChatCount = 0, unreadPollsCount = 0 }) {
+  // v2.6.24.2: section + chatMessages come from LeagueDashboard so the
+  // notification bell can land on a specific sub-pill and so unread can
+  // surface as badges on each pill.
   return (
     <div>
       <div style={{ display:"flex",gap:4,padding:4,background:"#0d0d18",border:"1px solid #1e1e38",borderRadius:99,marginBottom:16,maxWidth:300 }}>
         {[
-          { id: "chat", label: "Chat" },
-          { id: "polls", label: "Polls" },
+          { id: "chat", label: "Chat", unread: unreadChatCount },
+          { id: "polls", label: "Polls", unread: unreadPollsCount },
         ].map(s => (
-          <button key={s.id} onClick={()=>setSection(s.id)} style={{
+          <button key={s.id} onClick={()=>onSetSection?.(s.id)} style={{
             flex:1,padding:"6px 14px",borderRadius:99,border:"none",cursor:"pointer",
             background: section===s.id ? "#e9456033" : "transparent",
             color: section===s.id ? "#e94560" : "#7a7a9a",
             fontSize:12,fontWeight:section===s.id?700:600,fontFamily:"'Outfit',sans-serif",
-          }}>{s.label}</button>
+            display:"flex",alignItems:"center",justifyContent:"center",gap:6,
+          }}>
+            {s.label}
+            {s.unread > 0 && section !== s.id && (
+              <span style={{
+                background:"#e94560",color:"#fff",borderRadius:99,minWidth:16,height:14,padding:"0 5px",
+                fontSize:9,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",
+                fontFamily:"'Outfit',sans-serif",
+              }}>{s.unread > 99 ? "99+" : s.unread}</span>
+            )}
+          </button>
         ))}
       </div>
       {section === "chat" ? (
-        <ChatTab league={league} authUser={authUser} userProfile={userProfile} isCommissioner={isCommissioner} />
+        <ChatTab league={league} authUser={authUser} userProfile={userProfile} isCommissioner={isCommissioner} messages={chatMessages} />
       ) : (
         <PollsSection league={league} team={team} onUpdate={onUpdate} isCommissioner={isCommissioner} />
       )}
@@ -8316,6 +8372,13 @@ export default function FantasyRealityTV() {
   const [leagues, setLeagues] = useState([]);
   const [view, setView] = useState("loading"); // loading | login | home | league | create
   const [selectedId, setSelectedId] = useState(null);
+  // v2.6.24.2: navTarget — the parent records "after navigating to this
+  // league, please land on tab X and section Y" so notification bell taps
+  // open the relevant area instead of dumping the user on the default tab.
+  // Consumed by LeagueDashboard via its initialTab + initialLoungeSection
+  // props; the consumer is expected to clear it (or just leave it, since
+  // the same target is harmless on subsequent renders of the same league).
+  const [navTarget, setNavTarget] = useState(null);
   const [authUser, setAuthUser] = useState(null); // Firebase Auth user object
   const [userProfile, setUserProfile] = useState(null); // {displayName, activations: {leagueId: teamId}}
   const [authLoading, setAuthLoading] = useState(true);
@@ -8826,12 +8889,13 @@ export default function FantasyRealityTV() {
       {view==="admin" && isAdmin && <AdminPanel leagues={leagues} onBack={()=>setView("home")} onUpdate={persist} featureFlags={featureFlags} setFeatureFlags={setFeatureFlags} />}
       {view==="home" && authUser && <AppHome
         user={authUser} profile={userProfile} leagues={visibleLeagues}
-        isAdmin={isAdmin} onSelectLeague={id=>{setSelectedId(id);setView("league")}}
+        isAdmin={isAdmin} onSelectLeague={(id, target)=>{ setSelectedId(id); setView("league"); setNavTarget(target || null); }}
         onCreateLeague={()=>setView("create")} onDeleteLeague={deleteLeague} onDuplicateLeague={duplicateLeague}
         onLogout={handleLogout}
         onOpenSettings={()=>setView("settings")}
         onJoinViaCode={handleJoinViaCode}
         onOpenAdmin={()=>setView("admin")}
+        onUpdateProfile={async (updated) => { await saveUserProfile(authUser.uid, updated); setUserProfile(updated); }}
         announcement={announcement}
         pendingJoinCode={pendingJoinCode}
         allLeaguesCount={leagues.filter(l => l.commissionerUid === authUser?.uid).length} />}
@@ -8865,6 +8929,9 @@ export default function FantasyRealityTV() {
         isPrimaryCommissioner={isAdmin || selected?.commissionerUid === authUser?.uid || (selected?.commissionerTeamId && userProfile?.activations?.[selected.id] === selected.commissionerTeamId)}
         userProfile={userProfile}
         authUser={authUser}
+        onUpdateProfile={async (updated) => { await saveUserProfile(authUser.uid, updated); setUserProfile(updated); }}
+        navTarget={navTarget}
+        onConsumeNavTarget={()=>setNavTarget(null)}
         onRevealSpoiler={handleRevealSpoiler}
         />}
       {pendingJoin && <JoinConfirmModal
@@ -11208,7 +11275,152 @@ function AuthScreen({ onJoinViaCode, pendingJoinCode }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // APP HOME
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeague, onDeleteLeague, onDuplicateLeague, onLogout, onJoinViaCode, onOpenAdmin, onOpenSettings, allLeaguesCount, announcement, pendingJoinCode }) {
+// v2.6.24.1 → v2.6.24.2: NotificationBell — surfaces only the things a
+// user would actually want to click into ("there's a thing to do or see")
+// instead of mirroring the audit log. Three categories:
+//   • New polls (poll.createdAt newer than user's notifLastSeenAt)
+//   • Scoring saved for a week (audit entries of type "scoring")
+//   • Week finalized (audit entries of type "finalize")
+// Other audit-log items (settings, roster swaps, locks, rule edits) are
+// already discoverable in Settings > Activity; surfacing them here adds
+// noise without engagement value. Chat notifications deferred to a
+// follow-up (needs a cheaper subscription model than one onValue per
+// league).
+function NotificationBell({ leagues, userProfile, onUpdateProfile, onSelectLeague }) {
+  const [open, setOpen] = useState(false);
+  const lastSeen = userProfile?.notifLastSeenAt || 0;
+  const myName = userProfile?.displayName || "";
+
+  const events = useMemo(() => {
+    const all = [];
+    (leagues || []).forEach(l => {
+      // Polls — every poll in a league this user is in is potentially worth
+      // surfacing. Skip the user-as-creator filter for now (polls don't
+      // store creator uid; if a user creates one they'll see it once in the
+      // feed and mark it read).
+      (l.polls || []).forEach(p => {
+        all.push({
+          kind: "poll",
+          time: p.createdAt || 0,
+          desc: `New poll: ${p.name || "(unnamed)"}`,
+          leagueId: l.id,
+          leagueName: l.name,
+        });
+      });
+      // Scoring + finalize entries from the audit log. Filter the user's
+      // own actions by display-name match.
+      (l.auditLog || []).forEach(e => {
+        if (e.type !== "scoring" && e.type !== "finalize") return;
+        if (e.actorName && myName && e.actorName === myName) return;
+        all.push({
+          kind: e.type,
+          time: e.time || 0,
+          desc: e.desc || (e.type === "finalize" ? "Week finalized" : "Scoring updated"),
+          leagueId: l.id,
+          leagueName: l.name,
+        });
+      });
+    });
+    return all.sort((a, b) => (b.time || 0) - (a.time || 0)).slice(0, 30);
+  }, [leagues, myName]);
+
+  const unread = events.filter(e => (e.time || 0) > lastSeen).length;
+
+  function openDropdown() {
+    setOpen(true);
+    if (unread > 0 && onUpdateProfile && userProfile) {
+      onUpdateProfile({ ...userProfile, notifLastSeenAt: Date.now() });
+    }
+  }
+
+  function formatRel(ms) {
+    if (!ms) return "";
+    const diff = Date.now() - ms;
+    if (diff < 60_000) return "just now";
+    if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+    if (diff < 604_800_000) return `${Math.floor(diff / 86_400_000)}d ago`;
+    return new Date(ms).toLocaleDateString([], { month: "short", day: "numeric" });
+  }
+
+  function colorForKind(kind) {
+    if (kind === "poll") return "#ff5da0";
+    if (kind === "scoring") return "#f5a623";
+    if (kind === "finalize") return "#4d8aff";
+    return "#6a6a8a";
+  }
+
+  return (
+    <div style={{ position:"relative",flexShrink:0 }}>
+      <button onClick={openDropdown} title="Notifications" style={{
+        background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",
+        color:unread>0?"#e94560":"#6a6a8a",fontSize:13,cursor:"pointer",fontFamily:"'Outfit',sans-serif",
+        position:"relative",fontWeight:600,
+      }}>
+        🔔
+        {unread > 0 && (
+          <span style={{
+            position:"absolute",top:-4,right:-4,background:"#e94560",color:"#fff",
+            borderRadius:99,minWidth:16,height:16,padding:"0 4px",fontSize:9,fontWeight:800,
+            display:"flex",alignItems:"center",justifyContent:"center",border:"1px solid #0d0d18",fontFamily:"'Outfit',sans-serif",
+          }}>{unread > 99 ? "99+" : unread}</span>
+        )}
+      </button>
+      {open && (
+        <>
+          <div onClick={()=>setOpen(false)} style={{ position:"fixed",inset:0,zIndex:99 }}/>
+          <div style={{
+            position:"absolute",right:0,top:"calc(100% + 6px)",zIndex:100,
+            width:320,maxWidth:"calc(100vw - 40px)",maxHeight:480,overflowY:"auto",
+            background:"#12121f",border:"1px solid #2a2a4a",borderRadius:10,
+            boxShadow:"0 16px 48px rgba(0,0,0,0.5)",
+          }}>
+            <div style={{ padding:"12px 14px",borderBottom:"1px solid #1e1e38",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+              <div style={{ fontSize:12,fontWeight:700,color:"#e8e8f0",textTransform:"uppercase",letterSpacing:"0.05em" }}>Activity</div>
+              <button onClick={()=>setOpen(false)} title="Close" style={{ background:"none",border:"none",color:"#6a6a8a",cursor:"pointer",fontSize:14,padding:2 }}>×</button>
+            </div>
+            {events.length === 0 ? (
+              <div style={{ padding:"24px 14px",textAlign:"center",color:"#6a6a8a",fontSize:12,lineHeight:1.5 }}>
+                No activity in your leagues yet.
+              </div>
+            ) : (
+              <div style={{ display:"flex",flexDirection:"column" }}>
+                {events.map((e, i) => (
+                  <button key={i} onClick={()=>{
+                    // v2.6.24.2: send a target along with the league so the
+                    // parent can land the user in the relevant area. Polls →
+                    // Lounge > Polls. Scoring/finalize → Standings.
+                    const target = e.kind === "poll" ? { tab: "lounge", loungeSection: "polls" }
+                      : e.kind === "scoring" || e.kind === "finalize" ? { tab: "standings" }
+                      : null;
+                    onSelectLeague(e.leagueId, target);
+                    setOpen(false);
+                  }} style={{
+                    background:"none",border:"none",borderBottom:i<events.length-1?"1px solid #1a1a30":"none",
+                    cursor:"pointer",padding:"10px 14px",textAlign:"left",fontFamily:"'Outfit',sans-serif",
+                    display:"flex",gap:10,alignItems:"flex-start",
+                  }}>
+                    <div style={{ width:6,height:6,borderRadius:99,background:colorForKind(e.kind),flexShrink:0,marginTop:6 }}/>
+                    <div style={{ flex:1,minWidth:0 }}>
+                      <div style={{ fontSize:12,color:"#e8e8f0",lineHeight:1.4,wordBreak:"break-word" }}>{e.desc || "(no description)"}</div>
+                      <div style={{ fontSize:10,color:"#6a6a8a",marginTop:3,display:"flex",gap:6,flexWrap:"wrap" }}>
+                        <span style={{ color:"#aaaabf",fontWeight:600 }}>{e.leagueName}</span>
+                        <span>·</span>
+                        <span>{formatRel(e.time)}</span>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeague, onDeleteLeague, onDuplicateLeague, onLogout, onJoinViaCode, onOpenAdmin, onOpenSettings, onUpdateProfile, allLeaguesCount, announcement, pendingJoinCode }) {
   const [inviteCode, setInviteCode] = useState(pendingJoinCode || "");
   const [error, setError] = useState("");
   const [joining, setJoining] = useState(false);
@@ -11273,6 +11485,7 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
           </div>
         </div>
         <div style={{ display:"flex",gap:6,alignItems:"center",flexShrink:0,flexWrap:"wrap" }}>
+          <NotificationBell leagues={leagues} userProfile={profile} onUpdateProfile={onUpdateProfile} onSelectLeague={onSelectLeague} />
           {isAdmin && <button onClick={onOpenAdmin} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",
             color:"#f5a623",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif",fontWeight:600,flexShrink:0 }}>Admin</button>}
           <button onClick={()=>{
