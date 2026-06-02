@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { getDatabase, ref, get, set, update, remove, onValue } from 'firebase/database'
+import { getDatabase, ref, get, set, update, remove, onValue, push, serverTimestamp, query, limitToLast } from 'firebase/database'
 import {
   getAuth,
   createUserWithEmailAndPassword,
@@ -98,6 +98,38 @@ export async function saveAllLeagues(leagues) {
 export function subscribeLeague(leagueId, callback) {
   const r = ref(db, "frtv/league_" + leagueId);
   return onValue(r, (snap) => callback(snap.val()));
+}
+
+// v2.6.24.0: league chat. Messages live at `frtv/league_<id>_chat/<auto-id>`
+// — a SIBLING of the league doc, not a child, so saveLeague's full-doc
+// update() doesn't blow them away. The chat path matches the existing
+// `$league_key` wildcard rule (any league_* child of frtv), so no rules
+// deploy required.
+//
+// Each message is `{ uid, authorName, text, createdAt }` with createdAt
+// pulled from `serverTimestamp()` so the order across clients is consistent
+// even when their local clocks drift.
+//
+// subscribeLeagueChat returns the unsubscribe handle; caller must invoke
+// it when the chat view unmounts. The query is limited to the last 200
+// messages so the payload stays small as a league piles up history.
+export function subscribeLeagueChat(leagueId, callback) {
+  const q = query(ref(db, "frtv/league_" + leagueId + "_chat"), limitToLast(200));
+  return onValue(q, (snap) => {
+    const val = snap.val() || {};
+    const list = Object.entries(val).map(([id, m]) => ({ id, ...m })).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    callback(list);
+  });
+}
+
+export async function sendChatMessage(leagueId, { uid, authorName, text }) {
+  if (!uid || !text?.trim()) return;
+  const r = ref(db, "frtv/league_" + leagueId + "_chat");
+  await push(r, { uid, authorName: authorName || "Player", text: text.trim(), createdAt: serverTimestamp() });
+}
+
+export async function deleteChatMessage(leagueId, messageId) {
+  await remove(ref(db, "frtv/league_" + leagueId + "_chat/" + messageId));
 }
 
 // Saves a single league by path — avoids the race condition where saveAllLeagues

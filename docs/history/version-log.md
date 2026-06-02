@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.23.8
+**Current Production Version:** v2.6.24.0
 **Last Deploy Date:** 2026-06-02
-**App.jsx Line Count:** ~10,272
+**App.jsx Line Count:** ~10,460
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,18 @@
 ---
 
 ## Version Log
+
+### v2.6.24.0 — 2026-06-02
+**League chat + Lounge tab (Chat + Polls) + tab strip scroll affordance.** First half of the communication ask (in-app feed deferred to a follow-up). Engagement plumbing for the post-Reddit-launch traffic.
+- **`subscribeLeagueChat`, `sendChatMessage`, `deleteChatMessage`** in `src/firebase.js:88-119`. Messages live at the new RTDB path `frtv/league_<id>_chat/<auto-id>` — a SIBLING of the league doc, not a child, so `saveLeague`'s full-doc `update()` doesn't blow them away. The path matches the existing `$league_key` wildcard rule so no rules deploy required. Subscription limited to `limitToLast(200)` on the server side; the callback sorts by `createdAt` (`serverTimestamp()` for consistency across clients with drifting clocks).
+- **`ChatTab`** at `App.jsx:4284-4424`. Bubble-style feed with user-on-the-right / others-on-the-left, team-color-tinted avatars (uses `team.teamAvatar` if uploaded, otherwise an initial-letter chip in the team's color). Consecutive messages from the same author within 5 minutes collapse the avatar/header (chat-app convention). Timestamp formatter shows `3:42 PM` for today, `Yesterday 3:42 PM` for yesterday, `Jun 1 3:42 PM` for older. Send on Enter (Shift+Enter for newline). Max 1000 chars. Self / commissioner can delete any message. Auto-scrolls to bottom on new message and first load.
+- **`LoungeTab`** at `App.jsx:4434-4459`. Wraps `ChatTab` and the existing `PollsSection` behind a two-pill toggle (`Chat` / `Polls`). Default lands on Chat — the more frequent interaction. Polls moved out of Standings entirely.
+- **Lounge tab inserted second** in `allTabs` at `App.jsx:1768` — right after Standings so it's prominent (users see Standings → Lounge → Cast → Scoring).
+- **Tab strip scroll affordance** at `App.jsx:1827-1862`. The tab list was always horizontally scrollable but with 7-9 tabs depending on format, mobile users didn't always notice. Added: (1) a gradient fade on the right edge (`linear-gradient(90deg, transparent, bg 80%)`) that hints "more this way", positioned absolutely so it doesn't shift layout and with `pointer-events: none` so taps still hit the underlying tab strip; (2) `scrollIntoView({ inline: "center" })` on tab change so the active tab pulls itself into view if it was off-screen; (3) `scrollbar-width: none` to hide the native scrollbar that was rendering inconsistently across browsers; (4) `flexShrink: 0` on each tab button so they don't compress.
+- **Polls section removed from StandingsTab** at `App.jsx:2191-2195` (replaced with a comment marker pointing to its new home). The component itself (`PollsSection`) is untouched; only its mount point moved.
+- **What this commit does NOT do.** No in-app notification feed yet (the audit-log aggregation across leagues + bell icon). No unread-message indicator on the Lounge tab button. No image / link / @-mention support in chat — plain text only. No edit-message UI (delete-and-resend). No typing indicators. No moderation tools beyond per-message delete. No web push notifications (deferred to ship with live draft as the user requested).
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.75s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.23.8 — 2026-06-02
 **Polls layout fix: long Yes/No questions overflowing the poll card.** Reported — a long custom-answer (Yes/No) question's text was bleeding off the poll card and the page.

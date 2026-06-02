@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import ReactDOM from "react-dom"
-import { loadData, saveData, loadRootData, saveRootData, deleteData, loadAllLeagues, saveAllLeagues, saveLeague, subscribeLeague, loadUserProfile, saveUserProfile, loadAllUserProfiles, deleteUserProfile, deleteAuthAccount, onAuthChange, signUp, signIn, signInWithGoogle, signOut, resetPassword, ADMIN_EMAIL } from "./firebase.js"
+import { loadData, saveData, loadRootData, saveRootData, deleteData, loadAllLeagues, saveAllLeagues, saveLeague, subscribeLeague, subscribeLeagueChat, sendChatMessage, deleteChatMessage, loadUserProfile, saveUserProfile, loadAllUserProfiles, deleteUserProfile, deleteAuthAccount, onAuthChange, signUp, signIn, signInWithGoogle, signOut, resetPassword, ADMIN_EMAIL } from "./firebase.js"
 import * as XLSX from "xlsx"
 import { calcContestantWeekPoints, calcTeamWeekPoints, calcStandings } from "./scoring.js"
 
@@ -1745,7 +1745,7 @@ function LeagueActivityTab({ league }) {
   );
 }
 
-function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissioner, isPrimaryCommissioner, allLeagues, userProfile, onRevealSpoiler }) {
+function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissioner, isPrimaryCommissioner, allLeagues, userProfile, authUser, onRevealSpoiler }) {
   const [tab, setTab] = useState("standings");
   const [modal, setModal] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
@@ -1765,6 +1765,7 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
 
   const allTabs = [
     { id:"standings",label:"Standings",icon:"trophy",access:"all" },
+    { id:"lounge",label:"Lounge",icon:"star",access:"all" },
     { id:"contestants",label:"Cast",icon:"star",access:"all" },
     { id:"scoring",label:"Scoring",icon:"chart",access:"all" },
     ...(league.format === "standard" ? [{ id:"weekly-draft",label:"Draft",icon:"grid",access:"commissioner" }] : []),
@@ -1823,21 +1824,42 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
           width: Math.min(100, ((league.currentWeek||1) / Math.max(Object.keys(league.weeklyScores||{}).length, league.currentWeek||1, 10)) * 100) + "%",
           transition:"width 0.5s ease" }}></div>
       </div>
-      <div style={{ display:"flex",overflowX:"auto",padding:"8px 12px",gap:4,borderBottom:"1px solid #1e1e38",WebkitOverflowScrolling:"touch" }}>
-        {tabs.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{
-            background:tab===t.id?"#e9456022":"transparent",border:tab===t.id?"1px solid #e9456044":"1px solid transparent",
-            cursor:"pointer",padding:"8px 14px",fontSize:12,fontWeight:tab===t.id?700:500,borderRadius:99,
-            color:tab===t.id?"#e94560":"#7a7a9a",
-            display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap",fontFamily:"'Outfit',sans-serif",transition:"all 0.15s ease",
-          }}>
-            <Icon name={t.icon} size={12}/> {t.label}
-          </button>
-        ))}
+      {/* v2.6.24.0: scroll affordance. The tab strip is horizontally scrollable
+          but with 6-8 tabs visible at a time, new users don't necessarily
+          notice — added a gradient fade on the right edge that disappears
+          when scrolled to the end, signaling "more this way". The fade
+          sits in an absolutely-positioned wrapper so it doesn't shift
+          layout. Active tab also scrolls into view when changed. */}
+      <div style={{ position:"relative",borderBottom:"1px solid #1e1e38" }}>
+        <div id="frtv-tabs" style={{ display:"flex",overflowX:"auto",padding:"8px 12px",gap:4,WebkitOverflowScrolling:"touch",scrollbarWidth:"none" }}>
+          {tabs.map(t => (
+            <button key={t.id} onClick={() => {
+              setTab(t.id);
+              setTimeout(() => {
+                const btn = document.querySelector(`#frtv-tabs button[data-tab="${t.id}"]`);
+                btn?.scrollIntoView({ behavior:"smooth", inline:"center", block:"nearest" });
+              }, 0);
+            }} data-tab={t.id} style={{
+              background:tab===t.id?"#e9456022":"transparent",border:tab===t.id?"1px solid #e9456044":"1px solid transparent",
+              cursor:"pointer",padding:"8px 14px",fontSize:12,fontWeight:tab===t.id?700:500,borderRadius:99,
+              color:tab===t.id?"#e94560":"#7a7a9a",
+              display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap",fontFamily:"'Outfit',sans-serif",transition:"all 0.15s ease",flexShrink:0,
+            }}>
+              <Icon name={t.icon} size={12}/> {t.label}
+            </button>
+          ))}
+        </div>
+        {/* fade indicator — hides via pointer-events:none so the strip is still scrollable underneath */}
+        <div style={{
+          position:"absolute",right:0,top:0,bottom:0,width:36,
+          background:"linear-gradient(90deg,transparent,#0d0d1a 80%)",
+          pointerEvents:"none",
+        }}/>
       </div>
 
       <div style={{ padding:20 }}>
         {tab === "standings" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><StandingsTab league={league} standings={standings} onUpdate={onUpdate} isCommissioner={isCommissioner} myTeamId={loggedInTeamId} /></SpoilerBlur>}
+        {tab === "lounge" && <LoungeTab league={league} team={loggedInTeam} authUser={authUser} userProfile={userProfile} onUpdate={onUpdate} isCommissioner={isCommissioner} />}
         {tab === "contestants" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><ContestantsTab league={league} onUpdate={isCommissioner?onUpdate:null} setModal={isCommissioner?setModal:()=>{}} setEditing={isCommissioner?setEditingItem:()=>{}} readOnly={!isCommissioner} /></SpoilerBlur>}
         {tab === "scoring" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><ScoringTab league={league} onUpdate={isCommissioner ? onUpdate : null} isCommissioner={isCommissioner} userProfile={userProfile} /></SpoilerBlur>}
         {tab === "weekly-draft" && isCommissioner && <WeeklyDraftTab league={league} onUpdate={onUpdate} standings={standings} />}
@@ -2166,16 +2188,10 @@ function StandingsTab({ league, standings, onUpdate, isCommissioner, myTeamId })
           })}
         </div>
       )}
-      {/* League-wide polls — moved here from My Roster in v2.4.42.0 so they're
-          visible to all managers (Standings is the universal landing tab).
-          v2.4.44.0: header + Add button moved into PollsSection so the create
-          form can collapse cleanly under the title row.
-          v2.4.48.0: the brief CastBreakdownSection (v2.4.45.0) was removed from
-          here — the Cast tab already has a richer contestant leaderboard with
-          filter/sort + game log per contestant. See ContestantsTab. */}
-      <div style={{ marginTop:24,paddingTop:16,borderTop:"1px solid #1e1e38" }}>
-        <PollsSection league={league} team={(league.teams||[]).find(t => t.id === myTeamId)} onUpdate={onUpdate} isCommissioner={isCommissioner} />
-      </div>
+      {/* v2.6.24.0: Polls moved out of Standings into the new Lounge tab
+          (alongside league chat) so they're more discoverable as a
+          communication / engagement surface rather than buried under
+          the leaderboard. The PollsSection component itself is unchanged. */}
       {teamModalTeam && (
         <TeamProfileModal team={teamModalTeam} league={league} standings={standings} onClose={()=>setTeamModalId(null)} />
       )}
@@ -4251,6 +4267,188 @@ function effectiveGroups(poll) {
 }
 function flattenGroupQuestions(groups) {
   return groups.flatMap(g => g.questions || []);
+}
+
+// v2.6.24.0: ChatTab — per-league chat thread. Messages subscribed live via
+// subscribeLeagueChat (a separate RTDB path at frtv/league_<id>_chat so the
+// per-league saveLeague writes don't touch chat). The feed auto-scrolls to
+// the bottom on new messages. Members can delete their own; commissioners
+// can delete anyone's. Limited to the last 200 messages on the subscription
+// side — the path can hold more but the client only renders the tail.
+function ChatTab({ league, authUser, userProfile, isCommissioner }) {
+  const [messages, setMessages] = useState([]);
+  const [draft, setDraft] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  const [sending, setSending] = useState(false);
+  const feedRef = useRef(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (!league?.id) return;
+    const unsub = subscribeLeagueChat(league.id, (list) => {
+      setMessages(list);
+      setLoaded(true);
+    });
+    return unsub;
+  }, [league?.id]);
+
+  useEffect(() => {
+    if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight;
+  }, [messages.length, loaded]);
+
+  async function send() {
+    const text = draft.trim();
+    if (!text || sending || !authUser) return;
+    setSending(true);
+    try {
+      await sendChatMessage(league.id, {
+        uid: authUser.uid,
+        authorName: userProfile?.displayName || authUser.email?.split("@")[0] || "Player",
+        text,
+      });
+      setDraft("");
+      inputRef.current?.focus();
+    } catch (e) {
+      alert("Couldn't send: " + (e?.message || "unknown error"));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function del(messageId) {
+    if (!confirm("Delete this message?")) return;
+    try { await deleteChatMessage(league.id, messageId); }
+    catch (e) { alert("Couldn't delete: " + (e?.message || "unknown error")); }
+  }
+
+  function teamForUid(uid) {
+    return (league.teams || []).find(t => t.uid === uid);
+  }
+
+  function formatTime(ms) {
+    if (!ms) return "";
+    const d = new Date(ms);
+    const now = new Date();
+    const sameDay = d.toDateString() === now.toDateString();
+    const yest = new Date(now); yest.setDate(now.getDate() - 1);
+    const wasYesterday = d.toDateString() === yest.toDateString();
+    const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    if (sameDay) return time;
+    if (wasYesterday) return `Yesterday ${time}`;
+    return `${d.toLocaleDateString([], { month: "short", day: "numeric" })} ${time}`;
+  }
+
+  function handleKey(e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  }
+
+  return (
+    <div style={{ display:"flex",flexDirection:"column",gap:8,minHeight:"60vh" }}>
+      <div ref={feedRef} style={{
+        flex:1,overflowY:"auto",padding:"4px 2px 10px",maxHeight:"65vh",minHeight:280,
+        display:"flex",flexDirection:"column",gap:10,
+      }}>
+        {!loaded ? (
+          <div style={{ padding:"40px 0",textAlign:"center",color:"#6a6a8a",fontSize:13 }}>Loading…</div>
+        ) : messages.length === 0 ? (
+          <EmptyState message="No messages yet. Be the first to say something." />
+        ) : messages.map((m, i) => {
+          const team = teamForUid(m.uid);
+          const isMe = m.uid === authUser?.uid;
+          const canDelete = isMe || isCommissioner;
+          const prev = i > 0 ? messages[i - 1] : null;
+          const sameAuthorAsPrev = prev && prev.uid === m.uid && (m.createdAt - prev.createdAt) < 5 * 60 * 1000;
+          const color = team?.teamColor || (isMe ? "#e94560" : "#9d5dff");
+          return (
+            <div key={m.id} style={{
+              display:"flex",gap:10,alignItems:"flex-start",
+              flexDirection: isMe ? "row-reverse" : "row",
+              marginTop: sameAuthorAsPrev ? -4 : 0,
+            }}>
+              {!sameAuthorAsPrev ? (
+                team?.teamAvatar ? (
+                  <img src={team.teamAvatar} alt={team.name} style={{ width:32,height:32,borderRadius:8,objectFit:"cover",border:"1px solid "+color,flexShrink:0 }}/>
+                ) : (
+                  <div style={{ width:32,height:32,borderRadius:8,background:color+"22",border:"1px solid "+color+"66",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Anybody',sans-serif",fontWeight:900,fontSize:12,color,flexShrink:0 }}>
+                    {(m.authorName||"?")[0].toUpperCase()}
+                  </div>
+                )
+              ) : (
+                <div style={{ width:32,flexShrink:0 }}/>
+              )}
+              <div style={{ flex:1,minWidth:0,maxWidth:"80%",display:"flex",flexDirection:"column",alignItems: isMe ? "flex-end" : "flex-start" }}>
+                {!sameAuthorAsPrev && (
+                  <div style={{ display:"flex",gap:6,alignItems:"baseline",marginBottom:3,flexWrap:"wrap" }}>
+                    <span style={{ fontSize:11,fontWeight:700,color:"#e8e8f0" }}>{m.authorName || "Player"}</span>
+                    <span style={{ fontSize:9,color:"#6a6a8a" }}>{formatTime(m.createdAt)}</span>
+                  </div>
+                )}
+                <div style={{
+                  padding:"8px 12px",borderRadius:12,
+                  background: isMe ? "#e9456022" : "#12121f",
+                  border: isMe ? "1px solid #e9456044" : "1px solid #1e1e38",
+                  color:"#e8e8f0",fontSize:13,lineHeight:1.5,wordBreak:"break-word",whiteSpace:"pre-wrap",maxWidth:"100%",
+                }}>{m.text}</div>
+                {canDelete && (
+                  <button onClick={()=>del(m.id)} title="Delete message" style={{ background:"transparent",border:"none",color:"#4a4a6a",cursor:"pointer",fontSize:10,padding:"2px 4px",marginTop:1 }}>delete</button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ display:"flex",gap:8,paddingTop:8,borderTop:"1px solid #1e1e38" }}>
+        <textarea
+          ref={inputRef}
+          value={draft}
+          onChange={e=>setDraft(e.target.value)}
+          onKeyDown={handleKey}
+          placeholder="Say something to the league…"
+          rows={1}
+          maxLength={1000}
+          style={{
+            flex:1,padding:"10px 14px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:10,
+            color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",resize:"none",lineHeight:1.4,outline:"none",
+            minHeight:42,maxHeight:120,boxSizing:"border-box",
+          }}
+        />
+        <Btn onClick={send} disabled={!draft.trim() || sending}>{sending ? "Sending…" : "Send"}</Btn>
+      </div>
+    </div>
+  );
+}
+
+// v2.6.24.0: LoungeTab — wraps Chat + Polls with sub-pills. Polls migrated
+// here from StandingsTab to lift their visibility — they were buried under
+// the leaderboard. Chat is the default sub-tab; users hit the Lounge tab
+// and land in active conversation.
+function LoungeTab({ league, team, authUser, userProfile, onUpdate, isCommissioner }) {
+  const [section, setSection] = useState("chat");
+  return (
+    <div>
+      <div style={{ display:"flex",gap:4,padding:4,background:"#0d0d18",border:"1px solid #1e1e38",borderRadius:99,marginBottom:16,maxWidth:300 }}>
+        {[
+          { id: "chat", label: "Chat" },
+          { id: "polls", label: "Polls" },
+        ].map(s => (
+          <button key={s.id} onClick={()=>setSection(s.id)} style={{
+            flex:1,padding:"6px 14px",borderRadius:99,border:"none",cursor:"pointer",
+            background: section===s.id ? "#e9456033" : "transparent",
+            color: section===s.id ? "#e94560" : "#7a7a9a",
+            fontSize:12,fontWeight:section===s.id?700:600,fontFamily:"'Outfit',sans-serif",
+          }}>{s.label}</button>
+        ))}
+      </div>
+      {section === "chat" ? (
+        <ChatTab league={league} authUser={authUser} userProfile={userProfile} isCommissioner={isCommissioner} />
+      ) : (
+        <PollsSection league={league} team={team} onUpdate={onUpdate} isCommissioner={isCommissioner} />
+      )}
+    </div>
+  );
 }
 
 function PollsSection({ league, team, onUpdate, isCommissioner }) {
@@ -8666,6 +8864,7 @@ export default function FantasyRealityTV() {
         isCommissioner={isAdmin || selected?.commissionerUid === authUser?.uid || (selected?.coCommissioners||[]).includes(authUser?.uid) || (selected?.commissionerTeamId && userProfile?.activations?.[selected.id] === selected.commissionerTeamId)}
         isPrimaryCommissioner={isAdmin || selected?.commissionerUid === authUser?.uid || (selected?.commissionerTeamId && userProfile?.activations?.[selected.id] === selected.commissionerTeamId)}
         userProfile={userProfile}
+        authUser={authUser}
         onRevealSpoiler={handleRevealSpoiler}
         />}
       {pendingJoin && <JoinConfirmModal
