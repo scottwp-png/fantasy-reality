@@ -1110,6 +1110,11 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
   const [rotoScoring, setRotoScoring] = useState(false);
   const [decimalScoring, setDecimalScoring] = useState(true);
   const [scoringRules, setScoringRules] = useState([]);
+  // v2.6.23.3: full admin library for this show — drives the rule picker so
+  // rules the admin deleted from the library don't reappear here as
+  // greyed-out "available" options. Loaded inside the showType effect below.
+  // null = not loaded yet (or failed); fall back to DEFAULT_SCORING_RULES.
+  const [scoringLibrary, setScoringLibrary] = useState(null);
 
   // Step 3: Teams
   const [teams, setTeams] = useState([]);
@@ -1141,10 +1146,13 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
     // immediate compile-time seed runs first so the form isn't blank during
     // the round trip, then gets replaced by the admin library if richer.
     setScoringRules(DEFAULT_SCORING_RULES.filter(r => preset.scoringDefaults.includes(r.id)));
+    setScoringLibrary(null);
     let cancelled = false;
     (async () => {
       const lib = await loadRootData("scoringLibrary/" + showType, null);
-      if (cancelled || !lib || Object.keys(lib).length === 0) return;
+      if (cancelled) return;
+      if (!lib || Object.keys(lib).length === 0) { setScoringLibrary(null); return; }
+      setScoringLibrary(lib);
       const baseRules = Object.entries(lib)
         .filter(([, r]) => r?.isBase !== false)
         .map(([id, r]) => ({
@@ -1172,7 +1180,15 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
     if (exists) {
       setScoringRules(scoringRules.filter(r=>r.id!==ruleId));
     } else {
-      const rule = DEFAULT_SCORING_RULES.find(r=>r.id===ruleId);
+      // v2.6.23.3: prefer the admin library when available — a rule the
+      // greyed list surfaced came from there, not the compile-time defaults.
+      const libRule = scoringLibrary?.[ruleId];
+      const rule = libRule
+        ? { id: ruleId, label: libRule.label, points: Number(libRule.points) || 0,
+            category: libRule.category || "Other",
+            ...(libRule.description ? { description: libRule.description } : {}),
+            ...(libRule.isElimination ? { isElimination: true } : {}) }
+        : DEFAULT_SCORING_RULES.find(r=>r.id===ruleId);
       if (rule) setScoringRules([...scoringRules, rule]);
     }
   }
@@ -1521,8 +1537,19 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
           {(()=>{
             const cats = {};
             scoringRules.forEach(r => { const c = r.category||"Other"; if(!cats[c]) cats[c]=[]; cats[c].push(r); });
-            // Also show template rules not yet added
-            const templateRules = DEFAULT_SCORING_RULES.filter(r => preset?.scoringDefaults?.includes(r.id));
+            // v2.6.23.3: greyed-out "available but not in base" rules come from
+            // the admin library when one has been loaded — so rules the admin
+            // deleted no longer reappear from the compile-time defaults. Fall
+            // back to DEFAULT_SCORING_RULES only when the library hasn't been
+            // populated for this show yet (first-run / no-data case).
+            const templateRules = scoringLibrary
+              ? Object.entries(scoringLibrary).map(([id, r]) => ({
+                  id, label: r.label, points: Number(r.points) || 0,
+                  category: r.category || "Other",
+                  ...(r.description ? { description: r.description } : {}),
+                  ...(r.isElimination ? { isElimination: true } : {}),
+                }))
+              : DEFAULT_SCORING_RULES.filter(r => preset?.scoringDefaults?.includes(r.id));
             templateRules.forEach(r => { if (!scoringRules.some(sr=>sr.id===r.id)) { const c = r.category||"Other"; if(!cats[c]) cats[c]=[]; cats[c].push({...r, _inactive: true}); }});
             return Object.entries(cats).map(([cat, rules]) => (
               <div key={cat} style={{ marginBottom:16 }}>

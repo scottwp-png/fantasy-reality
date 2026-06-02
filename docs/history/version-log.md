@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.23.2
+**Current Production Version:** v2.6.23.3
 **Last Deploy Date:** 2026-06-02
-**App.jsx Line Count:** ~10,080
+**App.jsx Line Count:** ~10,090
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,16 @@
 ---
 
 ## Version Log
+
+### v2.6.23.3 — 2026-06-02
+**Create-league rule picker: source from admin library, not compile-time defaults.** Reported: rules the admin deleted from the library were still showing as greyed-out "available" options when creating a new league. They no longer exist in the library but the picker pulled from a hardcoded list independent of admin state.
+- **Root cause** at the old `App.jsx:1525` — the create-league rule picker built its full list from `DEFAULT_SCORING_RULES.filter(r => preset.scoringDefaults.includes(r.id))`. That's the compile-time seed list (~30 rules per show). Admin deletions on the library never propagated because the picker didn't read from the library at all — it always rendered the full hardcoded slate, marked `_inactive: true` for any not currently in `scoringRules`.
+- **`scoringLibrary` state** added at `App.jsx:1113-1117` — holds the full RTDB library map for the chosen show. Populated inside the existing `showType` effect alongside the existing scoring-rule seeding; reset to `null` when the show changes so a stale library doesn't bleed across show switches.
+- **Picker now sources from the library** at `App.jsx:1535-1544` — `templateRules` builds from `scoringLibrary` entries (every rule, base or not, since the greyed/active visual distinction handles whether it's in the current selection). Falls back to `DEFAULT_SCORING_RULES` only when the library hasn't loaded for that show yet (admin hasn't visited it / first-run). Net effect: deleted rules don't show; non-base rules show greyed; base rules show checked; perfectly matches what admin sees in the Rule Library view.
+- **`toggleRule` updated** at `App.jsx:1185-1199` — when re-adding a previously-greyed rule, prefers the admin library entry over the compile-time default so user-authored description / category / points come through. Compile-time defaults stay as the fallback for the first-run library-empty case.
+- **What this commit does NOT do.** No migration of the dead `availableRules` / `allShowRules` / `rulesByCategory` variables declared at `App.jsx:1262-1271` — they're declared but unused; left as a separate cleanup. No support for "show me rules from other shows" (each show's library is independent). No UI for the admin to bulk-restore deleted rules — admin re-adds via the existing `+ New Rule` form in the Rule Library.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (3.76s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.23.2 — 2026-06-02
 **Live sync for the currently selected league.** Replaces the previous one-shot `get()` model — while a user is inside a league, an RTDB `onValue` listener keeps that league's state synced across every connected client. Commissioner scores from one device, members see the new totals refresh-free.
