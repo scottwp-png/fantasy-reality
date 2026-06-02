@@ -4400,32 +4400,23 @@ function ChatTab({ league, authUser, userProfile, isCommissioner, messages = [] 
         {messages.length === 0 ? (
           <EmptyState message="No messages yet. Be the first to say something." />
         ) : messages.map((m, i) => {
-          const team = teamForUid(m.uid);
+          // v2.6.24.2: avatar/thumbnail removed — having the avatar AND the
+          // author name above each bubble felt redundant and cluttered.
+          // Name + time above bubble is enough identification.
           const isMe = m.uid === authUser?.uid;
           const canDelete = isMe || isCommissioner;
           const prev = i > 0 ? messages[i - 1] : null;
           const sameAuthorAsPrev = prev && prev.uid === m.uid && (m.createdAt - prev.createdAt) < 5 * 60 * 1000;
-          const color = team?.teamColor || (isMe ? "#e94560" : "#9d5dff");
           return (
             <div key={m.id} style={{
-              display:"flex",gap:10,alignItems:"flex-start",
-              flexDirection: isMe ? "row-reverse" : "row",
+              display:"flex",flexDirection:"column",
+              alignItems: isMe ? "flex-end" : "flex-start",
               marginTop: sameAuthorAsPrev ? -4 : 0,
+              maxWidth:"100%",
             }}>
-              {!sameAuthorAsPrev ? (
-                team?.teamAvatar ? (
-                  <img src={team.teamAvatar} alt={team.name} style={{ width:32,height:32,borderRadius:8,objectFit:"cover",border:"1px solid "+color,flexShrink:0 }}/>
-                ) : (
-                  <div style={{ width:32,height:32,borderRadius:8,background:color+"22",border:"1px solid "+color+"66",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Anybody',sans-serif",fontWeight:900,fontSize:12,color,flexShrink:0 }}>
-                    {(m.authorName||"?")[0].toUpperCase()}
-                  </div>
-                )
-              ) : (
-                <div style={{ width:32,flexShrink:0 }}/>
-              )}
-              <div style={{ flex:1,minWidth:0,maxWidth:"80%",display:"flex",flexDirection:"column",alignItems: isMe ? "flex-end" : "flex-start" }}>
+              <div style={{ display:"flex",flexDirection:"column",maxWidth:"80%",alignItems: isMe ? "flex-end" : "flex-start" }}>
                 {!sameAuthorAsPrev && (
-                  <div style={{ display:"flex",gap:6,alignItems:"baseline",marginBottom:3,flexWrap:"wrap" }}>
+                  <div style={{ display:"flex",gap:6,alignItems:"baseline",marginBottom:3,flexWrap:"wrap",paddingLeft: isMe ? 0 : 4, paddingRight: isMe ? 4 : 0 }}>
                     <span style={{ fontSize:11,fontWeight:700,color:"#e8e8f0" }}>{m.authorName || "Player"}</span>
                     <span style={{ fontSize:9,color:"#6a6a8a" }}>{formatTime(m.createdAt)}</span>
                   </div>
@@ -11368,12 +11359,18 @@ function NotificationBell({ leagues, userProfile, onUpdateProfile, onSelectLeagu
       </button>
       {open && (
         <>
-          <div onClick={()=>setOpen(false)} style={{ position:"fixed",inset:0,zIndex:99 }}/>
+          <div onClick={()=>setOpen(false)} style={{ position:"fixed",inset:0,zIndex:99,background:"rgba(0,0,0,0.4)" }}/>
+          {/* v2.6.24.2: dropdown switched to position:fixed anchored to viewport
+              instead of the bell's wrapper. The old position:absolute approach
+              shifted with whatever flex-wrap row the bell ended up on, and on
+              mobile that put the dropdown off-screen left. Fixed positioning
+              with top:60 + right:8 keeps it pinned regardless of where the
+              bell sits in the header. */}
           <div style={{
-            position:"absolute",right:0,top:"calc(100% + 6px)",zIndex:100,
-            width:320,maxWidth:"calc(100vw - 40px)",maxHeight:480,overflowY:"auto",
-            background:"#12121f",border:"1px solid #2a2a4a",borderRadius:10,
-            boxShadow:"0 16px 48px rgba(0,0,0,0.5)",
+            position:"fixed",top:64,right:8,zIndex:100,
+            width:340,maxWidth:"calc(100vw - 16px)",maxHeight:"min(540px, calc(100vh - 96px))",overflowY:"auto",
+            background:"#12121f",border:"1px solid #2a2a4a",borderRadius:12,
+            boxShadow:"0 16px 48px rgba(0,0,0,0.6)",
           }}>
             <div style={{ padding:"12px 14px",borderBottom:"1px solid #1e1e38",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
               <div style={{ fontSize:12,fontWeight:700,color:"#e8e8f0",textTransform:"uppercase",letterSpacing:"0.05em" }}>Activity</div>
@@ -11397,13 +11394,13 @@ function NotificationBell({ leagues, userProfile, onUpdateProfile, onSelectLeagu
                     setOpen(false);
                   }} style={{
                     background:"none",border:"none",borderBottom:i<events.length-1?"1px solid #1a1a30":"none",
-                    cursor:"pointer",padding:"10px 14px",textAlign:"left",fontFamily:"'Outfit',sans-serif",
-                    display:"flex",gap:10,alignItems:"flex-start",
+                    cursor:"pointer",padding:"12px 16px",textAlign:"left",fontFamily:"'Outfit',sans-serif",
+                    display:"flex",gap:12,alignItems:"flex-start",
                   }}>
-                    <div style={{ width:6,height:6,borderRadius:99,background:colorForKind(e.kind),flexShrink:0,marginTop:6 }}/>
+                    <div style={{ width:8,height:8,borderRadius:99,background:colorForKind(e.kind),flexShrink:0,marginTop:6 }}/>
                     <div style={{ flex:1,minWidth:0 }}>
-                      <div style={{ fontSize:12,color:"#e8e8f0",lineHeight:1.4,wordBreak:"break-word" }}>{e.desc || "(no description)"}</div>
-                      <div style={{ fontSize:10,color:"#6a6a8a",marginTop:3,display:"flex",gap:6,flexWrap:"wrap" }}>
+                      <div style={{ fontSize:13,color:"#e8e8f0",lineHeight:1.4,wordBreak:"break-word" }}>{e.desc || "(no description)"}</div>
+                      <div style={{ fontSize:11,color:"#6a6a8a",marginTop:4,display:"flex",gap:6,flexWrap:"wrap" }}>
                         <span style={{ color:"#aaaabf",fontWeight:600 }}>{e.leagueName}</span>
                         <span>·</span>
                         <span>{formatRel(e.time)}</span>

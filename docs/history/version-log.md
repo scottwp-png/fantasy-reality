@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.24.1
+**Current Production Version:** v2.6.24.2
 **Last Deploy Date:** 2026-06-02
-**App.jsx Line Count:** ~10,580
+**App.jsx Line Count:** ~10,560
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,14 @@
 ---
 
 ## Version Log
+
+### v2.6.24.2 — 2026-06-02
+**Mobile polish: notification dropdown positioning + chat avatar removal.** Reported from prod — on mobile the notifications dropdown was anchored off-screen to the left, and the chat bubbles had both an avatar AND an author-name header which felt cluttered.
+- **Notification dropdown** at `App.jsx:11270-11290` switched from `position:absolute; right:0` (anchored to the bell button's wrapper) to `position:fixed; top:64; right:8` (anchored to the viewport's top-right corner). On desktop the dropdown still floats near the bell; on mobile, where the bell can wrap to any position in the header, the dropdown now lands consistently in the upper-right with safe margins on every screen size. Added a 40% black scrim backdrop so the layer behind is visibly dimmed (previous version had a transparent click-catcher; users couldn't tell the dropdown was modal). Width is `min(340, 100vw - 16)`; max-height `min(540, 100vh - 96)` so it never overflows the viewport vertically either. Slightly bumped padding and font sizes (12→13 / 10→11) for readability.
+- **Chat avatar removed** at `App.jsx:4402-4425`. Was rendering both the team-color avatar (32px square with initial-letter or team photo) AND the author name above the bubble, on every first message of a group. With the name in the header line, the avatar didn't add information — just visual noise. Now: name + time above bubble, bubble below, delete chip below that. Consecutive-author collapse still works (no header on follow-up messages within 5 min). The alignment switch (self-right vs others-left) is preserved.
+- **What this commit does NOT do.** No notification dropdown swap to a bottom sheet on mobile (top-right positioning works fine and matches platform expectations). No avatar reintroduction option — if individual users want photos, the next iteration is reuse of `team.teamAvatar` as a small leading icon next to the name (rather than a 32px square).
+- `node _snapshots/diff-against-baseline.mjs` deferred — UI-only change. `npm run build` clean (2.84s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.24.1 — 2026-06-02
 **Notification bell + Lounge unread badges + click-through navigation.** Second half of the communication ask. Audit-log mirror was scrapped in favor of actionable-only events; tapping a notification now lands in the relevant area.
