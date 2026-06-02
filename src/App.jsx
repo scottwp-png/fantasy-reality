@@ -7554,6 +7554,36 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
       {/* Import from XLSX */}
       <ImportXLSXSection league={league} onUpdate={onUpdate} />
 
+      {/* v2.6.23.0: End-of-season mechanic. Primary commissioner marks the
+          season complete when the show wraps; the league becomes read-only
+          (rosters / scoring locked) and gets a "Season Complete" badge in
+          My Leagues. Admin Stats stops counting it as Active. Reversible —
+          commissioner can re-open if needed. */}
+      {isPrimaryCommissioner && (
+        <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+          <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:4 }}>Season Status</div>
+          <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:10,lineHeight:1.4 }}>
+            {league.seasonComplete
+              ? `Marked complete${league.seasonCompletedAt ? ` on ${new Date(league.seasonCompletedAt).toLocaleDateString()}` : ""}. Rosters and scoring are read-only; the league shows as archived in My Leagues. Re-open to make edits.`
+              : "Mark the season complete when the show finishes — the league archives, rosters / scoring lock, and admin Stats stops counting it as Active. Reversible."}
+          </div>
+          <Btn small variant={league.seasonComplete?"secondary":"danger"} onClick={()=>{
+            if (league.seasonComplete) {
+              if (!confirm("Re-open this league? Rosters and scoring become editable again, and admin Stats counts it as Active again.")) return;
+              const actorName = userProfile?.displayName || "Commissioner";
+              const audited = appendAudit(league, { type:"setting", actorName, desc:`${actorName} re-opened the league (season status reset)` });
+              const { seasonCompletedAt, ...rest } = audited;
+              onUpdate({ ...rest, seasonComplete: false });
+            } else {
+              if (!confirm(`Mark "${league.name || "this league"}" complete? Rosters / scoring lock, the league archives in My Leagues. You can re-open later if needed.`)) return;
+              const actorName = userProfile?.displayName || "Commissioner";
+              const audited = appendAudit(league, { type:"setting", actorName, desc:`${actorName} marked the league season complete` });
+              onUpdate({ ...audited, seasonComplete: true, seasonCompletedAt: Date.now() });
+            }
+          }}>{league.seasonComplete ? "Re-open League" : "Mark Season Complete"}</Btn>
+        </div>
+      )}
+
       <div style={{ padding:"16px",background:"#1a0a10",borderRadius:10,border:"1px solid #3a1525" }}>
         <div style={{ fontSize:14,fontWeight:700,color:"#e94560",marginBottom:4 }}>Danger Zone</div>
         <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:12,lineHeight:1.4 }}>These actions cannot be undone.</div>
@@ -10176,7 +10206,9 @@ function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }
   const totalLeagues = leagues.length;
   const totalTeams = leagues.reduce((sum, l) => sum + (l.teams||[]).length, 0);
   const totalContestants = leagues.reduce((sum, l) => sum + (l.contestants||[]).length, 0);
-  const activeLeagues = leagues.filter(l => Object.keys(l.weeklyScores||{}).length > 0).length;
+  // v2.6.23.0: "active" = has scoring AND hasn't been marked seasonComplete.
+  // Commissioner ends the season explicitly from Settings > Danger Zone.
+  const activeLeagues = leagues.filter(l => Object.keys(l.weeklyScores||{}).length > 0 && !l.seasonComplete).length;
 
   // v2.6.3.0: Users + Leagues + Announce moved INTO the Manage tab (sub-views)
   // so the top level is just the high-leverage admin surfaces: Stats, Shows,
@@ -10807,7 +10839,10 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
                       color:SHOW_PRESETS[league.showType]?.color||"#9d5dff",flexShrink:0
                     }}>{SHOW_PRESETS[league.showType]?.emoji||"TV"}</div>
                     <div style={{ flex:1 }}>
-                      <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:15,fontFamily:"'Anybody',sans-serif" }}>{league.name}</div>
+                      <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:15,fontFamily:"'Anybody',sans-serif",display:"flex",alignItems:"center",gap:8 }}>
+                        {league.name}
+                        {league.seasonComplete && <span style={{ fontSize:9,fontWeight:700,color:"#8888aa",background:"#1e1e38",border:"1px solid #2a2a4a",padding:"2px 7px",borderRadius:99,textTransform:"uppercase",letterSpacing:"0.05em" }}>Season Complete</span>}
+                      </div>
                       <div style={{ color:"#6a6a8a",fontSize:12,marginTop:2 }}>{league.seasonName} · {cadenceShort(league)} {league.currentWeek||1} · {(league.teams||[]).length} team{(league.teams||[]).length!==1?"s":""}{league.commissionerUid === user?.uid && !isAdmin ? " · Commissioner" : ""}</div>
                       {myTeam && (()=>{
                         const standings = calcStandings(league);
