@@ -32,7 +32,7 @@
 - **Regression baselines re-captured** — the standings output gained two public fields (`rank`, `tied`) so the captured `.standings.json` files needed a refresh. 10/10 pass byte-identical after re-capture; this is a contract change (the engine now exports more, but doesn't compute existing fields differently).
 - **What this commit does NOT do.** No tiebreaker logic to BREAK ties (head-to-head record, best week, etc.) — that's a follow-up the user explicitly deferred. Ties just display as ties for now. No "T-N" prefix on the leaderboard rank itself (kept the column compact — the medal/background + subscript TIED communicate it). No re-rank for the cast standings or per-week-team contestant ranking (those use looser rank semantics and the issue was specifically about team standings).
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS after re-capture. `npm run build` clean (3.28s).
-- **Commit:** `_pending_`
+- **Commit:** `f243898`
 
 ### v2.6.23.0 — 2026-06-02
 **End-of-season "Mark Season Complete" mechanic.** Lets primary commissioners archive a finished season so the league shows that state explicitly and admin Stats stops counting it as Active.

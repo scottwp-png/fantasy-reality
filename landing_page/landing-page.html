@@ -107,10 +107,94 @@ section{padding:80px 24px}
 .feat h3 .fi{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .feat p{font-size:13px;color:var(--muted);line-height:1.6}
 
-.shows-grid-desktop{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:36px}.shows-carousel{position:relative;margin-top:36px;display:none}.shows-track{display:flex;gap:12px;justify-content:center}.show-arrow{position:absolute;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;transition:all .2s;z-index:2}.show-arrow:hover{background:var(--border);color:var(--text)}.show-arrow.left{left:-8px}.show-arrow.right{right:-8px}@media(max-width:768px){.shows-grid-desktop{display:none}.shows-carousel{display:block}.shows-dots-wrap{display:flex!important}}
+.shows-grid-desktop{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:36px}.shows-carousel{position:relative;margin-top:36px;display:none}.shows-track{display:flex;gap:12px;justify-content:center}.show-arrow{position:absolute;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;transition:all .2s;z-index:2}.show-arrow:hover{background:var(--border);color:var(--text)}.show-arrow.left{left:-8px}.show-arrow.right{right:-8px}@media(max-width:768px){.shows-grid-desktop{display:none}.shows-carousel{display:block}.shows-dots-wrap{display:flex!important}}
 .show-tile{padding:18px 16px;border-radius:10px;border:1px solid var(--border);background:var(--surface);text-align:center;transition:all .3s;cursor:default;flex:1;min-width:0}
 .show-tile:hover{transform:translateY(-2px);border-color:var(--border-light)}
 .show-tile h3{font-size:14px;font-weight:800;letter-spacing:-.01em}
+
+/* Screenshots section — phone-style mockups simulating actual app screens.
+   No real images: every photo is a CSS gradient placeholder, every score
+   uses real team / contestant names from a live Love Island Series 13
+   league. Three phones; horizontal scroll on narrow viewports. */
+.shots-sec{padding:60px 24px}
+.shots-row{display:flex;gap:28px;margin-top:48px;justify-content:center;flex-wrap:wrap}
+@media(max-width:1100px){.shots-row{flex-wrap:nowrap;overflow-x:auto;scroll-snap-type:x mandatory;padding:8px 4px 20px;margin-left:-24px;margin-right:-24px;padding-left:24px;padding-right:24px}}
+.shot{width:280px;flex-shrink:0;border-radius:30px;border:2.5px solid var(--border-light);background:var(--bg);overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,0.5);scroll-snap-align:center;display:flex;flex-direction:column}
+.shot-header{padding:14px 14px 8px;border-bottom:1px solid var(--border);background:var(--bg2)}
+.shot-app{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.shot-app-icon{width:30px;height:30px;border-radius:8px;background:rgba(255,93,160,0.15);border:1px solid rgba(255,93,160,0.35);color:var(--pink);display:flex;align-items:center;justify-content:center;font-family:'Anybody',sans-serif;font-weight:900;font-size:10px}
+.shot-app-title{font-family:'Anybody',sans-serif;font-weight:900;font-size:13px;color:var(--text);line-height:1.1}
+.shot-app-sub{font-size:9px;color:var(--muted);margin-top:1px}
+.shot-tabs{display:flex;gap:14px;font-size:10px;color:var(--muted);font-weight:600}
+.shot-tabs .active{color:var(--red);position:relative}
+.shot-tabs .active::after{content:'';position:absolute;left:0;right:0;bottom:-9px;height:2px;background:var(--red);border-radius:2px}
+.shot-body{padding:14px;flex:1;overflow:hidden}
+.shot-title{font-family:'Anybody',sans-serif;font-weight:900;font-size:18px;color:var(--text);letter-spacing:-.02em}
+.shot-title-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.shot-pill{padding:3px 9px;border-radius:99px;font-size:9px;font-weight:700;border:1px solid var(--border)}
+.shot-pill-orange{background:rgba(255,138,61,0.12);color:var(--orange);border-color:rgba(255,138,61,0.3)}
+.shot-pill-teal{background:rgba(61,214,200,0.12);color:var(--teal);border-color:rgba(61,214,200,0.3)}
+
+/* Team row (leaderboard) */
+.lb-row{display:flex;align-items:center;gap:9px;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:6px}
+.lb-row.first{background:linear-gradient(135deg,rgba(255,77,106,0.10),var(--surface));border-color:rgba(255,77,106,0.4)}
+.lb-medal{width:22px;flex-shrink:0;font-size:14px;text-align:center}
+.lb-avatar{width:32px;height:32px;border-radius:8px;flex-shrink:0;border:1.5px solid var(--blue)}
+.lb-avatar.silver{border-color:#c0c0c0}
+.lb-avatar.bronze{border-color:#cd7f32}
+.lb-avatar.pink{border-color:var(--pink)}
+.lb-avatar.teal{border-color:var(--teal)}
+.lb-info{flex:1;min-width:0}
+.lb-team{font-size:11px;font-weight:700;color:var(--text);line-height:1.2}
+.lb-mgr{font-size:9px;color:var(--muted);margin-top:2px}
+.lb-pts{font-family:'Anybody',sans-serif;font-weight:900;font-size:18px;color:var(--text);text-align:right}
+.lb-pts-unit{font-size:8px;color:var(--muted);text-align:right;margin-top:-2px}
+.lb-pts.zero{color:var(--muted)}
+
+/* Cast row */
+.cast-toggle{display:flex;gap:4px;padding:3px;background:var(--surface);border:1px solid var(--border);border-radius:99px;width:fit-content;margin-bottom:10px}
+.cast-toggle button{padding:4px 12px;border-radius:99px;border:none;font-size:9px;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif}
+.cast-toggle .on{background:rgba(255,77,106,0.18);color:var(--red)}
+.cast-toggle .off{background:transparent;color:var(--muted)}
+.cast-row{display:flex;align-items:center;gap:9px;padding:9px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:6px}
+.cast-num{width:14px;font-size:10px;color:var(--muted);font-weight:700;text-align:center;flex-shrink:0}
+.cast-photo{width:30px;height:30px;border-radius:8px;flex-shrink:0;border:1.5px solid var(--pink)}
+.cast-name{flex:1;font-size:11px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:5px}
+.cast-couple{font-size:9px;color:var(--red);font-weight:500}
+.cast-pts{font-family:'Anybody',sans-serif;font-weight:900;font-size:14px;color:var(--teal)}
+.cast-pts.zero{color:var(--muted)}
+.cast-pts.pos::before{content:'+'}
+
+/* Depth chart */
+.dc-locked{padding:8px 10px;background:rgba(255,138,61,0.08);border:1px solid rgba(255,138,61,0.3);border-radius:8px;margin-bottom:10px;display:flex;gap:6px;align-items:flex-start}
+.dc-locked-icon{font-size:11px;flex-shrink:0;line-height:1.4}
+.dc-locked-text{font-size:9px;color:var(--orange);line-height:1.35;font-weight:600}
+.dc-table{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.dc-header{display:flex;padding:6px 10px;font-size:8px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border)}
+.dc-header-slot{width:32px;flex-shrink:0}
+.dc-header-player{flex:1;padding-left:38px}
+.dc-header-pts{width:54px;text-align:right}
+.dc-row{display:flex;align-items:center;padding:8px 10px;border-bottom:1px solid rgba(37,37,64,0.5)}
+.dc-row:last-child{border:none}
+.dc-slot{width:32px;flex-shrink:0;border-radius:6px;padding:5px 4px;text-align:center;background:var(--surface2)}
+.dc-slot-letter{font-family:'Anybody',sans-serif;font-weight:900;font-size:12px;line-height:1}
+.dc-slot-mult{font-size:7px;font-weight:600;margin-top:1px;line-height:1}
+.dc-slot.h{background:rgba(255,138,61,0.15);color:var(--orange);border:1px solid rgba(255,138,61,0.35)}
+.dc-slot.sk{background:rgba(61,214,200,0.12);color:var(--teal);border:1px solid rgba(61,214,200,0.32)}
+.dc-slot.v{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+.dc-photo{width:28px;height:28px;border-radius:7px;margin:0 8px;border:1.5px solid var(--pink);flex-shrink:0}
+.dc-player{flex:1;font-size:11px;font-weight:600;color:var(--text)}
+.dc-pts{font-family:'Anybody',sans-serif;font-weight:900;font-size:13px;color:var(--teal);width:54px;text-align:right}
+.dc-pts.zero{color:var(--muted)}
+.dc-pts.pos::before{content:'+'}
+
+/* Reusable face placeholder — a small radial gradient that hints at a portrait
+   without showing one. Combines hair-color hue + skin tone band. */
+.face{background:radial-gradient(ellipse 60% 40% at 50% 30%,rgba(255,255,255,0.15),transparent 65%),linear-gradient(180deg,#3a2a3a 0%,#3a2a3a 30%,#c89a82 30%,#c89a82 100%)}
+.face.dark{background:radial-gradient(ellipse 60% 40% at 50% 30%,rgba(255,255,255,0.1),transparent 65%),linear-gradient(180deg,#1a1015 0%,#1a1015 30%,#7a503a 30%,#7a503a 100%)}
+.face.blonde{background:radial-gradient(ellipse 60% 40% at 50% 30%,rgba(255,255,255,0.2),transparent 65%),linear-gradient(180deg,#d4a05a 0%,#d4a05a 30%,#dab09a 30%,#dab09a 100%)}
+.face.brunette{background:radial-gradient(ellipse 60% 40% at 50% 30%,rgba(255,255,255,0.12),transparent 65%),linear-gradient(180deg,#2a1a1a 0%,#2a1a1a 30%,#c89a82 30%,#c89a82 100%)}
+.face.red{background:radial-gradient(ellipse 60% 40% at 50% 30%,rgba(255,255,255,0.15),transparent 65%),linear-gradient(180deg,#8a3520 0%,#8a3520 30%,#e8b8a0 30%,#e8b8a0 100%)}
 
 .faq-sec{background:var(--bg2)}
 .faq-list{display:flex;flex-direction:column;gap:8px;margin-top:40px;max-width:700px}
@@ -162,7 +246,7 @@ footer a{color:var(--red);font-weight:600}
   <div class="hero-glow hero-glow-2"></div>
   <div class="hero-inner">
     <div class="hero-text">
-      <div class="hero-chip fade-up d1"><span class="live-dot"></span> Now live — Survivor 50 & Top Chef 23</div>
+      <div class="hero-chip fade-up d1" id="live-chip"><span class="live-dot"></span> <span id="live-chip-text">Now live — your favorite reality TV</span></div>
       <h1 class="fade-up d2">
         <span class="top">Primetime meets</span>
         <span class="bottom">Gametime.</span>
@@ -179,14 +263,7 @@ footer a{color:var(--red);font-weight:600}
         <div class="phone-inner">
           <div class="phone-notch"></div>
           <div class="phone-app-header"><h3>Fantasy Reality</h3></div>
-          <div class="ph-card">
-            <div class="ph-icon" style="background:rgba(212,162,78,0.12);color:#d4a24e">S</div>
-            <div class="ph-info"><div class="name">Fantasy Survivor</div><div class="sub">Season 50 · Week 3</div></div>
-          </div>
-          <div class="ph-card">
-            <div class="ph-icon" style="background:rgba(61,214,200,0.12);color:#3dd6c8">TC</div>
-            <div class="ph-info"><div class="name">Fantasy Top Chef</div><div class="sub">Season 23 · Week 2</div></div>
-          </div>
+          <div id="phone-leagues"></div>
           <div class="ph-standings">
             <div class="ph-standings-title">Standings</div>
             <div class="ph-row"><span class="ph-rank">1</span><span class="ph-team">Team Scott</span><span class="ph-pts">+42.5</span></div>
@@ -232,27 +309,35 @@ footer a{color:var(--red);font-weight:600}
     <div class="feat-grid">
       <div class="feat">
         <h3><span class="fi" style="background:var(--red)"></span> Custom Scoring</h3>
-        <p>Dramatic exit? 10 points. Ugly cry? 1 point. Your league, your rules.</p>
+        <p>Dramatic exit? 10 points. Ugly cry? 1 point. Your league, your rules. Every show gets a starter rulebook and your commissioner can override per-league.</p>
       </div>
       <div class="feat">
-        <h3><span class="fi" style="background:var(--teal)"></span> Cast Rankings</h3>
-        <p>See who's dominating the season, who had the best week, and who your league is sleeping on.</p>
+        <h3><span class="fi" style="background:var(--teal)"></span> Live Standings</h3>
+        <p>Rankings update the moment scores save. Weekly breakdowns, best weeks, worst weeks, head-to-head records — all the receipts.</p>
       </div>
       <div class="feat">
         <h3><span class="fi" style="background:var(--yellow)"></span> Multiple Formats</h3>
-        <p>Heroes mode, weekly redraft, survivor pools, predictions — pick the format that fits your group.</p>
+        <p>Heroes (one-time draft, 2x/1.5x multipliers), Standard (weekly redraft), Survivor Pool, Salary Cap, Elimination Pool, Predictions. Match the format to your group.</p>
       </div>
       <div class="feat">
-        <h3><span class="fi" style="background:var(--orange)"></span> Live Standings</h3>
-        <p>Standings update instantly. Weekly breakdowns, best weeks, worst weeks — all the receipts.</p>
+        <h3><span class="fi" style="background:var(--orange)"></span> Auto Roster Lock</h3>
+        <p>Rosters lock before the episode airs so no one swaps in last-minute. Each show has its own air-time schedule that commissioners can override.</p>
       </div>
       <div class="feat">
-        <h3><span class="fi" style="background:var(--blue)"></span> Works Everywhere</h3>
-        <p>Phone, tablet, laptop. Install it like an app or just use your browser.</p>
+        <h3><span class="fi" style="background:var(--blue)"></span> Co-Commissioners</h3>
+        <p>Share the workload. Promote any team owner to co-commissioner — they can score, lock rosters, manage cast, and finalize weeks.</p>
       </div>
       <div class="feat">
-        <h3><span class="fi" style="background:var(--purple)"></span> Roster Lock</h3>
-        <p>Lock rosters before the episode airs. No sneaky last-minute swaps.</p>
+        <h3><span class="fi" style="background:var(--purple)"></span> Spoiler Protection</h3>
+        <p>Scores stay blurred until you watch. Reveal when you're ready, or auto-reveal after a grace period your league sets.</p>
+      </div>
+      <div class="feat">
+        <h3><span class="fi" style="background:var(--pink)"></span> Cast Rankings</h3>
+        <p>See who's dominating the season, who's quietly stacking points, and who your league is sleeping on.</p>
+      </div>
+      <div class="feat">
+        <h3><span class="fi" style="background:var(--green)"></span> Works Everywhere</h3>
+        <p>Phone, tablet, laptop. Install it like an app or just use your browser — same experience either way.</p>
       </div>
     </div>
   </div>
@@ -270,7 +355,9 @@ footer a{color:var(--red);font-weight:600}
       <div class="show-tile"><h3 style="color:var(--red)">THE TRAITORS</h3><p style="font-size:11px;color:var(--muted)">Murder. Banish.</p></div>
       <div class="show-tile"><h3 style="color:var(--blue)">BIG BROTHER</h3><p style="font-size:11px;color:var(--muted)">Expect the unexpected.</p></div>
       <div class="show-tile"><h3 style="color:var(--orange)">THE CHALLENGE</h3><p style="font-size:11px;color:var(--muted)">Are you the one?</p></div>
-      <div class="show-tile"><h3 style="color:var(--purple)">LOVE IS BLIND</h3><p style="font-size:11px;color:var(--muted)">Is love truly blind?</p></div>
+      <div class="show-tile"><h3 style="color:var(--purple)">DRAG RACE</h3><p style="font-size:11px;color:var(--muted)">Shantay, you stay.</p></div>
+      <div class="show-tile"><h3 style="color:var(--yellow)">BAKE OFF</h3><p style="font-size:11px;color:var(--muted)">Soggy bottoms beware.</p></div>
+      <div class="show-tile"><h3 style="color:#c084fc">LOVE IS BLIND</h3><p style="font-size:11px;color:var(--muted)">Is love truly blind?</p></div>
       <div class="show-tile"><h3 style="color:var(--green)">AMAZING RACE</h3><p style="font-size:11px;color:var(--muted)">The world is waiting.</p></div>
       <div class="show-tile"><h3 style="background:linear-gradient(135deg,var(--red),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent">ANY SHOW</h3><p style="font-size:11px;color:var(--muted)">Your show. Your rules.</p></div>
     </div>
@@ -290,7 +377,9 @@ footer a{color:var(--red);font-weight:600}
         {name:"THE TRAITORS",color:"var(--red)",sub:"Murder. Banish.",style:""},
         {name:"BIG BROTHER",color:"var(--blue)",sub:"Expect the unexpected.",style:""},
         {name:"THE CHALLENGE",color:"var(--orange)",sub:"Are you the one?",style:""},
-        {name:"LOVE IS BLIND",color:"var(--purple)",sub:"Is love truly blind?",style:""},
+        {name:"DRAG RACE",color:"var(--purple)",sub:"Shantay, you stay.",style:""},
+        {name:"BAKE OFF",color:"var(--yellow)",sub:"Soggy bottoms beware.",style:""},
+        {name:"LOVE IS BLIND",color:"#c084fc",sub:"Is love truly blind?",style:""},
         {name:"AMAZING RACE",color:"var(--green)",sub:"The world is waiting.",style:""},
         {name:"ANY SHOW",color:"",sub:"Your show. Your rules.",style:"background:linear-gradient(135deg,var(--red),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent"}
       ];
@@ -322,6 +411,242 @@ footer a{color:var(--red);font-weight:600}
   </div>
 </section>
 
+<section class="shots-sec">
+  <div class="sec-inner">
+    <div class="sec-label">Look Inside</div>
+    <div class="sec-title">Built for watch-along chaos.</div>
+    <p class="sec-desc">Drafted rosters, live points, couples tracking, head-to-head bragging rights. Three screens, real data, no horse-girl aesthetic.</p>
+
+    <div class="shots-row">
+      <!-- Mockup 1: Leaderboard — the standings tab after Episode 1 of Love Island Series 13 -->
+      <div class="shot">
+        <div class="shot-header">
+          <div class="shot-app">
+            <div class="shot-app-icon">LI</div>
+            <div>
+              <div class="shot-app-title">Fantasy Love Island</div>
+              <div class="shot-app-sub">Series 13 · Heroes · Episode 1</div>
+            </div>
+          </div>
+          <div class="shot-tabs">
+            <span class="active">Standings</span>
+            <span>Cast</span>
+            <span>Scoring</span>
+            <span>Roster</span>
+          </div>
+        </div>
+        <div class="shot-body">
+          <div class="shot-title-row">
+            <div class="shot-title">Leaderboard</div>
+            <span class="shot-pill shot-pill-orange">Episode 1</span>
+          </div>
+          <div class="lb-row first">
+            <div class="lb-medal">🥇</div>
+            <div class="lb-avatar face dark"></div>
+            <div class="lb-info">
+              <div class="lb-team">Love Island Boy</div>
+              <div class="lb-mgr">Skot · +17.50 this wk</div>
+            </div>
+            <div>
+              <div class="lb-pts">17.50</div>
+              <div class="lb-pts-unit">pts</div>
+            </div>
+          </div>
+          <div class="lb-row">
+            <div class="lb-medal">🥈</div>
+            <div class="lb-avatar silver face brunette"></div>
+            <div class="lb-info">
+              <div class="lb-team">2nd Best IT (Island Team)</div>
+              <div class="lb-mgr">Steve · +5.00 this wk</div>
+            </div>
+            <div>
+              <div class="lb-pts">5.00</div>
+              <div class="lb-pts-unit">pts</div>
+            </div>
+          </div>
+          <div class="lb-row">
+            <div class="lb-medal">🥉</div>
+            <div class="lb-avatar bronze face blonde"></div>
+            <div class="lb-info">
+              <div class="lb-team">Team "Never Going To Use The App"</div>
+              <div class="lb-mgr">Nikki · +5.00 this wk</div>
+            </div>
+            <div>
+              <div class="lb-pts">5.00</div>
+              <div class="lb-pts-unit">pts</div>
+            </div>
+          </div>
+          <div class="lb-row">
+            <div class="lb-medal" style="color:var(--muted);font-family:'Anybody';font-size:11px;font-weight:700">4</div>
+            <div class="lb-avatar pink face red"></div>
+            <div class="lb-info">
+              <div class="lb-team">Avian Bieber Fever</div>
+              <div class="lb-mgr">Josh · +5.00 this wk</div>
+            </div>
+            <div>
+              <div class="lb-pts">5.00</div>
+              <div class="lb-pts-unit">pts</div>
+            </div>
+          </div>
+          <div class="lb-row">
+            <div class="lb-medal" style="color:var(--muted);font-family:'Anybody';font-size:11px;font-weight:700">5</div>
+            <div class="lb-avatar teal face brunette"></div>
+            <div class="lb-info">
+              <div class="lb-team">Magnum Dong</div>
+              <div class="lb-mgr">Zach</div>
+            </div>
+            <div>
+              <div class="lb-pts zero">0.00</div>
+              <div class="lb-pts-unit">pts</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mockup 2: Depth Chart — the Hero / Side-Kick / Vigilante system -->
+      <div class="shot">
+        <div class="shot-header">
+          <div class="shot-app">
+            <div class="shot-app-icon">LI</div>
+            <div>
+              <div class="shot-app-title">Fantasy Love Island</div>
+              <div class="shot-app-sub">Series 13 · Heroes · Episode 1</div>
+            </div>
+          </div>
+          <div class="shot-tabs">
+            <span>Standings</span>
+            <span>Cast</span>
+            <span>Scoring</span>
+            <span class="active">Roster</span>
+          </div>
+        </div>
+        <div class="shot-body">
+          <div class="shot-title-row">
+            <div class="shot-title">Depth Chart</div>
+            <div style="display:flex;gap:5px">
+              <span class="shot-pill shot-pill-teal">2M / 2F · OK</span>
+              <span class="shot-pill shot-pill-orange">Episode 1</span>
+            </div>
+          </div>
+          <div class="dc-locked">
+            <span class="dc-locked-icon">🔒</span>
+            <span class="dc-locked-text">Rosters are locked for managers. You can still edit as commissioner.</span>
+          </div>
+          <div class="dc-table">
+            <div class="dc-header">
+              <span class="dc-header-slot">Slot</span>
+              <span class="dc-header-player">Player</span>
+              <span class="dc-header-pts">Ep 1</span>
+            </div>
+            <div class="dc-row">
+              <div class="dc-slot h">
+                <div class="dc-slot-letter">H</div>
+                <div class="dc-slot-mult">2×</div>
+              </div>
+              <div class="dc-photo face blonde"></div>
+              <div class="dc-player">Ellie (F)</div>
+              <div class="dc-pts pos">10.00</div>
+            </div>
+            <div class="dc-row">
+              <div class="dc-slot sk">
+                <div class="dc-slot-letter">SK</div>
+                <div class="dc-slot-mult">1.5×</div>
+              </div>
+              <div class="dc-photo face brunette"></div>
+              <div class="dc-player">Aidan (M)</div>
+              <div class="dc-pts pos">7.50</div>
+            </div>
+            <div class="dc-row">
+              <div class="dc-slot v">
+                <div class="dc-slot-letter">V1</div>
+                <div class="dc-slot-mult">1×</div>
+              </div>
+              <div class="dc-photo face red"></div>
+              <div class="dc-player">Lorenzo (M)</div>
+              <div class="dc-pts zero">—</div>
+            </div>
+            <div class="dc-row">
+              <div class="dc-slot v">
+                <div class="dc-slot-letter">V2</div>
+                <div class="dc-slot-mult">1×</div>
+              </div>
+              <div class="dc-photo face blonde"></div>
+              <div class="dc-player">Robyn (F)</div>
+              <div class="dc-pts zero">—</div>
+            </div>
+          </div>
+          <div style="margin-top:14px;font-size:9px;color:var(--muted);line-height:1.5">Hero gets 2× their contestant's points. Side-Kick gets 1.5×. Vigilantes get 1×. One depth-chart swap per week.</div>
+        </div>
+      </div>
+
+      <!-- Mockup 3: Cast Standings — with couples (♥) and points -->
+      <div class="shot">
+        <div class="shot-header">
+          <div class="shot-app">
+            <div class="shot-app-icon">LI</div>
+            <div>
+              <div class="shot-app-title">Fantasy Love Island</div>
+              <div class="shot-app-sub">Series 13 · Heroes · Episode 1</div>
+            </div>
+          </div>
+          <div class="shot-tabs">
+            <span>Standings</span>
+            <span class="active">Cast</span>
+            <span>Scoring</span>
+            <span>Roster</span>
+          </div>
+        </div>
+        <div class="shot-body">
+          <div class="shot-title-row">
+            <div class="shot-title">Cast Standings</div>
+            <span class="shot-pill shot-pill-orange">Episode 1</span>
+          </div>
+          <div class="cast-toggle">
+            <button class="on">Active</button>
+            <button class="off">All (14)</button>
+          </div>
+          <div class="cast-row">
+            <div class="cast-num">1</div>
+            <div class="cast-photo face blonde"></div>
+            <div class="cast-name">Ellie <span class="cast-couple">♥ Aidan</span></div>
+            <div class="cast-pts pos">5.00</div>
+          </div>
+          <div class="cast-row">
+            <div class="cast-num">2</div>
+            <div class="cast-photo face brunette"></div>
+            <div class="cast-name">Aidan <span class="cast-couple">♥ Ellie</span></div>
+            <div class="cast-pts pos">5.00</div>
+          </div>
+          <div class="cast-row">
+            <div class="cast-num">3</div>
+            <div class="cast-photo face blonde"></div>
+            <div class="cast-name">Robyn <span class="cast-couple">♥ Samuel</span></div>
+            <div class="cast-pts zero">0.00</div>
+          </div>
+          <div class="cast-row">
+            <div class="cast-num">4</div>
+            <div class="cast-photo face dark"></div>
+            <div class="cast-name">Angelista <span class="cast-couple">♥ Ope</span></div>
+            <div class="cast-pts zero">0.00</div>
+          </div>
+          <div class="cast-row">
+            <div class="cast-num">5</div>
+            <div class="cast-photo face brunette"></div>
+            <div class="cast-name">Sean <span class="cast-couple">♥ Lola</span></div>
+            <div class="cast-pts zero">0.00</div>
+          </div>
+          <div class="cast-row">
+            <div class="cast-num">6</div>
+            <div class="cast-photo face dark"></div>
+            <div class="cast-name">Ope <span class="cast-couple">♥ Angelista</span></div>
+            <div class="cast-pts zero">0.00</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section id="faq" class="faq-sec">
   <div class="sec-inner">
     <div class="sec-label">FAQ</div>
@@ -345,23 +670,27 @@ footer a{color:var(--red);font-weight:600}
       </div>
       <div class="faq-item" onclick="this.classList.toggle('open')">
         <button class="faq-q"><span>What league formats are available?</span><span class="plus">+</span></button>
-        <div class="faq-a">Multiple formats including Heroes (one-time draft with Hero 2x and Side-Kick 1.5x multipliers, one swap per week), Standard (weekly snake redraft), and more formats coming soon like Survivor Pool, Predictions, and Duo Draft.</div>
+        <div class="faq-a">Six formats, all live: <b>Heroes</b> (one-time draft, Hero 2× / Side-Kick 1.5× / Vigilante, one swap per week), <b>Standard</b> (weekly snake redraft, points pile up), <b>Best Ball</b> (auto-optimized lineup from your full roster), <b>Salary Cap</b> (fixed budget, priced contestants), <b>Survivor Pool</b> (one pick, last one standing wins), and <b>Elimination Pool</b> (weekly pick, can't reuse).</div>
       </div>
       <div class="faq-item" onclick="this.classList.toggle('open')">
         <button class="faq-q"><span>How does scoring work?</span><span class="plus">+</span></button>
-        <div class="faq-a">Your league's commissioner scores each episode. They pick which events happened (challenge wins, eliminations, drama moments, etc.) and assign them to contestants. Points are fully customizable — your league decides what's worth what.</div>
+        <div class="faq-a">Each league's commissioner scores every episode — tap a rule, tap which contestants it applied to, save. Rules and point values are fully customizable per league. For big shows, an admin can score globally and that scoring cascades into every opted-in league, then each commissioner can adjust per their own judgment.</div>
       </div>
       <div class="faq-item" onclick="this.classList.toggle('open')">
         <button class="faq-q"><span>What does a commissioner do?</span><span class="plus">+</span></button>
-        <div class="faq-a">The commissioner runs the league — they score episodes, manage settings, generate invite codes, and lock rosters before episodes air. Whoever creates a league is automatically the commissioner.</div>
+        <div class="faq-a">The commissioner runs the league — scores episodes, manages settings, generates invite codes, locks rosters before episodes air, and finalizes weeks. Whoever creates a league is automatically the commissioner, and they can promote any team owner to <b>co-commissioner</b> to share the workload.</div>
+      </div>
+      <div class="faq-item" onclick="this.classList.toggle('open')">
+        <button class="faq-q"><span>What's spoiler protection?</span><span class="plus">+</span></button>
+        <div class="faq-a">When you watch on delay, you don't want to open the app and see scores that reveal what happened. Spoiler protection blurs scoring for the current week until you choose to reveal — or auto-reveals after a grace period your league sets. Each member controls when they peek.</div>
       </div>
       <div class="faq-item" onclick="this.classList.toggle('open')">
         <button class="faq-q"><span>What shows can I play?</span><span class="plus">+</span></button>
-        <div class="faq-a">We have pre-built templates for Survivor, Top Chef, Love Island, The Bachelor/ette, Great British Bake Off, The Traitors, Big Brother, The Challenge, RuPaul's Drag Race, and The Amazing Race. You can also create a custom league for any show.</div>
+        <div class="faq-a">Pre-built templates for <b>Survivor</b>, <b>Top Chef</b>, <b>Love Island</b>, <b>The Bachelor/ette</b>, <b>Great British Bake Off</b>, <b>The Traitors</b>, <b>Big Brother</b>, <b>The Challenge</b>, <b>RuPaul's Drag Race</b>, <b>The Amazing Race</b>, and <b>Love is Blind</b>. You can also create a custom league with your own scoring rules for any show.</div>
       </div>
       <div class="faq-item" onclick="this.classList.toggle('open')">
         <button class="faq-q"><span>Is there a mobile app?</span><span class="plus">+</span></button>
-        <div class="faq-a">The site works as a Progressive Web App. On your phone, open the site in your browser, then use "Add to Home Screen" to install it. It looks and feels like a native app.</div>
+        <div class="faq-a">The site works as a Progressive Web App. On your phone, open it in your browser, then use "Add to Home Screen" to install it. Looks and feels like a native app, no app store needed.</div>
       </div>
     </div>
   </div>
@@ -376,6 +705,78 @@ footer a{color:var(--red);font-weight:600}
     <a href="https://app.fantasyrealitytv.com" class="btn-hero primary" style="display:inline-block">Start a League</a>
   </div>
 </section>
+
+<script>
+// Live-shows loader. Fetches /live-shows.json (deployed alongside this HTML)
+// and populates both the hero banner chip and the phone mockup's league
+// cards. On any failure (network error, missing file, malformed JSON), the
+// banner falls back to its inline default ("Now live — your favorite reality
+// TV") and the phone shows a generic 3-show preview. Edit live-shows.json
+// + re-deploy when the season lineup changes.
+(function(){
+  // Show name → (color, emoji) lookup. Keep in sync with SHOW_PRESETS in
+  // src/App.jsx — same palette + initials so the mockup looks like the app.
+  var SHOWS = {
+    "Survivor":         { color:"#d4a24e", emoji:"S"  },
+    "Top Chef":         { color:"#3dd6c8", emoji:"TC" },
+    "Love Island":      { color:"#ff5da0", emoji:"LI" },
+    "Love Island USA":  { color:"#ff5da0", emoji:"LI" },
+    "The Bachelor":     { color:"#e86b8a", emoji:"B"  },
+    "The Bachelorette": { color:"#e86b8a", emoji:"B"  },
+    "Great British Bake Off": { color:"#ffd23d", emoji:"BO" },
+    "The Traitors":     { color:"#e24b4a", emoji:"T"  },
+    "Big Brother":      { color:"#4d8aff", emoji:"BB" },
+    "The Challenge":    { color:"#ff8a3d", emoji:"CH" },
+    "RuPaul's Drag Race": { color:"#9d5dff", emoji:"DR" },
+    "The Amazing Race": { color:"#3ddc84", emoji:"AR" },
+    "Love is Blind":    { color:"#c084fc", emoji:"LB" }
+  };
+  function hexToRgba(hex, a){
+    var h = hex.replace("#","");
+    return "rgba("+parseInt(h.substring(0,2),16)+","+parseInt(h.substring(2,4),16)+","+parseInt(h.substring(4,6),16)+","+a+")";
+  }
+  function meta(name){ return SHOWS[name] || { color:"#9d5dff", emoji:"TV" }; }
+  function renderBanner(shows){
+    var el = document.getElementById("live-chip-text");
+    if (!el || !shows || !shows.length) return;
+    var label = shows.length === 1
+      ? "Now live — " + shows[0].name
+      : "Now live — " + shows.map(function(s){ return s.name; }).join(" & ");
+    el.textContent = label;
+  }
+  function renderPhone(shows){
+    var el = document.getElementById("phone-leagues");
+    if (!el) return;
+    // Show up to 3 in the mockup. If JSON has 1 show, pad with two static
+    // illustrative entries so the phone still looks populated.
+    var list = (shows || []).slice(0, 3);
+    var fillers = [
+      { name:"Top Chef", season:"Season 23 · Week 2" },
+      { name:"The Traitors", season:"Season 4 · Week 3" }
+    ];
+    while (list.length < 3) list.push(fillers[list.length - 1] || fillers[0]);
+    el.innerHTML = list.map(function(s){
+      var m = meta(s.name);
+      var sub = s.season || "Active league";
+      return '<div class="ph-card">' +
+        '<div class="ph-icon" style="background:'+hexToRgba(m.color,0.12)+';color:'+m.color+'">'+m.emoji+'</div>' +
+        '<div class="ph-info"><div class="name">'+("Fantasy " + s.name)+'</div><div class="sub">'+sub+'</div></div>' +
+      '</div>';
+    }).join("");
+  }
+  fetch("/live-shows.json", { cache: "no-store" })
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(data){
+      if (!data || !Array.isArray(data.shows) || data.shows.length === 0) {
+        renderPhone([]);
+        return;
+      }
+      renderBanner(data.shows);
+      renderPhone(data.shows);
+    })
+    .catch(function(){ renderPhone([]); });
+})();
+</script>
 
 <footer>
   <div class="logo" style="justify-content:center;margin-bottom:10px">
