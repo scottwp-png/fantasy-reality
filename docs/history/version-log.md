@@ -30,7 +30,7 @@
 - **Admin Stats fix** at `App.jsx:10181` — `activeLeagues` now filters out `seasonComplete=true` leagues in addition to the existing "must have scoring" check. Before this commit, an old Survivor 47 league with weeklyScores from a finished season was still counting against "Active Leagues" forever. Now: commissioner explicitly marks complete, the count drops.
 - **What this commit does NOT do.** No automatic detection of season end (e.g., "winner crowned" rule scored → auto-mark complete). Manual is more reliable: a league can keep scoring post-finale for an "all-star award" episode if commissioner wants. No full read-only lockdown for completed leagues — commissioner can still edit if they re-open or if they ignore the banner. No sort/grouping in My Leagues that pushes completed leagues to the bottom — they stay in their natural order so users can find them. No new RTDB indexes for `seasonComplete` (it's a small array filtered client-side; not worth adding a server-side index until leagues count gets large).
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (3.08s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `9a60c19`
 
 ### v2.6.22.4 — 2026-06-02
 **Show-wide scoring: replace on-read merge with one-time physical cascade.** Critical fix for a double-counting bug + commissioner can now edit per-league overrides.
