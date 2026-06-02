@@ -3397,37 +3397,89 @@ function ScoringTab({ league, onUpdate, isCommissioner = true, userProfile }) {
         ))}
       </div>
 
-      {/* v2.6.23.6: skipped-week banner. When the commissioner has flagged
-          this week as no-score (mid-season league creation pattern), every
-          format returns 0 for this week in calcTeamWeekPoints — the data
+      {/* v2.6.23.6 / v2.6.23.7: skipped-week banner. When the commissioner
+          has flagged this week (or all episodes in this week, for multi-
+          episode shows like Love Island / Big Brother) as no-score, every
+          format returns 0 for those weeks in calcTeamWeekPoints — the data
           stays in weeklyScores for reference, just doesn't contribute to
-          standings. The toggle here flips it on/off for the viewed week. */}
-      {onUpdate && (
-        league.skippedWeeks?.[String(selectedWeek)] ? (
-          <div style={{ padding:"10px 14px",background:"#9d5dff11",borderRadius:8,border:"1px solid #9d5dff33",marginBottom:16,
-            display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap" }}>
-            <div style={{ fontSize:12,color:"#9d5dff",fontWeight:600 }}>
-              ⊘ {cadenceLabel(league, selectedWeek)} is excluded from standings. Scoring is preserved but doesn't count.
+          standings. For shows with episodesPerWeek > 1, the banner exposes
+          both a single-episode toggle and an entire-week toggle. */}
+      {onUpdate && (() => {
+        const epw = effectiveEpisodesPerWeek(league);
+        const isMultiEp = epw > 1;
+        const selectedEpNum = Number(selectedWeek);
+        const draftWeekNum = isMultiEp ? Math.ceil(selectedEpNum / epw) : selectedEpNum;
+        const weekStart = isMultiEp ? (draftWeekNum - 1) * epw + 1 : selectedEpNum;
+        const weekEnd = isMultiEp ? draftWeekNum * epw : selectedEpNum;
+        const allInWeek = [];
+        for (let i = weekStart; i <= weekEnd; i++) allInWeek.push(String(i));
+        const wholeWeekExcluded = allInWeek.every(ep => league.skippedWeeks?.[ep]);
+        const currentExcluded = !!league.skippedWeeks?.[String(selectedWeek)];
+        const noScoringHere = Object.keys(league.weeklyScores?.[selectedWeek] || {}).length === 0;
+        const weekLabel = isMultiEp ? `Week ${draftWeekNum}` : cadenceLabel(league, selectedWeek);
+        const weekRangeLabel = isMultiEp ? `${weekLabel} (Eps ${weekStart}–${weekEnd})` : weekLabel;
+        function excludeEp() {
+          onUpdate({ ...league, skippedWeeks: { ...(league.skippedWeeks || {}), [String(selectedWeek)]: true } });
+        }
+        function includeEp() {
+          const next = { ...(league.skippedWeeks || {}) };
+          delete next[String(selectedWeek)];
+          onUpdate({ ...league, skippedWeeks: next });
+        }
+        function excludeWholeWeek() {
+          if (!confirm(`Exclude all of ${weekRangeLabel} from standings? Any scoring saved still gets recorded for reference, but won't count toward team totals. Reversible.`)) return;
+          const next = { ...(league.skippedWeeks || {}) };
+          allInWeek.forEach(ep => { next[ep] = true; });
+          onUpdate({ ...league, skippedWeeks: next });
+        }
+        function includeWholeWeek() {
+          const next = { ...(league.skippedWeeks || {}) };
+          allInWeek.forEach(ep => { delete next[ep]; });
+          onUpdate({ ...league, skippedWeeks: next });
+        }
+        if (wholeWeekExcluded) {
+          return (
+            <div style={{ padding:"10px 14px",background:"#9d5dff11",borderRadius:8,border:"1px solid #9d5dff33",marginBottom:16,
+              display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap" }}>
+              <div style={{ fontSize:12,color:"#9d5dff",fontWeight:600 }}>
+                ⊘ {weekRangeLabel} is excluded from standings. Scoring is preserved but doesn't count.
+              </div>
+              {isCommissioner && <Btn small variant="ghost" onClick={includeWholeWeek}>Include {weekLabel}</Btn>}
             </div>
-            <Btn small variant="ghost" onClick={() => {
-              const next = { ...(league.skippedWeeks || {}) };
-              delete next[String(selectedWeek)];
-              onUpdate({ ...league, skippedWeeks: next });
-            }}>Include in standings</Btn>
-          </div>
-        ) : isCommissioner && Object.keys(league.weeklyScores?.[selectedWeek] || {}).length === 0 && (
-          <div style={{ padding:"10px 14px",background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a",marginBottom:16,
-            display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap" }}>
-            <div style={{ fontSize:11,color:"#8888aa",lineHeight:1.5 }}>
-              Mid-season start? Mark {cadenceLabel(league, selectedWeek)} as excluded so it doesn't affect standings.
+          );
+        }
+        if (currentExcluded) {
+          return (
+            <div style={{ padding:"10px 14px",background:"#9d5dff11",borderRadius:8,border:"1px solid #9d5dff33",marginBottom:16,
+              display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap" }}>
+              <div style={{ fontSize:12,color:"#9d5dff",fontWeight:600 }}>
+                ⊘ {cadenceLabel(league, selectedWeek)} is excluded from standings. Scoring is preserved but doesn't count.
+              </div>
+              {isCommissioner && (
+                <div style={{ display:"flex",gap:6 }}>
+                  <Btn small variant="ghost" onClick={includeEp}>Include {cadenceLabel(league, selectedWeek)}</Btn>
+                  {isMultiEp && <Btn small variant="ghost" onClick={excludeWholeWeek}>Exclude entire {weekLabel}</Btn>}
+                </div>
+              )}
             </div>
-            <Btn small variant="ghost" onClick={() => {
-              if (!confirm(`Exclude ${cadenceLabel(league, selectedWeek)} from standings? Any scoring you save still gets recorded for reference, but won't count toward team totals. Reversible.`)) return;
-              onUpdate({ ...league, skippedWeeks: { ...(league.skippedWeeks || {}), [String(selectedWeek)]: true } });
-            }}>Exclude {cadenceLabel(league, selectedWeek)}</Btn>
-          </div>
-        )
-      )}
+          );
+        }
+        if (isCommissioner && noScoringHere) {
+          return (
+            <div style={{ padding:"10px 14px",background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a",marginBottom:16,
+              display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap" }}>
+              <div style={{ fontSize:11,color:"#8888aa",lineHeight:1.5,flex:1,minWidth:0 }}>
+                Mid-season start? Exclude this {isMultiEp ? "episode or the whole week" : "week"} so it doesn't affect standings.
+              </div>
+              <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
+                <Btn small variant="ghost" onClick={excludeEp}>Exclude {cadenceLabel(league, selectedWeek)}</Btn>
+                {isMultiEp && <Btn small variant="ghost" onClick={excludeWholeWeek}>Exclude {weekRangeLabel}</Btn>}
+              </div>
+            </div>
+          );
+        }
+        return null;
+      })()}
 
       {/* v2.6.22.4: show-wide cascade banner. Visible only when this league
           opted into useShowWideScoring AND the current week has been

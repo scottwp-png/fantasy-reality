@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.23.6
+**Current Production Version:** v2.6.23.7
 **Last Deploy Date:** 2026-06-02
-**App.jsx Line Count:** ~10,225
+**App.jsx Line Count:** ~10,270
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,18 @@
 ---
 
 ## Version Log
+
+### v2.6.23.7 — 2026-06-02
+**Skipped weeks: add "exclude entire week" alongside per-episode for multi-episode shows.** Follow-up to v2.6.23.6's per-episode skip — Love Island / Big Brother / Love is Blind have 3–6 episodes per draft week, so the mid-season-start case really meant "skip these 6 episodes," not "skip one." Now both controls are available.
+- **ScoringTab banner** at `App.jsx:3358-3434` rewritten as a self-contained IIFE that computes the draft-week bucket from `effectiveEpisodesPerWeek(league)`, derives the episode range for that bucket (e.g., week 2 of Love Island → episodes 7–12), and renders state-appropriate controls. Three states:
+  - **Whole week excluded** — purple banner reads `⊘ Week 2 (Eps 7–12) is excluded from standings` with an `Include Week 2` action.
+  - **Single episode excluded** — purple banner reads `⊘ Episode 7 is excluded` with an `Include Episode 7` action; for multi-episode shows also exposes `Exclude entire Week 2` to escalate from one episode to the whole week.
+  - **Nothing excluded + no scoring saved + commissioner** — dashed hint with both `Exclude Episode N` and (multi-episode shows only) `Exclude Week M (Eps X–Y)` buttons.
+- **Single-episode shows unchanged.** When `episodesPerWeek === 1`, `weekLabel` collapses to `cadenceLabel` (e.g., "Week 3"), there's no Eps-range subscript, and only the one button appears.
+- **Scoring engine** unchanged from v2.6.23.6 — `calcTeamWeekPoints` still short-circuits when `league.skippedWeeks[weekStr]` is set. The whole-week toggle just sets multiple keys in one update.
+- **What this commit does NOT do.** No "exclude every future episode starting from now" shortcut. No drag-select-range UI to flag multiple non-contiguous episodes. No visual indication in the standings tab of how many weeks were skipped (only the per-week banner inside scoring).
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.69s). `src/scoring.js` untouched (engine unchanged from v2.6.23.6).
+- **Commit:** `_pending_`
 
 ### v2.6.23.6 — 2026-06-02
 **Polls: custom-answer questions (Yes/No, arbitrary lists) + standings: skipped weeks.** Two features for leagues that need to ask non-contestant questions or that start mid-season.
