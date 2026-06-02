@@ -34,7 +34,7 @@
 - **`clearCascadeForEpisode`** at `App.jsx:439-449` — helper for Re-sync; wipes the week's scores + removes the cascaded marker so the cascade effect re-imports.
 - **What this commit does NOT do.** No per-event "this came from show-wide" badge in the scoring UI — once cascaded, the events are league-owned and look the same as per-league entries. No auto-pull when admin re-scores an episode that a league has already cascaded — commissioner hits Re-sync explicitly (avoids overwriting per-league judgment calls silently). No diff view between current league scores and show-wide source.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.83s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `5d02d13`
 
 ### v2.6.22.3 — 2026-06-01
 **Diagnostic: verify-read in rule library save.** User reported saves "succeeding" (Saved indicator appears, no console errors) but data reverting on refresh. The `set()` promise resolved without rejection, but data isn't persisting. Adding a verify-read to either prove the write reaches RTDB or pinpoint where it's getting dropped.
