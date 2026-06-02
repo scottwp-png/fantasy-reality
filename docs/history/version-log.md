@@ -33,7 +33,7 @@
 - **Landing page Coming Soon updated** to remove the now-shipped "Live Sync" tile, replaced with "Trade System" from the backlog. "Live Standings" feature copy was sharpened to make the cross-device sync explicit.
 - **What this commit does NOT do.** No live sync for the My Leagues home (still snapshot on app load — leagues you're newly added to appear on refresh). No live sync for the show-wide scoring path (still loaded once per league session). No optimistic-write reconciliation — if two users save within milliseconds, last write wins and the loser's edit is silently overwritten.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.97s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `e38fbb9`
 
 ### v2.6.23.1 — 2026-06-02
 **Standings: competition-style tie ranking.** Reported from a real league screenshot — three teams tied at 5.00 pts were displayed as 2nd / 3rd / 4th instead of all T-2. Now they share the rank and the next non-tied team skips ahead by the tie count.
