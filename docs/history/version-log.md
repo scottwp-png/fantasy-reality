@@ -29,7 +29,7 @@
 - **Poll card** at `App.jsx:4567` gets `overflow:hidden` + `wordBreak:"break-word"` as a defensive catch-all so any future descendant that mishandles a long string can't escape the card boundary either.
 - **What this commit does NOT do.** No collapsible "show more" toggle for very long questions — they just wrap. The submit picker and results tally already had `wordBreak:"break-word"` / `flexWrap:"wrap"` from v2.6.23.6 so they were unaffected. No max-character limit on question text or choices.
 - `node _snapshots/diff-against-baseline.mjs` → ALL PASS. `npm run build` clean (2.87s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `0e7f6ae`
 
 ### v2.6.23.7 — 2026-06-02
 **Skipped weeks: add "exclude entire week" alongside per-episode for multi-episode shows.** Follow-up to v2.6.23.6's per-episode skip — Love Island / Big Brother / Love is Blind have 3–6 episodes per draft week, so the mid-season-start case really meant "skip these 6 episodes," not "skip one." Now both controls are available.
