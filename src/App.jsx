@@ -3397,6 +3397,38 @@ function ScoringTab({ league, onUpdate, isCommissioner = true, userProfile }) {
         ))}
       </div>
 
+      {/* v2.6.23.6: skipped-week banner. When the commissioner has flagged
+          this week as no-score (mid-season league creation pattern), every
+          format returns 0 for this week in calcTeamWeekPoints — the data
+          stays in weeklyScores for reference, just doesn't contribute to
+          standings. The toggle here flips it on/off for the viewed week. */}
+      {onUpdate && (
+        league.skippedWeeks?.[String(selectedWeek)] ? (
+          <div style={{ padding:"10px 14px",background:"#9d5dff11",borderRadius:8,border:"1px solid #9d5dff33",marginBottom:16,
+            display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap" }}>
+            <div style={{ fontSize:12,color:"#9d5dff",fontWeight:600 }}>
+              ⊘ {cadenceLabel(league, selectedWeek)} is excluded from standings. Scoring is preserved but doesn't count.
+            </div>
+            <Btn small variant="ghost" onClick={() => {
+              const next = { ...(league.skippedWeeks || {}) };
+              delete next[String(selectedWeek)];
+              onUpdate({ ...league, skippedWeeks: next });
+            }}>Include in standings</Btn>
+          </div>
+        ) : isCommissioner && Object.keys(league.weeklyScores?.[selectedWeek] || {}).length === 0 && (
+          <div style={{ padding:"10px 14px",background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a",marginBottom:16,
+            display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap" }}>
+            <div style={{ fontSize:11,color:"#8888aa",lineHeight:1.5 }}>
+              Mid-season start? Mark {cadenceLabel(league, selectedWeek)} as excluded so it doesn't affect standings.
+            </div>
+            <Btn small variant="ghost" onClick={() => {
+              if (!confirm(`Exclude ${cadenceLabel(league, selectedWeek)} from standings? Any scoring you save still gets recorded for reference, but won't count toward team totals. Reversible.`)) return;
+              onUpdate({ ...league, skippedWeeks: { ...(league.skippedWeeks || {}), [String(selectedWeek)]: true } });
+            }}>Exclude {cadenceLabel(league, selectedWeek)}</Btn>
+          </div>
+        )
+      )}
+
       {/* v2.6.22.4: show-wide cascade banner. Visible only when this league
           opted into useShowWideScoring AND the current week has been
           cascaded from admin's show-wide source. Re-sync button wipes the
@@ -4174,6 +4206,15 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
   const contestants = league.contestants || [];
   const byId = Object.fromEntries(contestants.map(c => [c.id, c]));
   const activeContestants = contestants.filter(c => c.status !== "eliminated");
+  // v2.6.23.6: helper for rendering an answer label. Choice-type questions
+  // store the answer string directly; cast-type questions store a contestant
+  // ID that needs lookup. Returning "—" for the empty / unknown case keeps
+  // all callers from branching on null/undefined.
+  function answerLabel(question, answer) {
+    if (!answer) return "—";
+    if (question?.choices?.length > 0) return String(answer);
+    return byId[answer]?.name || "—";
+  }
 
   const [draftName, setDraftName] = useState("");
   const [draftGroups, setDraftGroups] = useState([
@@ -4204,6 +4245,26 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
   function updateQuestionGender(gIdx, qIdx, genderFilter) {
     setDraftGroups(prev => prev.map((g, i) => i === gIdx ? { ...g, questions: g.questions.map((q, j) => j === qIdx ? { ...q, genderFilter } : q) } : g));
   }
+  // v2.6.23.6: custom-answer support. A question becomes "choice" type when
+  // its `choices` array has 2+ entries; the picker switches from cast names
+  // to those strings, and picks are stored as strings instead of contestant
+  // IDs. Toggle helpers below let the commissioner flip a question between
+  // modes; toCast() drops choices, toCustom() seeds Yes/No.
+  function setQuestionToCustom(gIdx, qIdx) {
+    setDraftGroups(prev => prev.map((g, i) => i === gIdx ? { ...g, questions: g.questions.map((q, j) => j === qIdx ? { ...q, choices: q.choices?.length >= 2 ? q.choices : ["Yes", "No"], genderFilter: "" } : q) } : g));
+  }
+  function setQuestionToCast(gIdx, qIdx) {
+    setDraftGroups(prev => prev.map((g, i) => i === gIdx ? { ...g, questions: g.questions.map((q, j) => j === qIdx ? { ...q, choices: [] } : q) } : g));
+  }
+  function updateChoice(gIdx, qIdx, cIdx, value) {
+    setDraftGroups(prev => prev.map((g, i) => i === gIdx ? { ...g, questions: g.questions.map((q, j) => j === qIdx ? { ...q, choices: (q.choices || []).map((c, k) => k === cIdx ? value : c) } : q) } : g));
+  }
+  function addChoice(gIdx, qIdx) {
+    setDraftGroups(prev => prev.map((g, i) => i === gIdx ? { ...g, questions: g.questions.map((q, j) => j === qIdx ? { ...q, choices: [...(q.choices || []), ""] } : q) } : g));
+  }
+  function removeChoice(gIdx, qIdx, cIdx) {
+    setDraftGroups(prev => prev.map((g, i) => i === gIdx ? { ...g, questions: g.questions.map((q, j) => j === qIdx ? { ...q, choices: (q.choices || []).filter((_, k) => k !== cIdx) } : q) } : g));
+  }
   function updateGroupName(gIdx, name) {
     setDraftGroups(prev => prev.map((g, i) => i === gIdx ? { ...g, name } : g));
   }
@@ -4225,7 +4286,16 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
       .map(g => ({
         ...g,
         questions: g.questions
-          .map(q => ({ text: q.text.trim(), genderFilter: q.genderFilter || "" }))
+          .map(q => {
+            const choices = (q.choices || []).map(c => c.trim()).filter(Boolean);
+            // A "choice" question needs at least 2 non-empty options.
+            // Below that threshold, drop the choices and fall back to cast.
+            return {
+              text: q.text.trim(),
+              genderFilter: q.genderFilter || "",
+              ...(choices.length >= 2 ? { choices } : {}),
+            };
+          })
           .filter(q => q.text),
       }))
       .filter(g => g.questions.length > 0);
@@ -4242,6 +4312,7 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
           id: generateId(),
           text: q.text,
           ...(q.genderFilter ? { genderFilter: q.genderFilter } : {}),
+          ...(q.choices ? { choices: q.choices } : {}),
         })),
       })),
       picks: {},
@@ -4340,25 +4411,60 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
                       <button onClick={()=>removeGroup(gIdx)} title="Remove this section" style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#e94560",fontSize:10,cursor:"pointer",padding:"4px 8px",fontFamily:"'Outfit',sans-serif",flexShrink:0 }}>× Section</button>
                     </div>
                   )}
-                  <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
-                    {g.questions.map((q, qIdx) => (
-                      <div key={qIdx} style={{ display:"flex",gap:4,alignItems:"center" }}>
-                        <span style={{ fontSize:10,color:"#4a4a6a",width:18,textAlign:"right",flexShrink:0 }}>{qIdx+1}.</span>
-                        <input value={q.text} onChange={e=>updateQuestionText(gIdx, qIdx, e.target.value)} placeholder={qIdx === 0 ? (isMultiGroup ? "First question in this section" : "e.g. Who's the most attractive?") : "Question text"}
-                          style={{ flex:1,padding:"6px 10px",background:isMultiGroup?"#12121f":"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
-                            color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",minWidth:0 }} />
-                        <select value={q.genderFilter || ""} onChange={e=>updateQuestionGender(gIdx, qIdx, e.target.value)} title="Restrict picker pool for this question"
-                          style={{ width:54,padding:"6px 4px",background:isMultiGroup?"#12121f":"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
-                            color:q.genderFilter?(q.genderFilter==="Male"?"#4d8aff":"#ff5da0"):"#6a6a8a",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none",flexShrink:0,textAlign:"center" }}>
-                          <option value="">All</option>
-                          <option value="Male">♂ M</option>
-                          <option value="Female">♀ F</option>
-                        </select>
-                        {(g.questions.length > 1 || draftGroups.length > 1) && (
-                          <button onClick={()=>removeQuestion(gIdx, qIdx)} title="Remove question" style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#e94560",width:26,height:26,cursor:"pointer",fontSize:13,flexShrink:0 }}>×</button>
-                        )}
-                      </div>
-                    ))}
+                  <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+                    {g.questions.map((q, qIdx) => {
+                      const isCustom = (q.choices || []).length > 0;
+                      return (
+                        <div key={qIdx} style={{ display:"flex",flexDirection:"column",gap:6 }}>
+                          <div style={{ display:"flex",gap:4,alignItems:"center" }}>
+                            <span style={{ fontSize:10,color:"#4a4a6a",width:18,textAlign:"right",flexShrink:0 }}>{qIdx+1}.</span>
+                            <input value={q.text} onChange={e=>updateQuestionText(gIdx, qIdx, e.target.value)} placeholder={qIdx === 0 ? (isMultiGroup ? "First question in this section" : "e.g. Who's the most attractive?") : "Question text"}
+                              style={{ flex:1,padding:"6px 10px",background:isMultiGroup?"#12121f":"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                                color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",minWidth:0 }} />
+                            {!isCustom && (
+                              <select value={q.genderFilter || ""} onChange={e=>updateQuestionGender(gIdx, qIdx, e.target.value)} title="Restrict picker pool for this question"
+                                style={{ width:54,padding:"6px 4px",background:isMultiGroup?"#12121f":"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                                  color:q.genderFilter?(q.genderFilter==="Male"?"#4d8aff":"#ff5da0"):"#6a6a8a",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none",flexShrink:0,textAlign:"center" }}>
+                                <option value="">All</option>
+                                <option value="Male">♂ M</option>
+                                <option value="Female">♀ F</option>
+                              </select>
+                            )}
+                            {(g.questions.length > 1 || draftGroups.length > 1) && (
+                              <button onClick={()=>removeQuestion(gIdx, qIdx)} title="Remove question" style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#e94560",width:26,height:26,cursor:"pointer",fontSize:13,flexShrink:0 }}>×</button>
+                            )}
+                          </div>
+                          {/* v2.6.23.6: Answer-mode pill. Cast = pick a contestant (the
+                              historical default). Custom = pick a string from a list the
+                              commissioner provides (e.g. Yes/No or arbitrary options). */}
+                          <div style={{ display:"flex",alignItems:"center",gap:6,paddingLeft:22 }}>
+                            <div style={{ display:"flex",gap:0,padding:2,background:"#0d0d18",border:"1px solid #1e1e38",borderRadius:99 }}>
+                              <button onClick={()=>setQuestionToCast(gIdx, qIdx)} style={{ padding:"3px 10px",borderRadius:99,border:"none",cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"'Outfit',sans-serif",background:!isCustom?"#e9456033":"transparent",color:!isCustom?"#e94560":"#6a6a8a" }}>Cast</button>
+                              <button onClick={()=>setQuestionToCustom(gIdx, qIdx)} style={{ padding:"3px 10px",borderRadius:99,border:"none",cursor:"pointer",fontSize:10,fontWeight:700,fontFamily:"'Outfit',sans-serif",background:isCustom?"#e9456033":"transparent",color:isCustom?"#e94560":"#6a6a8a" }}>Custom</button>
+                            </div>
+                            <span style={{ fontSize:10,color:"#4a4a6a",fontStyle:"italic" }}>
+                              {isCustom ? "Players pick from your list" : "Players pick a contestant"}
+                            </span>
+                          </div>
+                          {isCustom && (
+                            <div style={{ display:"flex",flexDirection:"column",gap:4,paddingLeft:22 }}>
+                              {(q.choices || []).map((c, cIdx) => (
+                                <div key={cIdx} style={{ display:"flex",gap:4,alignItems:"center" }}>
+                                  <span style={{ fontSize:9,color:"#6a6a8a",width:16,textAlign:"right" }}>•</span>
+                                  <input value={c} onChange={e=>updateChoice(gIdx, qIdx, cIdx, e.target.value)} placeholder={`Answer ${cIdx+1}`}
+                                    style={{ flex:1,padding:"5px 8px",background:isMultiGroup?"#12121f":"#0d0d18",border:"1px solid #2a2a4a",borderRadius:5,
+                                      color:"#e8e8f0",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none",minWidth:0 }} />
+                                  {(q.choices || []).length > 2 && (
+                                    <button onClick={()=>removeChoice(gIdx, qIdx, cIdx)} title="Remove choice" style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:5,color:"#e94560",width:22,height:22,cursor:"pointer",fontSize:11,flexShrink:0 }}>×</button>
+                                  )}
+                                </div>
+                              ))}
+                              <button onClick={()=>addChoice(gIdx, qIdx)} style={{ marginLeft:22,padding:"4px 10px",background:"transparent",border:"1px dashed #2a2a4a",borderRadius:6,color:"#aaaabf",fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:"'Outfit',sans-serif",alignSelf:"flex-start" }}>+ Answer</button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                   <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:6,marginTop:8,flexWrap:"wrap" }}>
                     <label style={{ display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:11,color:"#aaaabf" }}>
@@ -4438,7 +4544,7 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
                             <span style={{ color:"#6a6a8a",fontWeight:700,minWidth:24 }}>Q{qIdx+1}</span>
                             {qGender && <span style={{ fontSize:8,fontWeight:700,padding:"1px 5px",borderRadius:99,background:qGender==="Male"?"#4d8aff22":"#ff5da022",color:qGender==="Male"?"#4d8aff":"#ff5da0",letterSpacing:"0.04em",textTransform:"uppercase",flexShrink:0 }}>{qGender[0]}</span>}
                             <span style={{ color:"#8888aa",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{q.text}</span>
-                            <span style={{ color:"#e8e8f0",fontWeight:600,flexShrink:0 }}>{byId[allPicks[team.id]?.[q.id]]?.name || "—"}</span>
+                            <span style={{ color:"#e8e8f0",fontWeight:600,flexShrink:0 }}>{answerLabel(q, allPicks[team.id]?.[q.id])}</span>
                           </div>
                         );
                       })}
@@ -4461,10 +4567,10 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
                       {g.questions.map((q, qIdx) => {
                         const myDraft = draft[q.id] || "";
                         const qGender = effectiveQuestionGender(poll, q);
+                        const isChoice = (q.choices || []).length > 0;
                         const sameGroupDrafted = g.uniqueWithin
                           ? new Set(g.questions.filter(other => other.id !== q.id).map(other => draft[other.id]).filter(Boolean))
                           : null;
-                        const options = poolForQuestion(q).filter(c => !sameGroupDrafted || !sameGroupDrafted.has(c.id));
                         return (
                           <div key={q.id}>
                             <div style={{ display:"flex",gap:6,alignItems:"flex-start",marginBottom:4,flexWrap:"wrap" }}>
@@ -4472,13 +4578,44 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
                               <div style={{ flex:1,fontSize:12,color:"#e8e8f0",lineHeight:1.4,wordBreak:"break-word",minWidth:0 }}>{q.text}</div>
                               {qGender && <span style={{ fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:99,background:qGender==="Male"?"#4d8aff22":"#ff5da022",color:qGender==="Male"?"#4d8aff":"#ff5da0",letterSpacing:"0.04em",textTransform:"uppercase",flexShrink:0,marginTop:2 }}>{qGender}</span>}
                             </div>
-                            <select value={myDraft} onChange={e=>setDraftPick(poll.id, q.id, e.target.value)} style={{
-                              width:"100%",padding:"7px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,
-                              color:myDraft?"#e8e8f0":"#6a6a8a",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",boxSizing:"border-box",
-                            }}>
-                              <option value="">— pick —</option>
-                              {options.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
+                            {isChoice ? (
+                              /* v2.6.23.6: choice-type questions render the
+                                 commissioner-defined answers as button pills.
+                                 Single-select; the unique-within-group check
+                                 dims (and disables) choices already picked
+                                 elsewhere in the section. */
+                              <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
+                                {q.choices.map(choice => {
+                                  const isPicked = myDraft === choice;
+                                  const usedElsewhere = sameGroupDrafted?.has(choice);
+                                  return (
+                                    <button key={choice}
+                                      onClick={()=>{ if (!usedElsewhere || isPicked) setDraftPick(poll.id, q.id, choice); }}
+                                      disabled={usedElsewhere && !isPicked}
+                                      style={{
+                                        padding:"7px 14px",borderRadius:99,border:isPicked?"1px solid #e94560":"1px solid #2a2a4a",
+                                        background:isPicked?"#e9456033":"#12121f",
+                                        color:isPicked?"#e94560":(usedElsewhere?"#3a3a5a":"#aaaabf"),
+                                        fontSize:12,fontWeight:700,cursor:usedElsewhere&&!isPicked?"not-allowed":"pointer",
+                                        fontFamily:"'Outfit',sans-serif",
+                                      }}>{choice}</button>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              (() => {
+                                const options = poolForQuestion(q).filter(c => !sameGroupDrafted || !sameGroupDrafted.has(c.id));
+                                return (
+                                  <select value={myDraft} onChange={e=>setDraftPick(poll.id, q.id, e.target.value)} style={{
+                                    width:"100%",padding:"7px 10px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:6,
+                                    color:myDraft?"#e8e8f0":"#6a6a8a",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",boxSizing:"border-box",
+                                  }}>
+                                    <option value="">— pick —</option>
+                                    {options.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                  </select>
+                                );
+                              })()
+                            )}
                           </div>
                         );
                       })}
@@ -4546,7 +4683,7 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
                                     <div style={{ position:"absolute",inset:0,borderRadius:4,background:"#1a1a30",overflow:"hidden" }}>
                                       <div style={{ width:`${barPct}%`,height:"100%",background:"linear-gradient(90deg,#f5a62333,#f5a62311)",transition:"width 0.3s ease" }}/>
                                     </div>
-                                    <span style={{ position:"relative",flex:1,minWidth:0,fontSize:12,fontWeight:700,color:"#e8e8f0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",paddingLeft:6 }}>{byId[e.id]?.name || "—"}</span>
+                                    <span style={{ position:"relative",flex:1,minWidth:0,fontSize:12,fontWeight:700,color:"#e8e8f0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",paddingLeft:6 }}>{answerLabel(q, e.id)}</span>
                                     <span style={{ position:"relative",fontSize:11,color:"#f5a623",fontWeight:700,paddingRight:6,flexShrink:0 }}>{e.count} &middot; {pct}%</span>
                                   </div>
                                   <div style={{ display:"flex",flexWrap:"wrap",gap:3,marginTop:5 }}>

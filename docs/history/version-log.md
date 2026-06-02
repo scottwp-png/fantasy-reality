@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.23.5
+**Current Production Version:** v2.6.23.6
 **Last Deploy Date:** 2026-06-02
-**App.jsx Line Count:** ~10,145
+**App.jsx Line Count:** ~10,225
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,14 @@
 ---
 
 ## Version Log
+
+### v2.6.23.6 — 2026-06-02
+**Polls: custom-answer questions (Yes/No, arbitrary lists) + standings: skipped weeks.** Two features for leagues that need to ask non-contestant questions or that start mid-season.
+- **Custom-answer polls** at `App.jsx:4210-4234` (state helpers), `App.jsx:4253-4260` (createPoll persistence), `App.jsx:4376-4435` (create UI), `App.jsx:4541-4570` (submit picker), `App.jsx:4185-4193` + `App.jsx:4452, 4583` (results / locked display). Each question now has an optional `choices: ["Yes", "No"]` (or any list); when populated, the picker switches from the contestant dropdown to a pill-button-group of the choice strings. Backwards-compatible — existing polls have no `choices` field and render as before (cast picker). The per-question Cast/Custom toggle in the create UI defaults to Cast; clicking Custom seeds Yes/No and hides the gender filter (not applicable to choice questions). 2+ non-empty choices required; below threshold, the question silently falls back to Cast mode on save. The unique-within-section rule applies to choice values the same way it applies to contestant IDs.
+- **Skipped weeks** at `src/scoring.js:32-39` + `App.jsx:3358-3387` (the ScoringTab banner). `league.skippedWeeks: { [weekStr]: true }` flags a week as excluded from standings — `calcTeamWeekPoints` short-circuits to 0 for any flagged week, all formats inclusive. The week's `weeklyScores` are preserved so admin / members can still see what happened; the data just doesn't contribute to team totals. ScoringTab shows two states: a purple banner with "⊘ Week N is excluded from standings — Include in standings ←" when flagged; a dashed "Mid-season start? Mark Episode N as excluded…" hint for commissioners on currently-empty weeks. Reversible at any time.
+- **What this commit does NOT do.** Polls: no multi-select choice questions (single-select only); no scoring-attached choice questions (poll picks remain detached from scoring rules); no per-question "free text" answer mode. Skipped weeks: no UI in standings to indicate which weeks were skipped at a glance (only the per-week banner inside scoring); no auto-skip detection (e.g., "league created after week 1" → auto-flag week 1) — explicit commissioner action required; no global "season starts at week N" shortcut (skip individual weeks 1..N-1 instead). Both features local to one league, no cross-league propagation.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification — the skippedWeeks branch is a no-op when the field is absent / empty. `npm run build` clean (3.15s).
+- **Commit:** `_pending_`
 
 ### v2.6.23.5 — 2026-06-02
 **Duplicate-team-on-join bug fix + standings default to season total.** Reported from Reddit traffic — users joining via the league-wide invite link were getting 5–6 teams created for their single account.

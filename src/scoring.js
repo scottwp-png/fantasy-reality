@@ -23,6 +23,13 @@ export function getDraftWeek(league, weekOrEpisode) {
 }
 
 export function calcTeamWeekPoints(league, team, weekNum) {
+  // v2.6.23.6: skipped weeks. Commissioner can flag a week as excluded from
+  // standings — used when a league is created mid-season and the first
+  // episode or two are "watch-only" before everyone drafts. The week's
+  // weeklyScores are preserved (so admin / member can still see what
+  // happened), but every format treats this team's contribution for that
+  // week as 0. calcStandings sums weekly totals; a 0 here just doesn't add.
+  if (league.skippedWeeks?.[String(weekNum)]) return 0;
   const weekScores = league.weeklyScores?.[weekNum] || {};
   const format = league.format;
 
