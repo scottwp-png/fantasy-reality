@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.22.3
-**Last Deploy Date:** 2026-06-01
-**App.jsx Line Count:** ~9,970
+**Current Production Version:** v2.6.22.4
+**Last Deploy Date:** 2026-06-02
+**App.jsx Line Count:** ~10,030
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,19 @@
 ---
 
 ## Version Log
+
+### v2.6.22.4 — 2026-06-02
+**Show-wide scoring: replace on-read merge with one-time physical cascade.** Critical fix for a double-counting bug + commissioner can now edit per-league overrides.
+- **The bug.** v2.6.3.0's `mergeShowWideScoring` was additive (`cScores[ruleId] = (existing || 0) + pts`) and ran at render time. Every time a merged league got saved back to RTDB (finalize, unfinalize, any commissioner action that touches the league), the merged points got persisted into `weeklyScores`. The next render merged again on top of the persisted-merged data, doubling. User reported: Ellie at 5 pts → 10 displayed (Hero 2x) → click Finalize → 20 → click Unfinalize → 30. Each finalize/unfinalize bumped the points by another round of the show-wide source.
+- **`cascadeShowWideToLeague`** at `App.jsx:386-434` replaces the merge. Physically writes show-wide events into `league.weeklyScores[ep][cid][ruleId]` (as points = count × rule.points), and marks `league.cascadedEpisodes[ep] = timestamp` so subsequent passes skip that episode. Idempotent — re-running on already-cascaded episodes is a no-op. SET (not `+=`) — initial cascade is authoritative; overwrites any stale double-counted data from the pre-fix state, which auto-repairs broken leagues on next load.
+- **`mergeShowWideScoring` stubbed** at `App.jsx:371-380` to just return the league unchanged (deprecated; kept as a named export so any stale call sites no-op instead of breaking).
+- **Cascade effect** at `App.jsx:8163-8181`. Fires when `(rawSelected, showWideData)` are both loaded; runs `cascadeShowWideToLeague`; if anything new was cascaded, `saveLeague` + `setLeagues`. Dep is `[rawSelected?.id, showWideData]` — id-only on the league side so the effect doesn't loop on its own save (only fires again when the user navigates to a different league or admin scores more episodes).
+- **`selected = rawSelected`** at `App.jsx:8224` — no more on-read merge. Display reads `weeklyScores` directly; commissioner edits save to `weeklyScores` directly; no merge-during-save risk.
+- **Re-sync button** at `App.jsx:3355-3373` (ScoringTab banner) — visible only when `useShowWideScoring=true` AND the current week is cascaded. Click → confirm → wipes `weeklyScores[week]` + clears the cascade marker → next cascade pass re-imports from show-wide. Used to (a) recover from the v2.6.3.0 double-counting state, (b) pick up admin re-scoring after a league has already cascaded.
+- **`clearCascadeForEpisode`** at `App.jsx:439-449` — helper for Re-sync; wipes the week's scores + removes the cascaded marker so the cascade effect re-imports.
+- **What this commit does NOT do.** No per-event "this came from show-wide" badge in the scoring UI — once cascaded, the events are league-owned and look the same as per-league entries. No auto-pull when admin re-scores an episode that a league has already cascaded — commissioner hits Re-sync explicitly (avoids overwriting per-league judgment calls silently). No diff view between current league scores and show-wide source.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.83s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.22.3 — 2026-06-01
 **Diagnostic: verify-read in rule library save.** User reported saves "succeeding" (Saved indicator appears, no console errors) but data reverting on refresh. The `set()` promise resolved without rejection, but data isn't persisting. Adding a verify-read to either prove the write reaches RTDB or pinpoint where it's getting dropped.

@@ -368,16 +368,39 @@ function getShowSeasonKey(league) {
 // trimmed name. Each league applies its OWN points value per rule (read from
 // league.scoringRules), so a single show-wide event can be worth different
 // totals across leagues.
-function mergeShowWideScoring(league, showScoringData) {
-  if (!league?.useShowWideScoring || !showScoringData) return league;
+// v2.6.22.4: DEPRECATED — kept for reference. Pre-cascade, this merged
+// show-wide events into league.weeklyScores at render time, with `+=`. The
+// bug: when the merged league got persisted (e.g., on finalize), the merged
+// points were saved into weeklyScores. Next render merged again on top of
+// the persisted-merged data, doubling. Replaced with cascadeShowWideToLeague
+// below — a one-time physical copy into weeklyScores with idempotency
+// tracking, so commissioners get full editorial control and re-applications
+// of the cascade are no-ops.
+function mergeShowWideScoring(league /*, showScoringData */) {
+  return league;
+}
+
+// v2.6.22.4: physically cascade show-wide episode scoring into the league's
+// weeklyScores, one-time per episode. The flag league.cascadedEpisodes[ep]
+// tracks which episodes have already been pulled in — subsequent calls skip
+// them so commissioner edits (e.g., "this league doesn't count that peck as
+// a kiss") stick. If admin re-scores an episode after a league has cascaded
+// it, the league doesn't auto-pick up the change — commissioner must
+// explicitly Re-sync from the league's Scoring tab.
+function cascadeShowWideToLeague(league, showScoringData) {
+  if (!league?.useShowWideScoring || !showScoringData) return { league, changed: false };
+  const cascaded = league.cascadedEpisodes || {};
   const rulesById = Object.fromEntries((league.scoringRules || []).map(r => [r.id, r]));
   const contestants = league.contestants || [];
   const findContestant = (name) => {
     const norm = String(name || "").toLowerCase().trim();
     return contestants.find(c => String(c.name || "").toLowerCase().trim() === norm);
   };
+  let changed = false;
   const nextWeekly = { ...(league.weeklyScores || {}) };
+  const nextCascaded = { ...cascaded };
   Object.entries(showScoringData).forEach(([episode, perContestant]) => {
+    if (cascaded[episode]) return; // already cascaded; commissioner owns it
     if (!perContestant) return;
     const epScores = { ...(nextWeekly[episode] || {}) };
     Object.entries(perContestant).forEach(([cName, rules]) => {
@@ -387,14 +410,39 @@ function mergeShowWideScoring(league, showScoringData) {
       Object.entries(rules).forEach(([ruleId, count]) => {
         const r = rulesById[ruleId];
         if (!r) return;
-        const pts = Number(count) * Number(r.points || 0);
-        if (pts !== 0) cScores[ruleId] = (Number(cScores[ruleId]) || 0) + pts;
+        // SET, not add — initial cascade is authoritative. Overwrites any
+        // stale show-wide points left by the pre-v2.6.22.4 on-read merge.
+        cScores[ruleId] = Number(count) * Number(r.points || 0);
       });
       epScores[c.id] = cScores;
     });
     nextWeekly[episode] = epScores;
+    nextCascaded[episode] = Date.now();
+    changed = true;
   });
-  return { ...league, weeklyScores: nextWeekly, _showWideMerged: true };
+  if (!changed) return { league, changed: false };
+  return {
+    league: { ...league, weeklyScores: nextWeekly, cascadedEpisodes: nextCascaded },
+    changed: true,
+  };
+}
+
+// Re-sync helper: forget an episode's cascade marker so the next cascade
+// pass overwrites that episode's scores back to the show-wide source.
+// Destructive — any commissioner edits to the episode are lost. Called from
+// the commissioner Re-sync button in ScoringTab.
+function clearCascadeForEpisode(league, episode) {
+  const cascaded = league?.cascadedEpisodes || {};
+  if (!(episode in cascaded)) return league;
+  const { [episode]: _, ...rest } = cascaded;
+  // Also wipe weeklyScores for that episode so the cascade has a clean slate
+  // to write into. Without this, stale entries for rules NOT in show-wide
+  // (e.g., a rule the commissioner added but show-wide doesn't score) would
+  // still be there — but that's fine; cascade only touches show-wide rules.
+  // We just wipe so the re-sync produces a clean view of show-wide.
+  const nextWeekly = { ...(league.weeklyScores || {}) };
+  delete nextWeekly[episode];
+  return { ...league, weeklyScores: nextWeekly, cascadedEpisodes: rest };
 }
 
 function appendAudit(league, entry) {
@@ -3303,6 +3351,26 @@ function ScoringTab({ league, onUpdate, isCommissioner = true, userProfile }) {
           }}>{t.label}</button>
         ))}
       </div>
+
+      {/* v2.6.22.4: show-wide cascade banner. Visible only when this league
+          opted into useShowWideScoring AND the current week has been
+          cascaded from admin's show-wide source. Re-sync button wipes the
+          week's scores and re-imports from show-wide (used to recover from
+          the pre-v2.6.22.4 double-counting bug, or to pick up admin's
+          re-scoring after the league already cascaded). */}
+      {league.useShowWideScoring && onUpdate && league.cascadedEpisodes?.[String(selectedWeek)] && (
+        <div style={{ padding:"10px 14px",background:"#9d5dff11",borderRadius:8,border:"1px solid #9d5dff33",marginBottom:16,
+          display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8 }}>
+          <div style={{ fontSize:12,color:"#9d5dff",fontWeight:600 }}>
+            ⤵ {cadenceLabel(league, selectedWeek)} cascaded from show-wide source. Edits below override per-league.
+          </div>
+          <Btn small variant="ghost" onClick={() => {
+            if (!confirm(`Re-sync ${cadenceLabel(league, selectedWeek)} from the show-wide source? This wipes any per-league edits for this ${cadenceWord(league).toLowerCase()} (kiss overrides, removed events, etc.) and re-imports admin's authoritative scoring.`)) return;
+            const cleared = clearCascadeForEpisode(league, String(selectedWeek));
+            onUpdate(cleared);
+          }}>Re-sync</Btn>
+        </div>
+      )}
 
       {/* ─── FINALIZED WEEK LOCKED BANNER ─── */}
       {isWeekFinalized && onUpdate && (
@@ -8110,6 +8178,24 @@ export default function FantasyRealityTV() {
     return () => { cancelled = true; };
   }, [rawSelected?.id, rawSelected?.useShowWideScoring, rawSelected?.showType, rawSelected?.seasonNumber]);
 
+  // v2.6.22.4: cascade show-wide scoring into the league physically (replaces
+  // the on-read merge that was double-counting on every finalize/unfinalize).
+  // Fires when (rawSelected, showWideData) are both loaded; idempotent —
+  // already-cascaded episodes are skipped so commissioner edits stick. The
+  // ID-only dep is intentional: when this effect saves a cascaded league,
+  // setLeagues updates the leagues array which re-renders, and rawSelected
+  // re-derives with the cascade applied — but the dep doesn't fire again
+  // because rawSelected.id didn't change. The next cascade-relevant trigger
+  // is admin scoring more episodes (showWideData changes) or commissioner
+  // hitting Re-sync (cascadedEpisodes[ep] cleared from another path).
+  useEffect(() => {
+    if (!rawSelected || !rawSelected.useShowWideScoring || !showWideData) return;
+    const { league: cascaded, changed } = cascadeShowWideToLeague(rawSelected, showWideData);
+    if (!changed) return;
+    saveLeague(cascaded).catch(() => {});
+    setLeagues(prev => prev.map(l => l.id === cascaded.id ? cascaded : l));
+  }, [rawSelected?.id, showWideData]);
+
   // v2.6.11.0: cast cascade. When admin adds a new contestant to
   // showCast/<showType>/season_<N>, opted-in leagues auto-receive them on
   // next load. Gates on the league having a seasonNumber (the structured
@@ -8154,10 +8240,11 @@ export default function FantasyRealityTV() {
     })();
     return () => { cancelled = true; };
   }, [rawSelected?.id, rawSelected?.showType, rawSelected?.seasonNumber]);
-  const selected = useMemo(
-    () => rawSelected?.useShowWideScoring ? mergeShowWideScoring(rawSelected, showWideData) : rawSelected,
-    [rawSelected, showWideData]
-  );
+  // v2.6.22.4: selected = rawSelected. The on-read merge is gone; show-wide
+  // events are physically cascaded into rawSelected.weeklyScores by the
+  // effect above. Display reads from weeklyScores directly, commissioner
+  // edits are saved to weeklyScores directly, no merge-during-save risk.
+  const selected = rawSelected;
   const myTeamIn = (lid) => userProfile?.activations?.[lid] || null;
   const visibleLeagues = isAdmin ? leagues : leagues.filter(l => userProfile?.activations?.[l.id] || l.commissionerUid === authUser?.uid || (l.coCommissioners || []).includes(authUser?.uid));
 
