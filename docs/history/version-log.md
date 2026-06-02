@@ -30,7 +30,7 @@
 - **Default standings breakdown period** at `App.jsx:1893` switched from `String(league.currentWeek || 1)` to `"season"`. The headline number on a standings tab should be the season-long story; per-week drill-down stays available in the dropdown.
 - **What this commit does NOT do.** No `runTransaction`-based atomic join (the team-array overwrite race is fundamentally unsafe across concurrent clients regardless of how we read it; the proper fix is moving teams out of an array into a keyed map at `frtv/league_<id>/teams/<teamId>`, which is a bigger refactor). No retroactive cleanup of leagues that already have duplicate teams from this bug — admin can prune them via the existing Team management UI. No reconciliation of `activations` for users who had multiple teams in one league (only one activation can exist per user-league pair; the others are orphan teams the admin or commissioner needs to remove).
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.87s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `726db37`
 
 ### v2.6.23.4 — 2026-06-02
 **Two small polish items.** Differentiate same-named leagues in My Leagues + let users upload a team-avatar photo instead of pasting a URL.
