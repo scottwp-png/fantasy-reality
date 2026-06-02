@@ -33,7 +33,7 @@
 - **Polls section removed from StandingsTab** at `App.jsx:2191-2195` (replaced with a comment marker pointing to its new home). The component itself (`PollsSection`) is untouched; only its mount point moved.
 - **What this commit does NOT do.** No in-app notification feed yet (the audit-log aggregation across leagues + bell icon). No unread-message indicator on the Lounge tab button. No image / link / @-mention support in chat — plain text only. No edit-message UI (delete-and-resend). No typing indicators. No moderation tools beyond per-message delete. No web push notifications (deferred to ship with live draft as the user requested).
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.75s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `607cd9b`
 
 ### v2.6.23.8 — 2026-06-02
 **Polls layout fix: long Yes/No questions overflowing the poll card.** Reported — a long custom-answer (Yes/No) question's text was bleeding off the poll card and the page.
