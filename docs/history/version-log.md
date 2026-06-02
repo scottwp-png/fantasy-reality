@@ -33,7 +33,7 @@
 - **Scoring engine** unchanged from v2.6.23.6 — `calcTeamWeekPoints` still short-circuits when `league.skippedWeeks[weekStr]` is set. The whole-week toggle just sets multiple keys in one update.
 - **What this commit does NOT do.** No "exclude every future episode starting from now" shortcut. No drag-select-range UI to flag multiple non-contiguous episodes. No visual indication in the standings tab of how many weeks were skipped (only the per-week banner inside scoring).
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.69s). `src/scoring.js` untouched (engine unchanged from v2.6.23.6).
-- **Commit:** `_pending_`
+- **Commit:** `4d6872e`
 
 ### v2.6.23.6 — 2026-06-02
 **Polls: custom-answer questions (Yes/No, arbitrary lists) + standings: skipped weeks.** Two features for leagues that need to ask non-contestant questions or that start mid-season.
