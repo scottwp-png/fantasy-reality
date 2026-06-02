@@ -29,7 +29,7 @@
 - **Skipped weeks** at `src/scoring.js:32-39` + `App.jsx:3358-3387` (the ScoringTab banner). `league.skippedWeeks: { [weekStr]: true }` flags a week as excluded from standings — `calcTeamWeekPoints` short-circuits to 0 for any flagged week, all formats inclusive. The week's `weeklyScores` are preserved so admin / members can still see what happened; the data just doesn't contribute to team totals. ScoringTab shows two states: a purple banner with "⊘ Week N is excluded from standings — Include in standings ←" when flagged; a dashed "Mid-season start? Mark Episode N as excluded…" hint for commissioners on currently-empty weeks. Reversible at any time.
 - **What this commit does NOT do.** Polls: no multi-select choice questions (single-select only); no scoring-attached choice questions (poll picks remain detached from scoring rules); no per-question "free text" answer mode. Skipped weeks: no UI in standings to indicate which weeks were skipped at a glance (only the per-week banner inside scoring); no auto-skip detection (e.g., "league created after week 1" → auto-flag week 1) — explicit commissioner action required; no global "season starts at week N" shortcut (skip individual weeks 1..N-1 instead). Both features local to one league, no cross-league propagation.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification — the skippedWeeks branch is a no-op when the field is absent / empty. `npm run build` clean (3.15s).
-- **Commit:** `_pending_`
+- **Commit:** `c0adcd6`
 
 ### v2.6.23.5 — 2026-06-02
 **Duplicate-team-on-join bug fix + standings default to season total.** Reported from Reddit traffic — users joining via the league-wide invite link were getting 5–6 teams created for their single account.
