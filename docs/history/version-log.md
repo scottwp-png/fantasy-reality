@@ -37,7 +37,7 @@
   - Per-league timestamp stored at `userProfile.loungeLastSeenAt[leagueId]`. Set to `Date.now()` automatically when the user enters the Lounge tab. Own chat messages don't count as unread.
 - **What this commit does NOT do.** Chat notifications in the bell — deferred. Doing it well would need either subscribing to every league's chat path on app load (N subscriptions × every user) or maintaining a denormalized `lastMessageAt` field per league. The Lounge unread badge fills the gap within the open league. No per-message read tracking — the lastSeen timestamp is binary "you visited Lounge after this happened" or not. No grouping of consecutive same-kind events (5 finalize events from the same commissioner show as 5 separate rows).
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.11s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `e9b06bb`
 
 ### v2.6.24.0 — 2026-06-02
 **League chat + Lounge tab (Chat + Polls) + tab strip scroll affordance.** First half of the communication ask (in-app feed deferred to a follow-up). Engagement plumbing for the post-Reddit-launch traffic.
