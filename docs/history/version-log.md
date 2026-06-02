@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.23.3
+**Current Production Version:** v2.6.23.4
 **Last Deploy Date:** 2026-06-02
-**App.jsx Line Count:** ~10,090
+**App.jsx Line Count:** ~10,125
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,15 @@
 ---
 
 ## Version Log
+
+### v2.6.23.4 — 2026-06-02
+**Two small polish items.** Differentiate same-named leagues in My Leagues + let users upload a team-avatar photo instead of pasting a URL.
+- **My Leagues card subtitle** at `App.jsx:11020` now surfaces the commissioner's name when it's not the current user — `"Series 13 · Ep 1 · 8 teams · Alex's league"`. Self stays as `"· Commissioner"` so users don't see their own name spelled out. Reads from `league.commissionerName`; if absent (legacy leagues that never set it), the suffix is hidden entirely so layout doesn't break.
+- **`commissionerName` stamped at league creation** at `App.jsx:1263-1266` + the prop passed in at `App.jsx:8390` — pulls from `userProfile.displayName` first, then `authUser.displayName` as a fallback. Existing leagues get the name retroactively the next time the commissioner saves anything; no migration needed.
+- **Team-avatar file upload** at `App.jsx:5143-5172` in the Customize Team modal. New layout: dashed `📷 Upload Photo` button (full-width-feeling), an optional `Remove` chip when an avatar exists, and a smaller "…or paste an image URL" input below for users who'd rather link. Upload runs the existing `resizeImageToDataURI(file, 512, 0.8)` helper — same path used for contestant photos — and writes the data URI back to `customAvatar` so Save persists it inline on the league doc. A small teal `✓ Photo uploaded` line shows when the current value is a data URI, with a hint that clearing it switches back to URL mode.
+- **What this commit does NOT do.** No account-level (per-user) avatar yet — only team-level. Team avatars are surfaced everywhere a team is rendered (leaderboard, team detail, depth chart) so for now this covers the "I want my picture in my league" intent, but a real user profile pic is a bigger feature touching auth + RTDB `frtv_users` schema. No Firebase Storage upload either — data URIs sit on the league doc, which is fine for one ~50KB JPG per team but would get heavy past a few teams with original-resolution photos (the resize keeps it bounded). No tiebreaker invite-code suffix on the My Leagues card — commissioner-name alone covers the common case; can add the code if same-commissioner duplicates start happening.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.77s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.23.3 — 2026-06-02
 **Create-league rule picker: source from admin library, not compile-time defaults.** Reported: rules the admin deleted from the library were still showing as greyed-out "available" options when creating a new league. They no longer exist in the library but the picker pulled from a hardcoded list independent of admin state.

@@ -1072,7 +1072,7 @@ function MultiplierBadge({ role }) {
 // HOME SCREEN
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags }) {
+function CreateLeagueScreen({ onSave, onCancel, commissionerUid, commissionerName, featureFlags }) {
   const [step, setStep] = useState(1);
   // v2.4.47.0: Guided vs Advanced league-creation mode. Guided (default)
   // splits the dense "Basics" step into three bite-sized sub-steps with
@@ -1259,6 +1259,10 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, featureFlags })
       weeklyScores: {},
       currentWeek: 1,
       commissionerUid: commissionerUid || null,
+      // v2.6.23.4: stamp commissionerName at creation so My Leagues can
+      // surface "Alex's league" for friends in a multi-league world.
+      // Falls back to null; the My Leagues card hides the suffix when absent.
+      commissionerName: commissionerName || null,
       leagueInviteCode: generateInviteCode(),
       createdAt: Date.now(),
     };
@@ -5141,7 +5145,38 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
             </div>
 
             <Input label="Team Name" value={customName} onChange={e=>setCustomName(e.target.value)} />
-            <Input label="Avatar URL (optional)" placeholder="https://example.com/avatar.png" value={customAvatar} onChange={e=>setCustomAvatar(e.target.value)} />
+
+            {/* v2.6.23.4: team avatar input — file upload OR URL paste. File
+                upload runs the existing resizeImageToDataURI helper (512px,
+                quality 0.8) which inlines as a data URI on the league doc.
+                URL paste still works the same. Both write to customAvatar. */}
+            <div style={{ marginBottom:14 }}>
+              <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>Avatar</label>
+              <div style={{ display:"flex",gap:8,marginBottom:6 }}>
+                <label style={{ flex:1,padding:"10px 14px",background:"#0d0d18",border:"1px dashed #2a2a4a",borderRadius:8,color:"#aaaabf",fontSize:12,cursor:"pointer",textAlign:"center",fontFamily:"'Outfit',sans-serif",fontWeight:600 }}>
+                  📷 Upload Photo
+                  <input type="file" accept="image/*" onChange={async e => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!file) return;
+                    try {
+                      const dataUri = await resizeImageToDataURI(file, 512, 0.8);
+                      setCustomAvatar(dataUri);
+                    } catch (err) {
+                      alert("Couldn't read that image: " + (err?.message || "unknown error"));
+                    }
+                  }} style={{ display:"none" }} />
+                </label>
+                {customAvatar && (
+                  <button onClick={()=>setCustomAvatar("")} style={{ background:"transparent",border:"1px solid #3a1525",borderRadius:8,color:"#ff6b6b",cursor:"pointer",padding:"0 12px",fontSize:11,fontWeight:600,fontFamily:"'Outfit',sans-serif" }}>Remove</button>
+                )}
+              </div>
+              <input value={customAvatar?.startsWith("data:") ? "" : customAvatar} onChange={e=>setCustomAvatar(e.target.value)} placeholder="…or paste an image URL"
+                style={{ width:"100%",padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,color:"#aaaabf",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",boxSizing:"border-box" }} />
+              {customAvatar?.startsWith("data:") && (
+                <div style={{ marginTop:4,fontSize:10,color:"#4ecdc4" }}>✓ Photo uploaded — clear it to use a URL instead</div>
+              )}
+            </div>
 
             <div style={{ marginBottom:14 }}>
               <label style={{ display:"block",fontSize:12,color:"#8888aa",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em" }}>Team Color</label>
@@ -8385,7 +8420,7 @@ export default function FantasyRealityTV() {
         announcement={announcement}
         pendingJoinCode={pendingJoinCode}
         allLeaguesCount={leagues.filter(l => l.commissionerUid === authUser?.uid).length} />}
-      {view==="create" && <CreateLeagueScreen commissionerUid={authUser?.uid} featureFlags={featureFlags} onSave={async l=>{ await persist([...leagues,l]); setSelectedId(l.id);setView("league"); }} onCancel={()=>setView("home")} />}
+      {view==="create" && <CreateLeagueScreen commissionerUid={authUser?.uid} commissionerName={userProfile?.displayName || authUser?.displayName || ""} featureFlags={featureFlags} onSave={async l=>{ await persist([...leagues,l]); setSelectedId(l.id);setView("league"); }} onCancel={()=>setView("home")} />}
       {view==="league" && selected && authUser && <LeagueDashboard league={selected} allLeagues={leagues}
         onUpdate={u=>{
           let updated = leagues.map(l=>l.id===u.id?u:l);
@@ -10898,7 +10933,13 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
                         {league.name}
                         {league.seasonComplete && <span style={{ fontSize:9,fontWeight:700,color:"#8888aa",background:"#1e1e38",border:"1px solid #2a2a4a",padding:"2px 7px",borderRadius:99,textTransform:"uppercase",letterSpacing:"0.05em" }}>Season Complete</span>}
                       </div>
-                      <div style={{ color:"#6a6a8a",fontSize:12,marginTop:2 }}>{league.seasonName} · {cadenceShort(league)} {league.currentWeek||1} · {(league.teams||[]).length} team{(league.teams||[]).length!==1?"s":""}{league.commissionerUid === user?.uid && !isAdmin ? " · Commissioner" : ""}</div>
+                      {/* v2.6.23.4: surface the commissioner's name when it's
+                          someone else — differentiates two leagues that share
+                          the same name + show + season (e.g., your friend Bob's
+                          "Fantasy Survivor 50" vs. your own). Self stays as
+                          "Commissioner" so users don't see their own name
+                          spelled out. */}
+                      <div style={{ color:"#6a6a8a",fontSize:12,marginTop:2 }}>{league.seasonName} · {cadenceShort(league)} {league.currentWeek||1} · {(league.teams||[]).length} team{(league.teams||[]).length!==1?"s":""}{league.commissionerUid === user?.uid && !isAdmin ? " · Commissioner" : (league.commissionerName ? ` · ${league.commissionerName}'s league` : "")}</div>
                       {myTeam && (()=>{
                         const standings = calcStandings(league);
                         const myRank = standings.findIndex(t=>t.id===myTeam.id) + 1;
