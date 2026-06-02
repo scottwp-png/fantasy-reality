@@ -31,7 +31,7 @@
 - **`toggleRule` updated** at `App.jsx:1185-1199` — when re-adding a previously-greyed rule, prefers the admin library entry over the compile-time default so user-authored description / category / points come through. Compile-time defaults stay as the fallback for the first-run library-empty case.
 - **What this commit does NOT do.** No migration of the dead `availableRules` / `allShowRules` / `rulesByCategory` variables declared at `App.jsx:1262-1271` — they're declared but unused; left as a separate cleanup. No support for "show me rules from other shows" (each show's library is independent). No UI for the admin to bulk-restore deleted rules — admin re-adds via the existing `+ New Rule` form in the Rule Library.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (3.76s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `87c4397`
 
 ### v2.6.23.2 — 2026-06-02
 **Live sync for the currently selected league.** Replaces the previous one-shot `get()` model — while a user is inside a league, an RTDB `onValue` listener keeps that league's state synced across every connected client. Commissioner scores from one device, members see the new totals refresh-free.
