@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import ReactDOM from "react-dom"
-import { loadData, saveData, loadRootData, saveRootData, deleteData, loadAllLeagues, saveAllLeagues, saveLeague, loadUserProfile, saveUserProfile, loadAllUserProfiles, deleteUserProfile, deleteAuthAccount, onAuthChange, signUp, signIn, signInWithGoogle, signOut, resetPassword, ADMIN_EMAIL } from "./firebase.js"
+import { loadData, saveData, loadRootData, saveRootData, deleteData, loadAllLeagues, saveAllLeagues, saveLeague, subscribeLeague, loadUserProfile, saveUserProfile, loadAllUserProfiles, deleteUserProfile, deleteAuthAccount, onAuthChange, signUp, signIn, signInWithGoogle, signOut, resetPassword, ADMIN_EMAIL } from "./firebase.js"
 import * as XLSX from "xlsx"
 import { calcContestantWeekPoints, calcTeamWeekPoints, calcStandings } from "./scoring.js"
 
@@ -8218,6 +8218,23 @@ export default function FantasyRealityTV() {
     })();
     return () => { cancelled = true; };
   }, [rawSelected?.id, rawSelected?.useShowWideScoring, rawSelected?.showType, rawSelected?.seasonNumber]);
+
+  // v2.6.23.2: live sync for the currently selected league. While the user is
+  // inside a league, an RTDB onValue listener keeps `leagues` updated with
+  // server-confirmed writes from any client — commissioner scores from one
+  // device, members see the new totals refresh-free. Listener fires once
+  // immediately with the current snapshot (we accept the no-op replace) and
+  // again on every write. saveLeague writes through normal channels; the
+  // listener picks them up as confirmation, idempotent. Unsubscribes on
+  // league change so we don't leak listeners across navigation.
+  useEffect(() => {
+    if (!selectedId) return;
+    const unsub = subscribeLeague(selectedId, (data) => {
+      if (!data) return;
+      setLeagues(prev => prev.map(l => l.id === selectedId ? data : l));
+    });
+    return unsub;
+  }, [selectedId]);
 
   // v2.6.22.4: cascade show-wide scoring into the league physically (replaces
   // the on-read merge that was double-counting on every finalize/unfinalize).

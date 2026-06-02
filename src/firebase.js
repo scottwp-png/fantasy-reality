@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { getDatabase, ref, get, set, update, remove } from 'firebase/database'
+import { getDatabase, ref, get, set, update, remove, onValue } from 'firebase/database'
 import {
   getAuth,
   createUserWithEmailAndPassword,
@@ -86,6 +86,20 @@ export async function loadAllLeagues() {
 export async function saveAllLeagues(leagues) {
   const index = leagues.map(l => l.id); await saveData("league_index", index); for (const league of leagues) { await saveData("league_" + league.id, league); }
 }
+// v2.6.23.2: live-sync subscription for a single league. Caller passes the
+// league id + a callback; we attach an onValue listener at the league's
+// RTDB path. The listener fires once immediately with the current snapshot,
+// then again on every server-confirmed write (including the caller's own).
+// Returns an unsubscribe function — caller MUST call it on unmount / when
+// switching leagues, or the listener leaks and double-fires for the next
+// league. Idempotent: re-firing with identical data just reassigns the same
+// object; React's setState with equal value is a no-op for primitive
+// equality, otherwise re-renders happen but read identical UI.
+export function subscribeLeague(leagueId, callback) {
+  const r = ref(db, "frtv/league_" + leagueId);
+  return onValue(r, (snap) => callback(snap.val()));
+}
+
 // Saves a single league by path — avoids the race condition where saveAllLeagues
 // replaces the entire league object, causing concurrent edits to overwrite each other.
 // Use this for all in-session league updates (scoring, roster changes, settings, etc.)

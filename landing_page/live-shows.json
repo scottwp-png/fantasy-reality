@@ -1,6 +1,6 @@
 {
   "_comment": "Edited manually each season. The landing page reads this at page load to populate the 'Now live' banner. If this file is missing, deleted, or malformed, the banner falls back to a generic string. Format: shows[] is an array of {name, season}. Order = banner left-to-right.",
   "shows": [
-    { "name": "Love Island USA", "season": "Season 7" }
+    { "name": "Love Island", "season": "Series 13" }
   ]
 }

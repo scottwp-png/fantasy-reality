@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.23.1
+**Current Production Version:** v2.6.23.2
 **Last Deploy Date:** 2026-06-02
-**App.jsx Line Count:** ~10,065
+**App.jsx Line Count:** ~10,080
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,18 @@
 ---
 
 ## Version Log
+
+### v2.6.23.2 — 2026-06-02
+**Live sync for the currently selected league.** Replaces the previous one-shot `get()` model — while a user is inside a league, an RTDB `onValue` listener keeps that league's state synced across every connected client. Commissioner scores from one device, members see the new totals refresh-free.
+- **`subscribeLeague(leagueId, callback)` in `src/firebase.js:88-99`** — wraps `onValue(ref(db, "frtv/league_<id>"))`. Returns an unsubscribe function the caller must invoke on unmount / league change. Fires once immediately with the current snapshot (we accept the no-op replace; React handles equality), then again on every server-confirmed write — including the local user's own, which arrive as confirmation.
+- **Mounted effect in FantasyRealityTV at `App.jsx:8168-8185`** — gated on `selectedId`, subscribes when set, unsubscribes when changed/cleared. The callback maps the updated league into the `leagues` array, leaving other leagues untouched.
+- **Why selected-league-only.** Subscribing to every league a user can see would multiply listener count by league count. The high-value sync case is "all members of one active watch-party league seeing scores update live" — exactly what selected-league covers. My Leagues, admin lists, and other static views still use the existing one-shot `get()` and will pick up changes on next navigation.
+- **Concurrent-write semantics unchanged.** `saveLeague` still uses `update()` against the league's full path, so two users editing different fields race on a last-writer-wins basis — same as pre-live-sync. Live sync just makes the loser's overwrite visible faster.
+- **Cascade + uid backfill effects (v2.6.22.4, v2.6.21.1) still work.** Both compute deterministic outputs from the league + show-wide data; concurrent triggers from multiple clients converge on the same result, and `onValue` echoes back the final write as confirmation. No infinite loops.
+- **Landing page Coming Soon updated** to remove the now-shipped "Live Sync" tile, replaced with "Trade System" from the backlog. "Live Standings" feature copy was sharpened to make the cross-device sync explicit.
+- **What this commit does NOT do.** No live sync for the My Leagues home (still snapshot on app load — leagues you're newly added to appear on refresh). No live sync for the show-wide scoring path (still loaded once per league session). No optimistic-write reconciliation — if two users save within milliseconds, last write wins and the loser's edit is silently overwritten.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS without any synthetic JSON modification. `npm run build` clean (2.97s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.23.1 — 2026-06-02
 **Standings: competition-style tie ranking.** Reported from a real league screenshot — three teams tied at 5.00 pts were displayed as 2nd / 3rd / 4th instead of all T-2. Now they share the rank and the next non-tied team skips ahead by the tie count.

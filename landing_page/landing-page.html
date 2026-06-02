@@ -107,6 +107,17 @@ section{padding:80px 24px}
 .feat h3 .fi{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .feat p{font-size:13px;color:var(--muted);line-height:1.6}
 
+/* Coming-soon tiles — dashed border + soft glow, deliberately less prominent
+   than live features. The "Soon" badge signals roadmap, not vaporware. */
+.soon-label{margin-top:36px;font-size:11px;text-transform:uppercase;letter-spacing:.18em;font-weight:700;color:var(--purple)}
+.soon-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:14px}
+@media(max-width:640px){.soon-grid{grid-template-columns:1fr}}
+.soon{padding:20px 22px;border-radius:12px;border:1px dashed var(--border-light);background:rgba(157,93,255,0.04);transition:all .3s}
+.soon:hover{border-color:var(--purple);background:rgba(157,93,255,0.08)}
+.soon h3{font-size:13px;font-weight:700;margin-bottom:5px;display:flex;align-items:center;gap:8px;color:var(--text)}
+.soon h3 .pill{padding:2px 8px;border-radius:99px;font-size:9px;font-weight:700;background:rgba(157,93,255,0.15);color:var(--purple);border:1px solid rgba(157,93,255,0.3);letter-spacing:.04em;text-transform:uppercase}
+.soon p{font-size:12px;color:var(--muted);line-height:1.55}
+
 .shows-grid-desktop{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:36px}.shows-carousel{position:relative;margin-top:36px;display:none}.shows-track{display:flex;gap:12px;justify-content:center}.show-arrow{position:absolute;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;transition:all .2s;z-index:2}.show-arrow:hover{background:var(--border);color:var(--text)}.show-arrow.left{left:-8px}.show-arrow.right{right:-8px}@media(max-width:768px){.shows-grid-desktop{display:none}.shows-carousel{display:block}.shows-dots-wrap{display:flex!important}}
 .show-tile{padding:18px 16px;border-radius:10px;border:1px solid var(--border);background:var(--surface);text-align:center;transition:all .3s;cursor:default;flex:1;min-width:0}
 .show-tile:hover{transform:translateY(-2px);border-color:var(--border-light)}
@@ -165,6 +176,23 @@ section{padding:80px 24px}
 .cast-pts.zero{color:var(--muted)}
 .cast-pts.pos::before{content:'+'}
 
+/* Cast detail lightbox — rendered as an actual modal overlay over a dimmed
+   cast list, the same way the lightbox appears in the live app. The modal
+   floats centered in the phone body and is sized so the cast list shows
+   on the edges as context. Photo is compact (~110px) so the whole card
+   fits in the phone height. */
+.cd-body{padding:0;position:relative;overflow:hidden}
+.cd-backdrop{position:absolute;inset:0;padding:14px;opacity:0.18;filter:blur(0.5px);pointer-events:none}
+.cd-scrim{position:absolute;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(2px)}
+.cd-modal{position:absolute;left:14px;right:14px;top:50%;transform:translateY(-50%);background:var(--surface);border:1px solid var(--border-light);border-radius:14px;padding:14px;box-shadow:0 18px 40px rgba(0,0,0,0.5);display:flex;flex-direction:column;gap:10px}
+.cd-photo{width:110px;height:110px;border-radius:12px;background-size:cover;background-position:center 18%;margin:0 auto;flex-shrink:0;border:2px solid var(--pink)}
+.cd-name{font-family:'Anybody',sans-serif;font-weight:900;font-size:18px;color:var(--text);letter-spacing:-0.02em;line-height:1;text-align:center}
+.cd-meta{display:flex;flex-direction:column;gap:4px;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:8px}
+.cd-meta-row{display:flex;align-items:baseline;gap:8px;font-size:10px;line-height:1.3}
+.cd-key{font-weight:700;color:var(--muted);width:34px;font-size:8px;text-transform:uppercase;letter-spacing:0.05em;flex-shrink:0}
+.cd-val{color:var(--text);font-weight:500}
+.cd-bio{font-size:10px;color:var(--text2);line-height:1.5;font-style:italic;padding:0 2px;text-align:center}
+
 /* Depth chart */
 .dc-locked{padding:8px 10px;background:rgba(255,138,61,0.08);border:1px solid rgba(255,138,61,0.3);border-radius:8px;margin-bottom:10px;display:flex;gap:6px;align-items:flex-start}
 .dc-locked-icon{font-size:11px;flex-shrink:0;line-height:1.4}
@@ -188,13 +216,26 @@ section{padding:80px 24px}
 .dc-pts.zero{color:var(--muted)}
 .dc-pts.pos::before{content:'+'}
 
-/* Reusable face placeholder — a small radial gradient that hints at a portrait
-   without showing one. Combines hair-color hue + skin tone band. */
-.face{background:radial-gradient(ellipse 60% 40% at 50% 30%,rgba(255,255,255,0.15),transparent 65%),linear-gradient(180deg,#3a2a3a 0%,#3a2a3a 30%,#c89a82 30%,#c89a82 100%)}
-.face.dark{background:radial-gradient(ellipse 60% 40% at 50% 30%,rgba(255,255,255,0.1),transparent 65%),linear-gradient(180deg,#1a1015 0%,#1a1015 30%,#7a503a 30%,#7a503a 100%)}
-.face.blonde{background:radial-gradient(ellipse 60% 40% at 50% 30%,rgba(255,255,255,0.2),transparent 65%),linear-gradient(180deg,#d4a05a 0%,#d4a05a 30%,#dab09a 30%,#dab09a 100%)}
-.face.brunette{background:radial-gradient(ellipse 60% 40% at 50% 30%,rgba(255,255,255,0.12),transparent 65%),linear-gradient(180deg,#2a1a1a 0%,#2a1a1a 30%,#c89a82 30%,#c89a82 100%)}
-.face.red{background:radial-gradient(ellipse 60% 40% at 50% 30%,rgba(255,255,255,0.15),transparent 65%),linear-gradient(180deg,#8a3520 0%,#8a3520 30%,#e8b8a0 30%,#e8b8a0 100%)}
+/* Real headshot images shipped alongside this HTML. Cropped face shots,
+   ~50-100KB each — fine for landing-page weight. Background-cover so the
+   image fills its container regardless of avatar size. */
+.face{background-size:cover;background-position:center top;background-color:#1a1a30}
+.face.ellie{background-image:url('img/ellie-cropped.jpg')}
+.face.aidan{background-image:url('img/aidan-cropped.jpg')}
+.face.lorenzo{background-image:url('img/lorenzo-cropped.jpg')}
+.face.robyn{background-image:url('img/robyn-cropped.jpg')}
+.face.angelista{background-image:url('img/aneglista-cropped.jpg')}
+.face.sean{background-image:url('img/sean-cropped.jpg')}
+.face.ope{background-image:url('img/ope-cropped.jpg')}
+.face.mica{background-image:url('img/mica-cropped.jpg')}
+/* Abstract initials avatar — used when no real photo applies (Survivor mockup) */
+.face.init{display:flex;align-items:center;justify-content:center;font-family:'Anybody',sans-serif;font-weight:900;color:#fff;font-size:11px;text-shadow:0 1px 2px rgba(0,0,0,0.5)}
+.face.init.t1{background:linear-gradient(135deg,#d4a24e,#a07a3a)}
+.face.init.t2{background:linear-gradient(135deg,#9d5dff,#7040c0)}
+.face.init.t3{background:linear-gradient(135deg,#3dd6c8,#2a9a8e)}
+.face.init.t4{background:linear-gradient(135deg,#4d8aff,#3060c0)}
+.face.init.t5{background:linear-gradient(135deg,#ff8a3d,#c05a20)}
+.face.init.t6{background:linear-gradient(135deg,#3ddc84,#2a9a5a)}
 
 .faq-sec{background:var(--bg2)}
 .faq-list{display:flex;flex-direction:column;gap:8px;margin-top:40px;max-width:700px}
@@ -262,15 +303,15 @@ footer a{color:var(--red);font-weight:600}
       <div class="phone">
         <div class="phone-inner">
           <div class="phone-notch"></div>
-          <div class="phone-app-header"><h3>Fantasy Reality</h3></div>
+          <div class="phone-app-header"><h3>Fantasy Reality TV</h3></div>
           <div id="phone-leagues"></div>
           <div class="ph-standings">
             <div class="ph-standings-title">Standings</div>
-            <div class="ph-row"><span class="ph-rank">1</span><span class="ph-team">Team Scott</span><span class="ph-pts">+42.5</span></div>
-            <div class="ph-row"><span class="ph-rank">2</span><span class="ph-team">Team Matt</span><span class="ph-pts">+38.0</span></div>
-            <div class="ph-row"><span class="ph-rank">3</span><span class="ph-team">Team Nikki</span><span class="ph-pts">+35.5</span></div>
-            <div class="ph-row"><span class="ph-rank">4</span><span class="ph-team">Team Kyle</span><span class="ph-pts">+31.0</span></div>
-            <div class="ph-row"><span class="ph-rank">5</span><span class="ph-team">Team Lana</span><span class="ph-pts">+28.5</span></div>
+            <div class="ph-row"><span class="ph-rank">1</span><span class="ph-team">Snake Eyes</span><span class="ph-pts">+42.5</span></div>
+            <div class="ph-row"><span class="ph-rank">2</span><span class="ph-team">Tribe Royale</span><span class="ph-pts">+38.0</span></div>
+            <div class="ph-row"><span class="ph-rank">3</span><span class="ph-team">Final Three</span><span class="ph-pts">+35.5</span></div>
+            <div class="ph-row"><span class="ph-rank">4</span><span class="ph-team">Hidden Idol</span><span class="ph-pts">+31.0</span></div>
+            <div class="ph-row"><span class="ph-rank">5</span><span class="ph-team">Fan Favorite</span><span class="ph-pts">+28.5</span></div>
           </div>
         </div>
       </div>
@@ -290,7 +331,7 @@ footer a{color:var(--red);font-weight:600}
       </div>
       <div class="step">
         <span class="step-num">02</span>
-        <h3>Draft your favorites</h3>
+        <h3>Pick your favorites</h3>
         <p>Build a roster of contestants. Go with strategy, go with your gut, go with whoever makes the best TV.</p>
       </div>
       <div class="step">
@@ -313,11 +354,11 @@ footer a{color:var(--red);font-weight:600}
       </div>
       <div class="feat">
         <h3><span class="fi" style="background:var(--teal)"></span> Live Standings</h3>
-        <p>Rankings update the moment scores save. Weekly breakdowns, best weeks, worst weeks, head-to-head records — all the receipts.</p>
+        <p>Rankings update across every member's screen the moment your commissioner saves — no refresh, no waiting. Weekly breakdowns, best weeks, worst weeks, head-to-head records — all the receipts.</p>
       </div>
       <div class="feat">
-        <h3><span class="fi" style="background:var(--yellow)"></span> Multiple Formats</h3>
-        <p>Heroes (one-time draft, 2x/1.5x multipliers), Standard (weekly redraft), Survivor Pool, Salary Cap, Elimination Pool, Predictions. Match the format to your group.</p>
+        <h3><span class="fi" style="background:var(--yellow)"></span> Auto Cast &amp; Score</h3>
+        <p>Skip the commissioner busywork. Cast lists and per-episode scoring auto-populate for supported shows. Your league can still override anything if your group sees it differently.</p>
       </div>
       <div class="feat">
         <h3><span class="fi" style="background:var(--orange)"></span> Auto Roster Lock</h3>
@@ -338,6 +379,26 @@ footer a{color:var(--red);font-weight:600}
       <div class="feat">
         <h3><span class="fi" style="background:var(--green)"></span> Works Everywhere</h3>
         <p>Phone, tablet, laptop. Install it like an app or just use your browser — same experience either way.</p>
+      </div>
+    </div>
+
+    <div class="soon-label">Coming Soon</div>
+    <div class="soon-grid">
+      <div class="soon">
+        <h3>More Formats <span class="pill">Soon</span></h3>
+        <p>Weekly snake redraft. Survivor Pool (one pick, last one standing). Salary Cap. Elimination Pool. Predictions league. Pick the structure that fits your group.</p>
+      </div>
+      <div class="soon">
+        <h3>Live Draft <span class="pill">Soon</span></h3>
+        <p>Pre-season snake draft with all managers in real time. Auto-pick on the clock, draft chat, undo timer — the whole ritual.</p>
+      </div>
+      <div class="soon">
+        <h3>League Chat <span class="pill">Soon</span></h3>
+        <p>Trash talk in the app, not a separate group chat. Pinned to the league so the receipts live next to the receipts.</p>
+      </div>
+      <div class="soon">
+        <h3>Trade System <span class="pill">Soon</span></h3>
+        <p>Two-sided contestant swaps between managers. Propose, counter, accept, veto. The commissioner can enable / disable per league.</p>
       </div>
     </div>
   </div>
@@ -418,14 +479,16 @@ footer a{color:var(--red);font-weight:600}
     <p class="sec-desc">Drafted rosters, live points, couples tracking, head-to-head bragging rights. Three screens, real data, no horse-girl aesthetic.</p>
 
     <div class="shots-row">
-      <!-- Mockup 1: Leaderboard — the standings tab after Episode 1 of Love Island Series 13 -->
+      <!-- Mockup 1: Leaderboard — Survivor context, generic team names, gradient
+           initial avatars. Demonstrates the v2.6.23.1 tie-rank handling: three
+           teams tied at 8.00 share rank T-2 with the silver styling. -->
       <div class="shot">
         <div class="shot-header">
           <div class="shot-app">
-            <div class="shot-app-icon">LI</div>
+            <div class="shot-app-icon" style="background:rgba(212,162,78,0.15);border-color:rgba(212,162,78,0.35);color:#d4a24e">S</div>
             <div>
-              <div class="shot-app-title">Fantasy Love Island</div>
-              <div class="shot-app-sub">Series 13 · Heroes · Episode 1</div>
+              <div class="shot-app-title">Fantasy Survivor</div>
+              <div class="shot-app-sub">Season 50 · Heroes · Episode 1</div>
             </div>
           </div>
           <div class="shot-tabs">
@@ -442,144 +505,69 @@ footer a{color:var(--red);font-weight:600}
           </div>
           <div class="lb-row first">
             <div class="lb-medal">🥇</div>
-            <div class="lb-avatar face dark"></div>
+            <div class="lb-avatar face init t1">SE</div>
             <div class="lb-info">
-              <div class="lb-team">Love Island Boy</div>
-              <div class="lb-mgr">Skot · +17.50 this wk</div>
+              <div class="lb-team">Snake Eyes</div>
+              <div class="lb-mgr">Alex · +18.50 this wk</div>
             </div>
             <div>
-              <div class="lb-pts">17.50</div>
+              <div class="lb-pts">18.50</div>
               <div class="lb-pts-unit">pts</div>
             </div>
           </div>
           <div class="lb-row">
             <div class="lb-medal">🥈</div>
-            <div class="lb-avatar silver face brunette"></div>
+            <div class="lb-avatar silver face init t2">TR</div>
             <div class="lb-info">
-              <div class="lb-team">2nd Best IT (Island Team)</div>
-              <div class="lb-mgr">Steve · +5.00 this wk</div>
+              <div class="lb-team">Tribe Royale</div>
+              <div class="lb-mgr">Sam · T-2 · +12.00 this wk</div>
             </div>
             <div>
-              <div class="lb-pts">5.00</div>
+              <div class="lb-pts">12.00</div>
               <div class="lb-pts-unit">pts</div>
             </div>
           </div>
           <div class="lb-row">
-            <div class="lb-medal">🥉</div>
-            <div class="lb-avatar bronze face blonde"></div>
+            <div class="lb-medal">🥈</div>
+            <div class="lb-avatar silver face init t3">FT</div>
             <div class="lb-info">
-              <div class="lb-team">Team "Never Going To Use The App"</div>
-              <div class="lb-mgr">Nikki · +5.00 this wk</div>
+              <div class="lb-team">Final Three</div>
+              <div class="lb-mgr">Riley · T-2 · +12.00 this wk</div>
             </div>
             <div>
-              <div class="lb-pts">5.00</div>
+              <div class="lb-pts">12.00</div>
               <div class="lb-pts-unit">pts</div>
             </div>
           </div>
           <div class="lb-row">
             <div class="lb-medal" style="color:var(--muted);font-family:'Anybody';font-size:11px;font-weight:700">4</div>
-            <div class="lb-avatar pink face red"></div>
+            <div class="lb-avatar face init t4">HI</div>
             <div class="lb-info">
-              <div class="lb-team">Avian Bieber Fever</div>
-              <div class="lb-mgr">Josh · +5.00 this wk</div>
+              <div class="lb-team">Hidden Idol</div>
+              <div class="lb-mgr">Jordan · +8.00 this wk</div>
+            </div>
+            <div>
+              <div class="lb-pts">8.00</div>
+              <div class="lb-pts-unit">pts</div>
+            </div>
+          </div>
+          <div class="lb-row">
+            <div class="lb-medal" style="color:var(--muted);font-family:'Anybody';font-size:11px;font-weight:700">5</div>
+            <div class="lb-avatar face init t5">FF</div>
+            <div class="lb-info">
+              <div class="lb-team">Fan Favorite</div>
+              <div class="lb-mgr">Casey · +5.00 this wk</div>
             </div>
             <div>
               <div class="lb-pts">5.00</div>
               <div class="lb-pts-unit">pts</div>
             </div>
           </div>
-          <div class="lb-row">
-            <div class="lb-medal" style="color:var(--muted);font-family:'Anybody';font-size:11px;font-weight:700">5</div>
-            <div class="lb-avatar teal face brunette"></div>
-            <div class="lb-info">
-              <div class="lb-team">Magnum Dong</div>
-              <div class="lb-mgr">Zach</div>
-            </div>
-            <div>
-              <div class="lb-pts zero">0.00</div>
-              <div class="lb-pts-unit">pts</div>
-            </div>
-          </div>
         </div>
       </div>
 
-      <!-- Mockup 2: Depth Chart — the Hero / Side-Kick / Vigilante system -->
-      <div class="shot">
-        <div class="shot-header">
-          <div class="shot-app">
-            <div class="shot-app-icon">LI</div>
-            <div>
-              <div class="shot-app-title">Fantasy Love Island</div>
-              <div class="shot-app-sub">Series 13 · Heroes · Episode 1</div>
-            </div>
-          </div>
-          <div class="shot-tabs">
-            <span>Standings</span>
-            <span>Cast</span>
-            <span>Scoring</span>
-            <span class="active">Roster</span>
-          </div>
-        </div>
-        <div class="shot-body">
-          <div class="shot-title-row">
-            <div class="shot-title">Depth Chart</div>
-            <div style="display:flex;gap:5px">
-              <span class="shot-pill shot-pill-teal">2M / 2F · OK</span>
-              <span class="shot-pill shot-pill-orange">Episode 1</span>
-            </div>
-          </div>
-          <div class="dc-locked">
-            <span class="dc-locked-icon">🔒</span>
-            <span class="dc-locked-text">Rosters are locked for managers. You can still edit as commissioner.</span>
-          </div>
-          <div class="dc-table">
-            <div class="dc-header">
-              <span class="dc-header-slot">Slot</span>
-              <span class="dc-header-player">Player</span>
-              <span class="dc-header-pts">Ep 1</span>
-            </div>
-            <div class="dc-row">
-              <div class="dc-slot h">
-                <div class="dc-slot-letter">H</div>
-                <div class="dc-slot-mult">2×</div>
-              </div>
-              <div class="dc-photo face blonde"></div>
-              <div class="dc-player">Ellie (F)</div>
-              <div class="dc-pts pos">10.00</div>
-            </div>
-            <div class="dc-row">
-              <div class="dc-slot sk">
-                <div class="dc-slot-letter">SK</div>
-                <div class="dc-slot-mult">1.5×</div>
-              </div>
-              <div class="dc-photo face brunette"></div>
-              <div class="dc-player">Aidan (M)</div>
-              <div class="dc-pts pos">7.50</div>
-            </div>
-            <div class="dc-row">
-              <div class="dc-slot v">
-                <div class="dc-slot-letter">V1</div>
-                <div class="dc-slot-mult">1×</div>
-              </div>
-              <div class="dc-photo face red"></div>
-              <div class="dc-player">Lorenzo (M)</div>
-              <div class="dc-pts zero">—</div>
-            </div>
-            <div class="dc-row">
-              <div class="dc-slot v">
-                <div class="dc-slot-letter">V2</div>
-                <div class="dc-slot-mult">1×</div>
-              </div>
-              <div class="dc-photo face blonde"></div>
-              <div class="dc-player">Robyn (F)</div>
-              <div class="dc-pts zero">—</div>
-            </div>
-          </div>
-          <div style="margin-top:14px;font-size:9px;color:var(--muted);line-height:1.5">Hero gets 2× their contestant's points. Side-Kick gets 1.5×. Vigilantes get 1×. One depth-chart swap per week.</div>
-        </div>
-      </div>
-
-      <!-- Mockup 3: Cast Standings — with couples (♥) and points -->
+      <!-- Mockup 2: Cast Standings — Love Island, real cropped headshots, with
+           couples (♥) and points. The reality-TV signature: who's together. -->
       <div class="shot">
         <div class="shot-header">
           <div class="shot-app">
@@ -607,39 +595,84 @@ footer a{color:var(--red);font-weight:600}
           </div>
           <div class="cast-row">
             <div class="cast-num">1</div>
-            <div class="cast-photo face blonde"></div>
+            <div class="cast-photo face ellie"></div>
             <div class="cast-name">Ellie <span class="cast-couple">♥ Aidan</span></div>
             <div class="cast-pts pos">5.00</div>
           </div>
           <div class="cast-row">
             <div class="cast-num">2</div>
-            <div class="cast-photo face brunette"></div>
+            <div class="cast-photo face aidan"></div>
             <div class="cast-name">Aidan <span class="cast-couple">♥ Ellie</span></div>
             <div class="cast-pts pos">5.00</div>
           </div>
           <div class="cast-row">
             <div class="cast-num">3</div>
-            <div class="cast-photo face blonde"></div>
+            <div class="cast-photo face robyn"></div>
             <div class="cast-name">Robyn <span class="cast-couple">♥ Samuel</span></div>
             <div class="cast-pts zero">0.00</div>
           </div>
           <div class="cast-row">
             <div class="cast-num">4</div>
-            <div class="cast-photo face dark"></div>
+            <div class="cast-photo face angelista"></div>
             <div class="cast-name">Angelista <span class="cast-couple">♥ Ope</span></div>
             <div class="cast-pts zero">0.00</div>
           </div>
           <div class="cast-row">
             <div class="cast-num">5</div>
-            <div class="cast-photo face brunette"></div>
+            <div class="cast-photo face sean"></div>
             <div class="cast-name">Sean <span class="cast-couple">♥ Lola</span></div>
             <div class="cast-pts zero">0.00</div>
           </div>
           <div class="cast-row">
             <div class="cast-num">6</div>
-            <div class="cast-photo face dark"></div>
+            <div class="cast-photo face ope"></div>
             <div class="cast-name">Ope <span class="cast-couple">♥ Angelista</span></div>
             <div class="cast-pts zero">0.00</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mockup 3: Cast Detail lightbox — Love Island, opened from the Cast
+           tab by tapping a contestant. Shows the depth admin / commissioner
+           puts into each contestant (photo + bio + age + from + job). -->
+      <div class="shot">
+        <div class="shot-header">
+          <div class="shot-app">
+            <div class="shot-app-icon">LI</div>
+            <div>
+              <div class="shot-app-title">Fantasy Love Island</div>
+              <div class="shot-app-sub">Series 13 · Heroes · Episode 1</div>
+            </div>
+          </div>
+          <div class="shot-tabs">
+            <span>Standings</span>
+            <span class="active">Cast</span>
+            <span>Scoring</span>
+            <span>Roster</span>
+          </div>
+        </div>
+        <div class="shot-body cd-body">
+          <!-- Dim cast list peeks through behind the modal so it reads as a
+               lightbox over the Cast tab, not a full-screen view. -->
+          <div class="cd-backdrop">
+            <div class="shot-title-row"><div class="shot-title">Cast Standings</div></div>
+            <div class="cast-row"><div class="cast-num">1</div><div class="cast-photo face ellie"></div><div class="cast-name">Ellie</div><div class="cast-pts pos">5.00</div></div>
+            <div class="cast-row"><div class="cast-num">2</div><div class="cast-photo face aidan"></div><div class="cast-name">Aidan</div><div class="cast-pts pos">5.00</div></div>
+            <div class="cast-row"><div class="cast-num">3</div><div class="cast-photo face robyn"></div><div class="cast-name">Robyn</div><div class="cast-pts zero">0.00</div></div>
+            <div class="cast-row"><div class="cast-num">4</div><div class="cast-photo face angelista"></div><div class="cast-name">Angelista</div><div class="cast-pts zero">0.00</div></div>
+            <div class="cast-row"><div class="cast-num">5</div><div class="cast-photo face sean"></div><div class="cast-name">Sean</div><div class="cast-pts zero">0.00</div></div>
+            <div class="cast-row"><div class="cast-num">6</div><div class="cast-photo face ope"></div><div class="cast-name">Ope</div><div class="cast-pts zero">0.00</div></div>
+          </div>
+          <div class="cd-scrim"></div>
+          <div class="cd-modal">
+            <div class="cd-photo face robyn"></div>
+            <div class="cd-name">Robyn</div>
+            <div class="cd-meta">
+              <div class="cd-meta-row"><span class="cd-key">Age</span><span class="cd-val">21</span></div>
+              <div class="cd-meta-row"><span class="cd-key">From</span><span class="cd-val">Liverpool</span></div>
+              <div class="cd-meta-row"><span class="cd-key">Job</span><span class="cd-val">Surveyor &amp; DJ</span></div>
+            </div>
+            <div class="cd-bio">A self-described "girl's girl" with a "mature brain" who flirts strategically.</div>
           </div>
         </div>
       </div>
@@ -670,7 +703,7 @@ footer a{color:var(--red);font-weight:600}
       </div>
       <div class="faq-item" onclick="this.classList.toggle('open')">
         <button class="faq-q"><span>What league formats are available?</span><span class="plus">+</span></button>
-        <div class="faq-a">Six formats, all live: <b>Heroes</b> (one-time draft, Hero 2× / Side-Kick 1.5× / Vigilante, one swap per week), <b>Standard</b> (weekly snake redraft, points pile up), <b>Best Ball</b> (auto-optimized lineup from your full roster), <b>Salary Cap</b> (fixed budget, priced contestants), <b>Survivor Pool</b> (one pick, last one standing wins), and <b>Elimination Pool</b> (weekly pick, can't reuse).</div>
+        <div class="faq-a"><b>Heroes</b> is live — a one-time draft where you build a roster of favorites, then manage it all season. Hero pick scores 2×, Side-Kick 1.5×, Vigilantes 1×. One swap per week. <b>More formats coming soon</b> — Standard weekly redraft, Survivor Pool (one pick, last one standing), Salary Cap, Elimination Pool, and Predictions are all in the pipeline.</div>
       </div>
       <div class="faq-item" onclick="this.classList.toggle('open')">
         <button class="faq-q"><span>How does scoring work?</span><span class="plus">+</span></button>
@@ -751,8 +784,8 @@ footer a{color:var(--red);font-weight:600}
     // illustrative entries so the phone still looks populated.
     var list = (shows || []).slice(0, 3);
     var fillers = [
-      { name:"Top Chef", season:"Season 23 · Week 2" },
-      { name:"The Traitors", season:"Season 4 · Week 3" }
+      { name:"Survivor", season:"Season 50 · Episode 3" },
+      { name:"Top Chef", season:"Season 23 · Episode 2" }
     ];
     while (list.length < 3) list.push(fillers[list.length - 1] || fillers[0]);
     el.innerHTML = list.map(function(s){
