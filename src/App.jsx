@@ -4564,7 +4564,7 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
         const hasMultipleGroups = groups.length > 1;
 
         return (
-          <div key={poll.id} style={{ marginBottom:14,padding:"14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",opacity:poll.closed?0.7:1 }}>
+          <div key={poll.id} style={{ marginBottom:14,padding:"14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",opacity:poll.closed?0.7:1,overflow:"hidden",wordBreak:"break-word" }}>
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:10 }}>
               <div style={{ flex:1,minWidth:0 }}>
                 <div style={{ fontSize:15,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:"#e8e8f0",lineHeight:1.2,letterSpacing:"-0.01em",wordBreak:"break-word" }}>{poll.name || "(untitled)"}</div>
@@ -4589,14 +4589,16 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
                       <div style={{ fontSize:10,fontWeight:700,color:"#8888aa",letterSpacing:"0.04em",textTransform:"uppercase",marginBottom:4 }}>{g.name || `Section ${gIdx+1}`}</div>
                     )}
                     <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
+                      {/* v2.6.23.8: question wraps instead of ellipsis-truncating
+                          so a long Yes/No prompt doesn't escape the card. */}
                       {g.questions.map((q, qIdx) => {
                         const qGender = effectiveQuestionGender(poll, q);
                         return (
-                          <div key={q.id} style={{ display:"flex",alignItems:"center",gap:8,fontSize:12 }}>
-                            <span style={{ color:"#6a6a8a",fontWeight:700,minWidth:24 }}>Q{qIdx+1}</span>
-                            {qGender && <span style={{ fontSize:8,fontWeight:700,padding:"1px 5px",borderRadius:99,background:qGender==="Male"?"#4d8aff22":"#ff5da022",color:qGender==="Male"?"#4d8aff":"#ff5da0",letterSpacing:"0.04em",textTransform:"uppercase",flexShrink:0 }}>{qGender[0]}</span>}
-                            <span style={{ color:"#8888aa",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{q.text}</span>
-                            <span style={{ color:"#e8e8f0",fontWeight:600,flexShrink:0 }}>{answerLabel(q, allPicks[team.id]?.[q.id])}</span>
+                          <div key={q.id} style={{ display:"flex",alignItems:"flex-start",gap:8,fontSize:12 }}>
+                            <span style={{ color:"#6a6a8a",fontWeight:700,minWidth:24,flexShrink:0 }}>Q{qIdx+1}</span>
+                            {qGender && <span style={{ fontSize:8,fontWeight:700,padding:"1px 5px",borderRadius:99,background:qGender==="Male"?"#4d8aff22":"#ff5da022",color:qGender==="Male"?"#4d8aff":"#ff5da0",letterSpacing:"0.04em",textTransform:"uppercase",flexShrink:0,marginTop:1 }}>{qGender[0]}</span>}
+                            <span style={{ color:"#8888aa",flex:1,minWidth:0,wordBreak:"break-word",lineHeight:1.4 }}>{q.text}</span>
+                            <span style={{ color:"#e8e8f0",fontWeight:600,flexShrink:0,maxWidth:"40%",wordBreak:"break-word",textAlign:"right" }}>{answerLabel(q, allPicks[team.id]?.[q.id])}</span>
                           </div>
                         );
                       })}

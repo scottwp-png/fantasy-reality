@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.23.7
+**Current Production Version:** v2.6.23.8
 **Last Deploy Date:** 2026-06-02
-**App.jsx Line Count:** ~10,270
+**App.jsx Line Count:** ~10,272
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,14 @@
 ---
 
 ## Version Log
+
+### v2.6.23.8 — 2026-06-02
+**Polls layout fix: long Yes/No questions overflowing the poll card.** Reported — a long custom-answer (Yes/No) question's text was bleeding off the poll card and the page.
+- **Locked-picks row** at `App.jsx:4595-4602` rewrote the layout from `whiteSpace:"nowrap"` + ellipsis truncate to `wordBreak:"break-word"` wrapping. The answer span keeps `flexShrink:0` but adds `maxWidth:"40%"` + `wordBreak:"break-word"` + `textAlign:"right"` so a long choice string also wraps instead of pushing the question off-screen. `alignItems` switched from `center` to `flex-start` to keep the layout sane when the question wraps to multiple lines.
+- **Poll card** at `App.jsx:4567` gets `overflow:hidden` + `wordBreak:"break-word"` as a defensive catch-all so any future descendant that mishandles a long string can't escape the card boundary either.
+- **What this commit does NOT do.** No collapsible "show more" toggle for very long questions — they just wrap. The submit picker and results tally already had `wordBreak:"break-word"` / `flexWrap:"wrap"` from v2.6.23.6 so they were unaffected. No max-character limit on question text or choices.
+- `node _snapshots/diff-against-baseline.mjs` → ALL PASS. `npm run build` clean (2.87s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.23.7 — 2026-06-02
 **Skipped weeks: add "exclude entire week" alongside per-episode for multi-episode shows.** Follow-up to v2.6.23.6's per-episode skip — Love Island / Big Brother / Love is Blind have 3–6 episodes per draft week, so the mid-season-start case really meant "skip these 6 episodes," not "skip one." Now both controls are available.
