@@ -29,7 +29,7 @@
 - **Chat avatar removed** at `App.jsx:4402-4425`. Was rendering both the team-color avatar (32px square with initial-letter or team photo) AND the author name above the bubble, on every first message of a group. With the name in the header line, the avatar didn't add information — just visual noise. Now: name + time above bubble, bubble below, delete chip below that. Consecutive-author collapse still works (no header on follow-up messages within 5 min). The alignment switch (self-right vs others-left) is preserved.
 - **What this commit does NOT do.** No notification dropdown swap to a bottom sheet on mobile (top-right positioning works fine and matches platform expectations). No avatar reintroduction option — if individual users want photos, the next iteration is reuse of `team.teamAvatar` as a small leading icon next to the name (rather than a 32px square).
 - `node _snapshots/diff-against-baseline.mjs` deferred — UI-only change. `npm run build` clean (2.84s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `a851806`
 
 ### v2.6.24.1 — 2026-06-02
 **Notification bell + Lounge unread badges + click-through navigation.** Second half of the communication ask. Audit-log mirror was scrapped in favor of actionable-only events; tapping a notification now lands in the relevant area.
