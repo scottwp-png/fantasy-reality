@@ -33,7 +33,7 @@
 - **Two-phase deploy required.** Code (with backfill) ships first; once leagues have been backfilled (admin refresh covers all leagues, since the visible list for admin is the full set), rules deploy second. Doing rules first would lock users out of leagues that don't yet have a `members` map.
 - **What this commit does NOT do.** Chat path is still auth-readable, not membership-gated — anyone with a league ID can still query its chat. Max-team enforcement deferred to a follow-up (the user mentioned it but said it doesn't matter for Captains/Heroes which is the only live format). No Browse search/filter UI (just a list). No public-list pagination.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (4.00s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `57f0838`
 
 ### v2.6.24.5 — 2026-06-02
 **Security: admin gating switched from email to Firebase Auth UID + email_verified required.** Defense in depth against admin takeover via email-account compromise. With the public Reddit traffic now live, anyone who managed to hijack `scottwpii@gmail.com` could previously have password-reset their way into the admin role. Now they can't — they'd need this exact Firebase Auth UID, which is assigned at account creation and isn't reproducible.
