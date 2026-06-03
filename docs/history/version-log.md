@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.24.2
+**Current Production Version:** v2.6.24.3
 **Last Deploy Date:** 2026-06-02
-**App.jsx Line Count:** ~10,560
+**App.jsx Line Count:** ~10,565
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,14 @@
 ---
 
 ## Version Log
+
+### v2.6.24.3 — 2026-06-02
+**Mobile header: right-align the buttons row when it wraps.** Reported — Admin / Support / Account / Notification Bell were all bunching up on the left side of the screen on mobile.
+- **Root cause** at `App.jsx:11484`. The AppHome header is a flex container with `justify-content: space-between` and `flex-wrap: wrap`. The welcome message is the left child, the buttons row is the right child. On viewports wide enough to fit both, the parent's `space-between` pushed them to opposite ends. On narrow viewports the buttons row wrapped to its own line — and `space-between` on a single-item flex line collapses to `flex-start` (= left-align), so the row landed on the left. Adding the bell pushed the total content over the threshold and triggered this on most phones.
+- **Fix** — added `marginLeft: "auto"` + `justifyContent: "flex-end"` to the buttons row. `marginLeft: auto` is the flex idiom for "push to the right of available space" and works the same whether the row sits next to the welcome message (right-align there) or alone on its own wrapped line (right-align there). The inner `justifyContent: flex-end` makes the row's own children right-align too, in case it grows past its content width.
+- **What this commit does NOT do.** No media-query-based layout swap, no rearrangement of which buttons appear where. The bell stays the leftmost button in the row (followed by Admin / Support / Account); under the previous `right:0` dropdown anchor that put the dropdown leftward, but the v2.6.24.2 fixed-position dropdown is unaffected by which button hosts it.
+- UI-only — `src/scoring.js` untouched. `npm run build` clean (2.79s).
+- **Commit:** `_pending_`
 
 ### v2.6.24.2 — 2026-06-02
 **Mobile polish: notification dropdown positioning + chat avatar removal.** Reported from prod — on mobile the notifications dropdown was anchored off-screen to the left, and the chat bubbles had both an avatar AND an author-name header which felt cluttered.

@@ -11481,7 +11481,11 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
             {displayName} {isAdmin && <span style={{ fontSize:12,color:"#f5a623" }}>★ Admin</span>}
           </div>
         </div>
-        <div style={{ display:"flex",gap:6,alignItems:"center",flexShrink:0,flexWrap:"wrap" }}>
+        {/* v2.6.24.3: marginLeft:auto so when this buttons row wraps to its
+            own line on narrow viewports, it stays right-aligned. justify-
+            content:space-between on the parent doesn't right-align single-
+            item lines after a wrap, so the row was landing on the left. */}
+        <div style={{ display:"flex",gap:6,alignItems:"center",flexShrink:0,flexWrap:"wrap",marginLeft:"auto",justifyContent:"flex-end" }}>
           <NotificationBell leagues={leagues} userProfile={profile} onUpdateProfile={onUpdateProfile} onSelectLeague={onSelectLeague} />
           {isAdmin && <button onClick={onOpenAdmin} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",
             color:"#f5a623",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif",fontWeight:600,flexShrink:0 }}>Admin</button>}
