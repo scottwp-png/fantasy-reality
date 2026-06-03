@@ -32,7 +32,7 @@
 - **Sort comparator quirk worth noting.** `attachRanks` looks at consecutive equality on the keyFn output, so it works regardless of whether the underlying total is positive or negative. Skipped-week teams (which all return 0 from calcTeamWeekPoints) bunch together at the top of that week's leaderboard, which is the expected presentation for an excluded period.
 - **What this commit does NOT do.** Doesn't update the team profile modal — that pulls from the standings prop directly for `team.total` display and uses the `rank` field. Since `displayStandings` shares object references with `standings` (just sorted + new rank fields), the modal would need to look up via `displayStandings.find(...)` to see the period rank. Currently it shows the season rank. Easy follow-up if you want it consistent.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.81s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `b02d06b`
 
 ### v2.6.25.2 — 2026-06-02
 **Standings: long-name overflow fix + main score reflects the breakdown period.** Two reported polish items.
