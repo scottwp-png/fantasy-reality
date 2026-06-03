@@ -7847,18 +7847,13 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
         )}
       </div>
 
-      {/* Admin's team selector */}
-      <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-        <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>My Team</div>
-        <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:8 }}>Which team is yours? This determines your default on the My Roster tab.</div>
-        <select value={league.adminTeamId||""} onChange={e=>onUpdate({...league,adminTeamId:e.target.value||null})} style={{
-          width:"100%",padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",
-          borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",
-        }}>
-          <option value="">— None —</option>
-          {(league.teams||[]).map(t=><option key={t.id} value={t.id}>{t.name} ({t.owner})</option>)}
-        </select>
-      </div>
+      {/* v2.6.25.7: "My Team" dropdown removed — superseded by the Claim
+          This Team button in Settings > Invite & Teams which sets
+          userProfile.activations (the canonical signal), stamps team.uid,
+          and links commissionerTeamId. The dropdown only wrote
+          league.adminTeamId; the loggedInTeamId priority below still reads
+          that field as a legacy fallback so existing leagues don't break,
+          but new claims go through the Claim button. */}
 
       {/* v2.4.49.0: Linked Scoring is hidden pending the Show-Wide Scoring
           rework (see backlog). Single-admin-runs-multiple-leagues-for-the-same-

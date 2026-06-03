@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.25.6
+**Current Production Version:** v2.6.25.7
 **Last Deploy Date:** 2026-06-02
-**App.jsx Line Count:** ~10,795
+**App.jsx Line Count:** ~10,785
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,14 @@
 ---
 
 ## Version Log
+
+### v2.6.25.7 — 2026-06-02
+**Removed redundant "My Team" dropdown from Settings > General.** The Claim This Team button in Settings > Invite & Teams now does everything that dropdown did and more — sets `userProfile.activations`, stamps `team.uid`, and links `commissionerTeamId`. The dropdown only wrote `league.adminTeamId`.
+- **UI removed** at `App.jsx:7850-7861`. The card is gone; a comment marker stays explaining what replaced it.
+- **`adminTeamId` priority preserved** at `App.jsx:9078` — `loggedInTeamId={(isAdmin || commissioner) ? (selected.adminTeamId || myTeamIn(selected.id)) : myTeamIn(selected.id)}` still reads `adminTeamId` as a legacy fallback for leagues that had it set before the dropdown was removed. Going forward, claims write `activations` which `myTeamIn` reads. No data migration needed.
+- **What this commit does NOT do.** No deletion of the `adminTeamId` field on existing league documents. No migration that converts legacy `adminTeamId` into the current user's `activations`. No removal of the field reference in the duplicate-league flow at `App.jsx:8799` — that just copies whatever the source league had, harmless either way.
+- UI-only — `src/scoring.js` untouched. `npm run build` clean (2.96s).
+- **Commit:** `_pending_`
 
 ### v2.6.25.6 — 2026-06-02
 **"Claim This Team" button for commissioner-added teams + chat name-resolution: two more fallback layers (commissionerTeamId + case-insensitive owner match).** Root cause was identified: the user added themselves as a team manually and never went through the invite-code flow, so the team never got linked to their Firebase Auth account (no activations, no `team.uid` stamp). Chat couldn't find the team during render.
