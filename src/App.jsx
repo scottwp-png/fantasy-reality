@@ -2106,27 +2106,38 @@ function StandingsTab({ league, standings, onUpdate, isCommissioner, myTeamId })
                   )}
                 </div>
                 <div style={{ flex:1,minWidth:0 }}>
-                  <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:14 }}>{team.name}</div>
-                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>{team.owner}{team.h2hRecord ? ` · ${team.h2hRecord}` : ""}{wkPts !== 0 ? ` · ${wkPts>0?"+":""}${formatPts(wkPts, league)} this wk` : ""}</div>
+                  {/* v2.6.25.2: wordBreak so long team / owner names wrap
+                      inside the row instead of bleeding into the score column. */}
+                  <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:14,wordBreak:"break-word" }}>{team.name}</div>
+                  <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2,wordBreak:"break-word" }}>{team.owner}{team.h2hRecord ? ` · ${team.h2hRecord}` : ""}{wkPts !== 0 ? ` · ${wkPts>0?"+":""}${formatPts(wkPts, league)} this wk` : ""}</div>
                 </div>
-                <div style={{ textAlign:"right" }}>
-                  {team.h2hRecord ? (
-                    <>
-                      <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:20,fontWeight:900,color:"#e8e8f0",letterSpacing:"-0.02em" }}>{team.h2hRecord}</div>
-                      <div style={{ fontSize:10,color:"#4a4a6a" }}>{formatPts(team.total, league)} pts</div>
-                    </>
-                  ) : team.roto ? (
-                    <>
-                      <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:20,fontWeight:900,color:"#9d5dff",letterSpacing:"-0.02em" }}>{formatPts(team.rotoTotal, league)}</div>
-                      <div style={{ fontSize:10,color:"#4a4a6a" }}>roto pts</div>
-                    </>
-                  ) : (
-                    <>
-                      <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:24,fontWeight:900,color:team.total>0?"#e8e8f0":team.total<0?"#e94560":"#6a6a8a",letterSpacing:"-0.02em" }}>{formatPts(team.total, league)}</div>
-                      <div style={{ fontSize:10,color:"#4a4a6a" }}>pts</div>
-                    </>
-                  )}
-                </div>
+                {/* v2.6.25.2: main score reflects the Roster Breakdown Period.
+                    Season → team.total. Specific week → that week's points.
+                    H2H/roto unchanged since their record/rotoTotal are season-
+                    long aggregates that don't have a per-week meaning. */}
+                {(() => {
+                  const mainScore = viewWeek === "season" ? team.total : calcTeamWeekPoints(league, team, viewWeek);
+                  return (
+                    <div style={{ textAlign:"right",flexShrink:0 }}>
+                      {team.h2hRecord ? (
+                        <>
+                          <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:20,fontWeight:900,color:"#e8e8f0",letterSpacing:"-0.02em" }}>{team.h2hRecord}</div>
+                          <div style={{ fontSize:10,color:"#4a4a6a" }}>{formatPts(mainScore, league)} pts</div>
+                        </>
+                      ) : team.roto ? (
+                        <>
+                          <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:20,fontWeight:900,color:"#9d5dff",letterSpacing:"-0.02em" }}>{formatPts(team.rotoTotal, league)}</div>
+                          <div style={{ fontSize:10,color:"#4a4a6a" }}>roto pts</div>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ fontFamily:"'Anybody',sans-serif",fontSize:24,fontWeight:900,color:mainScore>0?"#e8e8f0":mainScore<0?"#e94560":"#6a6a8a",letterSpacing:"-0.02em" }}>{formatPts(mainScore, league)}</div>
+                          <div style={{ fontSize:10,color:"#4a4a6a" }}>pts</div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
                 <div style={{ transform:isExp?"rotate(90deg)":"none",transition:"transform 0.15s ease",color:"#6a6a8a",flexShrink:0 }}><Icon name="chevron" size={16}/></div>
                 </div>
                 {isExp && (
