@@ -30,7 +30,7 @@
 - **Chat name-resolution: two more fallback layers** at `App.jsx:4400-4407` (send) and `App.jsx:4464-4474` (render). Existing chain (activations → uid stamp → owner exact match) gains a `league.commissionerUid === authUser.uid && league.commissionerTeamId` slot between uid and owner, plus a case-insensitive trim on the owner-match. Lets the commissioner's chat name resolve even when uid isn't stamped, activations aren't set, and `team.owner` is "Skot" vs displayName "Scott Phillips".
 - **What this commit does NOT do.** No batch-claim for users with multiple unstamped teams across leagues. No "Claim" button outside Settings (e.g., a banner on the league dashboard). No auto-claim on app load even when commissioner can be unambiguously identified.
 - `node _snapshots/diff-against-baseline.mjs` deferred — UI-only. `npm run build` clean (2.82s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `314f386`
 
 ### v2.6.25.5 — 2026-06-02
 **Chat team-name resolution: three-step fallback for unstamped teams.** Reported — chat still showed "Scott Phillips" after v2.6.25.4. Root cause: the commissioner added themselves as a team manually rather than going through the invite-join flow, so `team.uid` was never stamped. The previous version's uid-only lookup returned null and fell back to the stored display name.
