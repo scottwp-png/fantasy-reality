@@ -33,7 +33,7 @@
 - **Render-side only applies the three-step fallback for the current user's own messages.** For other users' messages, only the uid lookup runs (since we don't have other users' profiles). Their messages still render via the stored `m.authorName` if their team isn't found.
 - **What this commit does NOT do.** No backfill to stamp `team.uid` on commissioner-added teams (would require the admin's clients to write to every league with their uid — possible but heavy). No "set my activations" UI for commissioners to claim their team explicitly. No team-name display option per user (e.g., a profile toggle "show my real name in chat" — currently team-name is hardcoded as the league-native identity).
 - `node _snapshots/diff-against-baseline.mjs` deferred — UI-only. `npm run build` clean (2.93s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `0b9beec`
 
 ### v2.6.25.4 — 2026-06-02
 **Chat: show team name in the league instead of the user's global display name.** Reported — chat read "Scott Phillips" instead of "Love Island Boy". Team identity is the league-native identity; the global display name belongs to the user settings page.
