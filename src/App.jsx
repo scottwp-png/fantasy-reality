@@ -11518,8 +11518,9 @@ function AppHome({ user, profile, leagues, allLeagues, isAdmin, onSelectLeague, 
   // already in). URL-based invite links still auto-apply via the useEffect
   // below — the button is only for the bare-code-via-text/Discord path.
   const [showJoin, setShowJoin] = useState(false);
-  // v2.6.25.0: Join mode — invite code (legacy) vs Browse Public.
-  const [joinMode, setJoinMode] = useState("code");
+  // v2.6.25.1: invite code entry is an auxiliary affordance inside the
+  // Public Leagues section, hidden by default.
+  const [showCodeEntry, setShowCodeEntry] = useState(false);
 
 
 
@@ -11612,88 +11613,9 @@ function AppHome({ user, profile, leagues, allLeagues, isAdmin, onSelectLeague, 
           </div>
         </div>
 
-        {/* Invite-code entry — collapsed by default, revealed by Join League button.
-            URL-based invite LINKS bypass this entirely (auto-applied at app boot). */}
-        {showJoin && (() => {
-          // v2.6.25.0: derived browseable list. Public leagues the user
-          // isn't already in. After the RTDB rule deploy, allLeagues for
-          // non-admin users only contains leagues the server let them
-          // read, so this filter is essentially "public + not-in".
-          const myLeagueIds = new Set((leagues || []).map(l => l.id));
-          const publicList = (allLeagues || []).filter(l => l.isPublic && !myLeagueIds.has(l.id) && !l.seasonComplete);
-          return (
-            <div style={{ marginBottom:20,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,gap:8 }}>
-                <div style={{ display:"flex",gap:4,padding:3,background:"#0d0d18",border:"1px solid #1e1e38",borderRadius:99 }}>
-                  {[
-                    { id: "code", label: "Enter Code" },
-                    { id: "browse", label: "Browse Public" },
-                  ].map(m => (
-                    <button key={m.id} onClick={()=>{ setJoinMode(m.id); setError(""); }} style={{
-                      padding:"5px 12px",borderRadius:99,border:"none",cursor:"pointer",
-                      background: joinMode===m.id ? "#e9456033" : "transparent",
-                      color: joinMode===m.id ? "#e94560" : "#7a7a9a",
-                      fontSize:11,fontWeight:joinMode===m.id?700:600,fontFamily:"'Outfit',sans-serif",
-                    }}>{m.label}</button>
-                  ))}
-                </div>
-                <button onClick={()=>{ setShowJoin(false); setError(""); setInviteCode(""); }} title="Cancel" style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#8888aa",fontSize:10,cursor:"pointer",padding:"3px 8px",fontFamily:"'Outfit',sans-serif" }}>× Cancel</button>
-              </div>
-              {joinMode === "code" ? (
-                <>
-                  <div style={{ fontSize:11,color:"#6a6a8a",marginBottom:8,lineHeight:1.4 }}>If someone shared an invite link, just tap it &mdash; no code entry needed.</div>
-                  <div style={{ display:"flex",gap:6 }}>
-                    <input value={inviteCode} onChange={e=>setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,""))}
-                      placeholder="Enter code" maxLength={8} autoFocus onKeyDown={e=>{if(e.key==="Enter")handleJoin()}}
-                      style={{ flex:1,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
-                        color:"#e8e8f0",fontSize:16,fontFamily:"monospace",letterSpacing:"0.15em",textAlign:"center" }} />
-                    <Btn small onClick={handleJoin} disabled={inviteCode.length<6 || joining}>
-                      {joining ? "Checking..." : "Join"}
-                    </Btn>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div style={{ fontSize:11,color:"#6a6a8a",marginBottom:8,lineHeight:1.4 }}>Public leagues anyone can join. Private leagues never appear here.</div>
-                  {publicList.length === 0 ? (
-                    <div style={{ padding:"20px 14px",textAlign:"center",color:"#6a6a8a",fontSize:12,background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a",lineHeight:1.6 }}>
-                      No public leagues to join yet. Commissioners can make their league public from Settings &rsaquo; General.
-                    </div>
-                  ) : (
-                    <div style={{ display:"flex",flexDirection:"column",gap:6,maxHeight:360,overflowY:"auto" }}>
-                      {publicList.map(l => {
-                        const teamCount = (l.teams || []).length;
-                        return (
-                          <button key={l.id} onClick={async ()=>{
-                            setError("");
-                            const err = await onJoinViaCode(l.leagueInviteCode);
-                            if (err) setError(err);
-                          }} style={{
-                            display:"flex",alignItems:"center",gap:10,padding:"10px 12px",
-                            background:"#0d0d18",border:"1px solid #1e1e38",borderRadius:8,
-                            cursor:"pointer",textAlign:"left",fontFamily:"'Outfit',sans-serif",width:"100%",
-                          }}>
-                            <div style={{ width:32,height:32,borderRadius:8,background:(SHOW_PRESETS[l.showType]?.color||"#9d5dff")+"22",border:"1px solid "+(SHOW_PRESETS[l.showType]?.color||"#9d5dff")+"66",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Anybody',sans-serif",fontWeight:900,fontSize:11,color:SHOW_PRESETS[l.showType]?.color||"#9d5dff",flexShrink:0 }}>
-                              {SHOW_PRESETS[l.showType]?.emoji || "TV"}
-                            </div>
-                            <div style={{ flex:1,minWidth:0 }}>
-                              <div style={{ fontSize:13,fontWeight:700,color:"#e8e8f0",lineHeight:1.2 }}>{l.name}</div>
-                              <div style={{ fontSize:10,color:"#6a6a8a",marginTop:2 }}>
-                                {l.seasonName} · {teamCount} team{teamCount===1?"":"s"}{l.commissionerName ? ` · ${l.commissionerName}'s league` : ""}
-                              </div>
-                            </div>
-                            <Btn small variant="ghost">Join</Btn>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </>
-              )}
-              {error && <div style={{ color:"#e94560",fontSize:12,marginTop:8,padding:"8px 10px",background:"#e9456011",borderRadius:6,border:"1px solid #e9456033" }}>{error}</div>}
-            </div>
-          );
-        })()}
+        {/* v2.6.25.1: invite-code entry is now an auxiliary affordance inside
+            the Public Leagues section (toggled below). The Join League
+            button just opens the Public Leagues directory. */}
 
         {leagues.length > 0 ? (
           <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
@@ -11753,8 +11675,96 @@ function AppHome({ user, profile, leagues, allLeagues, isAdmin, onSelectLeague, 
             })}
           </div>
         ) : (
-          <EmptyState message={isAdmin ? "No leagues yet. Create one!" : "No leagues yet. Enter an invite code above to join, or create your own!"} />
+          <EmptyState message={isAdmin ? "No leagues yet. Create one!" : "No leagues yet. Tap Join League above to find one, enter an invite code, or create your own."} />
         )}
+
+        {/* v2.6.25.1: Public Leagues directory. Visible when the user taps
+            Join League. Lists every league marked isPublic, including ones
+            the user is already in (shown with a Joined badge so they're not
+            confused about why their own public league appears here). Card
+            layout mirrors My Leagues for consistency. Auxiliary code-entry
+            lives at the bottom for the URL-link / Discord-paste path. */}
+        {showJoin && (() => {
+          const myLeagueIds = new Set((leagues || []).map(l => l.id));
+          const publicList = (allLeagues || []).filter(l => l.isPublic && !l.seasonComplete);
+          return (
+            <div style={{ marginTop:24,paddingTop:18,borderTop:"1px solid #1e1e38" }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,gap:6,flexWrap:"wrap" }}>
+                <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Browse Public Leagues</h3>
+                <div style={{ fontSize:11,color:"#6a6a8a" }}>{publicList.length} {publicList.length === 1 ? "league" : "leagues"}</div>
+              </div>
+              {publicList.length === 0 ? (
+                <EmptyState message="No public leagues yet. Commissioners can flip a league to public from Settings > General." />
+              ) : (
+                <div style={{ display:"flex",flexDirection:"column",gap:10,maxHeight:480,overflowY:"auto",paddingRight:2 }}>
+                  {publicList.map(l => {
+                    const teamCount = (l.teams || []).length;
+                    const alreadyJoined = myLeagueIds.has(l.id);
+                    return (
+                      <div key={l.id} style={{ display:"flex",alignItems:"center",gap:14,background:"#12121f",border:"1px solid "+(alreadyJoined?"#4ecdc433":"#2a2a4a"),borderRadius:12,overflow:"hidden" }}>
+                        <button onClick={async () => {
+                          if (alreadyJoined) { onSelectLeague(l.id); return; }
+                          setError("");
+                          const err = await onJoinViaCode(l.leagueInviteCode);
+                          if (err) setError(err);
+                        }} style={{
+                          flex:1,display:"flex",alignItems:"center",gap:14,padding:"16px 18px",
+                          cursor:"pointer",textAlign:"left",background:"transparent",border:"none",transition:"all 0.15s ease",
+                        }}>
+                          <div style={{ width:40,height:40,borderRadius:10,background:(SHOW_PRESETS[l.showType]?.color||"#9d5dff")+"18",
+                            border:"1px solid "+(SHOW_PRESETS[l.showType]?.color||"#9d5dff")+"33",
+                            display:"flex",alignItems:"center",justifyContent:"center",
+                            fontFamily:"'Anybody',sans-serif",fontSize:14,fontWeight:900,
+                            color:SHOW_PRESETS[l.showType]?.color||"#9d5dff",flexShrink:0
+                          }}>{SHOW_PRESETS[l.showType]?.emoji||"TV"}</div>
+                          <div style={{ flex:1,minWidth:0 }}>
+                            <div style={{ color:"#e8e8f0",fontWeight:700,fontSize:15,fontFamily:"'Anybody',sans-serif",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" }}>
+                              {l.name}
+                              {alreadyJoined && <span style={{ fontSize:9,fontWeight:700,color:"#4ecdc4",background:"#4ecdc418",border:"1px solid #4ecdc433",padding:"2px 7px",borderRadius:99,textTransform:"uppercase",letterSpacing:"0.05em" }}>Joined</span>}
+                            </div>
+                            <div style={{ color:"#6a6a8a",fontSize:12,marginTop:2 }}>{l.seasonName} · {teamCount} team{teamCount===1?"":"s"}{l.commissionerName ? ` · ${l.commissionerName}'s league` : ""}</div>
+                          </div>
+                          <div style={{ fontSize:11,fontWeight:700,color:alreadyJoined?"#4ecdc4":"#e94560",fontFamily:"'Outfit',sans-serif",paddingRight:6 }}>
+                            {alreadyJoined ? "Open →" : "Join →"}
+                          </div>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Auxiliary: invite code entry (collapsed by default) */}
+              <div style={{ marginTop:14 }}>
+                {showCodeEntry ? (
+                  <div style={{ padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+                    <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
+                      <div style={{ fontSize:12,fontWeight:600,color:"#8888aa" }}>Have an invite code?</div>
+                      <button onClick={()=>{ setShowCodeEntry(false); setError(""); setInviteCode(""); }} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#8888aa",fontSize:10,cursor:"pointer",padding:"3px 8px",fontFamily:"'Outfit',sans-serif" }}>× Hide</button>
+                    </div>
+                    <div style={{ display:"flex",gap:6 }}>
+                      <input value={inviteCode} onChange={e=>setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,""))}
+                        placeholder="Enter code" maxLength={8} autoFocus onKeyDown={e=>{if(e.key==="Enter")handleJoin()}}
+                        style={{ flex:1,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                          color:"#e8e8f0",fontSize:16,fontFamily:"monospace",letterSpacing:"0.15em",textAlign:"center" }} />
+                      <Btn small onClick={handleJoin} disabled={inviteCode.length<6 || joining}>
+                        {joining ? "Checking..." : "Join"}
+                      </Btn>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={()=>setShowCodeEntry(true)} style={{
+                    background:"none",border:"1px dashed #2a2a4a",borderRadius:8,color:"#7a7a9a",
+                    cursor:"pointer",fontSize:11,fontWeight:600,padding:"8px 14px",
+                    fontFamily:"'Outfit',sans-serif",width:"100%",
+                  }}>+ Have an invite code? Enter it manually</button>
+                )}
+              </div>
+
+              {error && <div style={{ color:"#e94560",fontSize:12,marginTop:10,padding:"8px 10px",background:"#e9456011",borderRadius:6,border:"1px solid #e9456033" }}>{error}</div>}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

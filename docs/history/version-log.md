@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.25.0
+**Current Production Version:** v2.6.25.1
 **Last Deploy Date:** 2026-06-02
-**App.jsx Line Count:** ~10,675
+**App.jsx Line Count:** ~10,705
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,16 @@
 ---
 
 ## Version Log
+
+### v2.6.25.1 — 2026-06-02
+**Browse Public lifted out of a collapsed panel into a full section under My Leagues + includes own public leagues.** Reported — commissioner made a league public, didn't see it in Browse. The previous panel collapsed everything into a small input area with a sub-toggle, and the filter excluded leagues the user was already in.
+- **Layout** at `App.jsx:11626-11717`. Browse Public is now a peer section to My Leagues, rendered below the My Leagues list when the Join League button is toggled on. Card layout mirrors My Leagues (same icon + name + meta + chevron pattern) so the two sections read visually consistent. Scrollable max-height list (480px). Empty-state hint points commissioners at Settings > General to flip a league public.
+- **Filter loosened.** Was `isPublic && !myLeagueIds.has(l.id)` — excluded the user's own leagues. Now just `isPublic && !seasonComplete`. Leagues the user is already in get a teal `Joined` chip in the card header + the action label switches from `Join →` to `Open →`. Solves the "I made my league public, why doesn't it appear" confusion.
+- **Invite-code entry demoted to auxiliary** at `App.jsx:11688-11713`. Now a dashed `+ Have an invite code? Enter it manually` button at the bottom of the Browse Public section. Expands to the existing input when tapped. Reflects the new primary path being discovery, not code-paste.
+- **`joinMode` state retired** — no more sub-pill toggle inside the panel; Browse and Code are stacked, not toggled. Replaced with a small `showCodeEntry` state for the auxiliary input.
+- **What this commit does NOT do.** No search/filter UI inside Browse Public yet (just a scrollable list). No pagination (the list caps at the natural overflow). No "your public leagues" callout — they just appear inline with the Joined chip.
+- `node _snapshots/diff-against-baseline.mjs` deferred — UI-only change. `npm run build` clean (2.83s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.25.0 — 2026-06-02
 **Public / private leagues + Browse Public directory + server-side privacy gating.** Two-part feature: (a) a UI-level discovery directory for opt-in public leagues, and (b) RTDB-rule-level enforcement that non-members can't even read private leagues' data, not just hide them from browse.
