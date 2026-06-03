@@ -4390,10 +4390,17 @@ function ChatTab({ league, authUser, userProfile, isCommissioner, messages = [] 
     if (!text || sending || !authUser) return;
     setSending(true);
     try {
-      // v2.6.25.4: stamp the sender's TEAM name in this league as authorName
-      // (was the user's global display name). Falls back to display name only
-      // for users without a team in this league (e.g., admin-only).
-      const myTeam = (league.teams || []).find(t => t.uid === authUser.uid);
+      // v2.6.25.4 / .5: resolve the sender's team in this league with a
+      // three-step fallback. uid stamp is the cleanest signal but
+      // commissioners who added themselves as a team manually (not via
+      // invite-join) might not have a `team.uid` set. The activations map
+      // (userProfile.activations[leagueId]) and an owner-name match
+      // backstop the lookup so chat reads "Love Island Boy" instead of
+      // "Scott Phillips" even when uid isn't stamped.
+      const myTeamId = userProfile?.activations?.[league.id];
+      const myTeam = (myTeamId && (league.teams || []).find(t => t.id === myTeamId))
+        || (league.teams || []).find(t => t.uid === authUser.uid)
+        || (userProfile?.displayName && (league.teams || []).find(t => t.owner === userProfile.displayName));
       await sendChatMessage(league.id, {
         uid: authUser.uid,
         authorName: myTeam?.name || userProfile?.displayName || authUser.email?.split("@")[0] || "Player",
@@ -4454,10 +4461,19 @@ function ChatTab({ league, authUser, userProfile, isCommissioner, messages = [] 
           const canDelete = isMe || isCommissioner;
           const prev = i > 0 ? messages[i - 1] : null;
           const sameAuthorAsPrev = prev && prev.uid === m.uid && (m.createdAt - prev.createdAt) < 5 * 60 * 1000;
-          // v2.6.25.4: live team lookup. Picks up renames after the message
-          // was sent; falls back to the stored authorName for legacy messages
-          // / users with no team in this league.
-          const authorTeam = teamForUid(m.uid);
+          // v2.6.25.4 / .5: live team lookup. For the current user, use the
+          // same three-step fallback as the send side so an admin-added
+          // team (no uid stamped) still resolves to its team name. For other
+          // users, uid lookup with stored authorName as backstop.
+          let authorTeam;
+          if (m.uid === authUser?.uid) {
+            const myTeamId = userProfile?.activations?.[league.id];
+            authorTeam = (myTeamId && (league.teams || []).find(t => t.id === myTeamId))
+              || teamForUid(m.uid)
+              || (userProfile?.displayName && (league.teams || []).find(t => t.owner === userProfile.displayName));
+          } else {
+            authorTeam = teamForUid(m.uid);
+          }
           const displayName = authorTeam?.name || m.authorName || "Player";
           return (
             <div key={m.id} style={{

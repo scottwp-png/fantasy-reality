@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.25.4
+**Current Production Version:** v2.6.25.5
 **Last Deploy Date:** 2026-06-02
-**App.jsx Line Count:** ~10,735
+**App.jsx Line Count:** ~10,745
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,18 @@
 ---
 
 ## Version Log
+
+### v2.6.25.5 — 2026-06-02
+**Chat team-name resolution: three-step fallback for unstamped teams.** Reported — chat still showed "Scott Phillips" after v2.6.25.4. Root cause: the commissioner added themselves as a team manually rather than going through the invite-join flow, so `team.uid` was never stamped. The previous version's uid-only lookup returned null and fell back to the stored display name.
+- **Resolution chain** (used at both `App.jsx:4393-4404` send-side and `App.jsx:4460-4471` render-side):
+  1. `userProfile.activations[league.id]` → team by id. The cleanest path; set by the doJoin flow when a user joins via invite code.
+  2. `(league.teams || []).find(t => t.uid === authUser.uid)` — the uid stamp, set on doJoin since v2.6.6.0 and retroactively by the v2.6.21.1 admin backfill.
+  3. `(league.teams || []).find(t => t.owner === userProfile.displayName)` — fragile but useful for commissioners who manually added themselves as a team and never set activations / stamped uid. The `owner` field is set to the display name they typed in.
+- **Send-side and render-side share the logic.** Both stamp / render the team name when found; both fall back to `userProfile.displayName` then `email[0]` then "Player" when nothing matches.
+- **Render-side only applies the three-step fallback for the current user's own messages.** For other users' messages, only the uid lookup runs (since we don't have other users' profiles). Their messages still render via the stored `m.authorName` if their team isn't found.
+- **What this commit does NOT do.** No backfill to stamp `team.uid` on commissioner-added teams (would require the admin's clients to write to every league with their uid — possible but heavy). No "set my activations" UI for commissioners to claim their team explicitly. No team-name display option per user (e.g., a profile toggle "show my real name in chat" — currently team-name is hardcoded as the league-native identity).
+- `node _snapshots/diff-against-baseline.mjs` deferred — UI-only. `npm run build` clean (2.93s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.25.4 — 2026-06-02
 **Chat: show team name in the league instead of the user's global display name.** Reported — chat read "Scott Phillips" instead of "Love Island Boy". Team identity is the league-native identity; the global display name belongs to the user settings page.
