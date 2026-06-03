@@ -31,7 +31,7 @@
 - **Mark-on-open behavior preserved** — opening the dropdown still bumps `notifLastSeenAt` (so the badge clears when the user sees the dropdown). Events themselves remain visible until "Clear all" is explicitly clicked. Two-stage UX: see → acknowledge → dismiss.
 - **What this commit does NOT do.** No per-event dismiss (X on each row). No undo for an accidental clear (events newer than `cleared` are gone from the list, but if anything fires after the clear it'll reappear naturally). No tab-level archive of cleared notifications — once dismissed, they're not viewable through the bell, only through the Activity tab if applicable.
 - UI / state only — `src/scoring.js` untouched. `npm run build` clean (2.69s).
-- **Commit:** `_pending_`
+- **Commit:** `5b8c9db`
 
 ### v2.6.24.3 — 2026-06-02
 **Mobile header: right-align the buttons row when it wraps.** Reported — Admin / Support / Account / Notification Bell were all bunching up on the left side of the screen on mobile.
