@@ -29,7 +29,7 @@
 - **Fix** — added `marginLeft: "auto"` + `justifyContent: "flex-end"` to the buttons row. `marginLeft: auto` is the flex idiom for "push to the right of available space" and works the same whether the row sits next to the welcome message (right-align there) or alone on its own wrapped line (right-align there). The inner `justifyContent: flex-end` makes the row's own children right-align too, in case it grows past its content width.
 - **What this commit does NOT do.** No media-query-based layout swap, no rearrangement of which buttons appear where. The bell stays the leftmost button in the row (followed by Admin / Support / Account); under the previous `right:0` dropdown anchor that put the dropdown leftward, but the v2.6.24.2 fixed-position dropdown is unaffected by which button hosts it.
 - UI-only — `src/scoring.js` untouched. `npm run build` clean (2.79s).
-- **Commit:** `_pending_`
+- **Commit:** `98c7f2b`
 
 ### v2.6.24.2 — 2026-06-02
 **Mobile polish: notification dropdown positioning + chat avatar removal.** Reported from prod — on mobile the notifications dropdown was anchored off-screen to the left, and the chat bubbles had both an avatar AND an author-name header which felt cluttered.
