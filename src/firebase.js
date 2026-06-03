@@ -28,6 +28,13 @@ const auth = getAuth(app)
 const googleProvider = new GoogleAuthProvider()
 
 export const ADMIN_EMAIL = "scottwpii@gmail.com"
+// v2.6.24.5: admin gating switched from email to Firebase Auth UID. The UID
+// is assigned by Firebase at account creation and can't be reproduced by an
+// attacker who later gains control of the email — they'd need this exact
+// account record. Email is kept for display purposes only; ADMIN_UID is the
+// authoritative gate, matched against `authUser.uid` (client) and
+// `auth.uid` (RTDB rules).
+export const ADMIN_UID = "sQE6Z9On55c7rLpsEBz8Hg5VQCk2"
 
 // ─── Auth Functions ───
 export function onAuthChange(callback) {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import ReactDOM from "react-dom"
-import { loadData, saveData, loadRootData, saveRootData, deleteData, loadAllLeagues, saveAllLeagues, saveLeague, subscribeLeague, subscribeLeagueChat, sendChatMessage, deleteChatMessage, loadUserProfile, saveUserProfile, loadAllUserProfiles, deleteUserProfile, deleteAuthAccount, onAuthChange, signUp, signIn, signInWithGoogle, signOut, resetPassword, ADMIN_EMAIL } from "./firebase.js"
+import { loadData, saveData, loadRootData, saveRootData, deleteData, loadAllLeagues, saveAllLeagues, saveLeague, subscribeLeague, subscribeLeagueChat, sendChatMessage, deleteChatMessage, loadUserProfile, saveUserProfile, loadAllUserProfiles, deleteUserProfile, deleteAuthAccount, onAuthChange, signUp, signIn, signInWithGoogle, signOut, resetPassword, ADMIN_EMAIL, ADMIN_UID } from "./firebase.js"
 import * as XLSX from "xlsx"
 import { calcContestantWeekPoints, calcTeamWeekPoints, calcStandings } from "./scoring.js"
 
@@ -8384,7 +8384,11 @@ export default function FantasyRealityTV() {
   const [pendingJoin, setPendingJoin] = useState(null); // { league, code, type: "league"|"team", teamId? }
   const [confirmJoinError, setConfirmJoinError] = useState("");
 
-  const isAdmin = authUser?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+  // v2.6.24.5: admin gating by UID rather than email. The UID is fixed at
+  // Firebase Auth account creation; if attackers ever compromise the
+  // gmail account and re-register, their UID would differ and admin would
+  // stay denied. Server-side enforcement lives in database.rules.json.
+  const isAdmin = authUser?.uid === ADMIN_UID;
 
   // Listen for Firebase Auth state changes
   useEffect(() => {

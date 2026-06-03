@@ -1,7 +1,7 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.24.4
+**Current Production Version:** v2.6.24.5
 **Last Deploy Date:** 2026-06-02
 **App.jsx Line Count:** ~10,585
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
@@ -22,6 +22,18 @@
 ---
 
 ## Version Log
+
+### v2.6.24.5 — 2026-06-02
+**Security: admin gating switched from email to Firebase Auth UID + email_verified required.** Defense in depth against admin takeover via email-account compromise. With the public Reddit traffic now live, anyone who managed to hijack `scottwpii@gmail.com` could previously have password-reset their way into the admin role. Now they can't — they'd need this exact Firebase Auth UID, which is assigned at account creation and isn't reproducible.
+- **`ADMIN_UID` constant** in `src/firebase.js:31-37` set to the user's actual Firebase Auth UID (`sQE6Z9On55c7rLpsEBz8Hg5VQCk2`). `ADMIN_EMAIL` is kept for display purposes only — no longer authoritative.
+- **`isAdmin` check** in `App.jsx:8387` switched from `authUser?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()` to `authUser?.uid === ADMIN_UID`. Client-side gating is UI-only (and trivially bypassable); the real enforcement is server-side in the RTDB rules below.
+- **`database.rules.json`** — every admin-write path (`league_index`, `site_announcement`, `feature_flags`, `scoringRuleLibrary`, `scoringLibrary`, `showScoring`, `showCast`) and the admin-read on `frtv_users` (parent + per-uid) now requires BOTH `auth.uid === 'sQE6Z9On55c7rLpsEBz8Hg5VQCk2'` AND `auth.token.email_verified === true`. The UID check is the primary defense; the verified-email check is belt-and-suspenders against any future signup path that doesn't verify.
+- **Why UID over email.** Email is what an attacker compromises (Gmail breach → password reset → control of the email → password-reset on Firebase Auth → instant admin). UID is assigned by Firebase at account creation, isn't reproducible by re-registering the email under a new Firebase project, and isn't returned by any client-readable Firebase Auth method to anyone other than the account owner.
+- **Requires manual rules deploy** (`firebase deploy --only database`). Code push alone doesn't change server-side enforcement — until rules are deployed, the old email-based check is still what the server uses.
+- **Pre-flight:** the admin's Firebase Auth account must be `email_verified === true` before rules deploy, otherwise admin actions will be denied. Google OAuth signups are auto-verified; email/password signups need the verification email clicked.
+- **What this commit does NOT do.** No Firebase Auth multi-factor (MFA) — that's enabled at the Firebase project level via the Auth admin console. No password-strength enforcement at signup. No alerting on admin actions (Firebase Console has its own audit options). No fallback admin (single-UID model — losing access to the account means losing admin).
+- `node _snapshots/diff-against-baseline.mjs` deferred — scoring engine untouched. `npm run build` clean (3.15s).
+- **Commit:** `_pending_`
 
 ### v2.6.24.4 — 2026-06-02
 **Notification bell: "Clear all" action.** Lets the user dismiss the current list of notifications outright instead of only marking them read on open.
