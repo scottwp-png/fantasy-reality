@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.25.5
+**Current Production Version:** v2.6.25.6
 **Last Deploy Date:** 2026-06-02
-**App.jsx Line Count:** ~10,745
+**App.jsx Line Count:** ~10,795
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,15 @@
 ---
 
 ## Version Log
+
+### v2.6.25.6 — 2026-06-02
+**"Claim This Team" button for commissioner-added teams + chat name-resolution: two more fallback layers (commissionerTeamId + case-insensitive owner match).** Root cause was identified: the user added themselves as a team manually and never went through the invite-code flow, so the team never got linked to their Firebase Auth account (no activations, no `team.uid` stamp). Chat couldn't find the team during render.
+- **`Claim This Team` button** at `App.jsx:3293-3316` in the Settings > Invite & Teams team-card action row. Renders only for unregistered teams (no other user has activated this team). Click → confirm → writes `activations[league.id] = team.id` on the current user's profile, stamps `team.uid = authUser.uid`, and if the claimer is also the league's commissioner with no `commissionerTeamId` yet, sets that too. The team flips to "Registered ✓" immediately. After claim, chat resolves via the activations path (the cleanest one) — no more name-fallback heuristics needed.
+- **`authUser` + `onUpdateProfile` threaded through** SettingsTab + TeamCardActions at `App.jsx:1945, 7706, 8112` so the Claim button has the bits it needs to write to both the league and the user profile.
+- **Chat name-resolution: two more fallback layers** at `App.jsx:4400-4407` (send) and `App.jsx:4464-4474` (render). Existing chain (activations → uid stamp → owner exact match) gains a `league.commissionerUid === authUser.uid && league.commissionerTeamId` slot between uid and owner, plus a case-insensitive trim on the owner-match. Lets the commissioner's chat name resolve even when uid isn't stamped, activations aren't set, and `team.owner` is "Skot" vs displayName "Scott Phillips".
+- **What this commit does NOT do.** No batch-claim for users with multiple unstamped teams across leagues. No "Claim" button outside Settings (e.g., a banner on the league dashboard). No auto-claim on app load even when commissioner can be unambiguously identified.
+- `node _snapshots/diff-against-baseline.mjs` deferred — UI-only. `npm run build` clean (2.82s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.25.5 — 2026-06-02
 **Chat team-name resolution: three-step fallback for unstamped teams.** Reported — chat still showed "Scott Phillips" after v2.6.25.4. Root cause: the commissioner added themselves as a team manually rather than going through the invite-join flow, so `team.uid` was never stamped. The previous version's uid-only lookup returned null and fell back to the stored display name.

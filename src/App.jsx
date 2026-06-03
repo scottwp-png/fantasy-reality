@@ -1942,7 +1942,7 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
         {tab === "set-prices" && isCommissioner && <SalaryCapPricesTab league={league} onUpdate={onUpdate} />}
         {tab === "predict" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><PredictionsPlayerTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} /></SpoilerBlur>}
         {tab === "manage-questions" && isCommissioner && <PredictionsCommishTab league={league} onUpdate={onUpdate} />}
-        {tab === "settings" && <SettingsTab league={league} onUpdate={onUpdate} allLeagues={allLeagues} setModal={setModal} setEditing={setEditingItem} userProfile={userProfile} isCommissioner={isCommissioner} isPrimaryCommissioner={isPrimaryCommissioner} />}
+        {tab === "settings" && <SettingsTab league={league} onUpdate={onUpdate} allLeagues={allLeagues} setModal={setModal} setEditing={setEditingItem} userProfile={userProfile} authUser={authUser} onUpdateProfile={onUpdateProfile} isCommissioner={isCommissioner} isPrimaryCommissioner={isPrimaryCommissioner} />}
       </div>
 
       {isCommissioner && (
@@ -3194,7 +3194,7 @@ function BulkAddBody({ league, onUpdate, onClose }) {
   );
 }
 
-function TeamCardActions({ team, league, onUpdate, setEditing, setModal }) {
+function TeamCardActions({ team, league, onUpdate, setEditing, setModal, authUser, userProfile, onUpdateProfile }) {
   const [copiedCode, setCopiedCode] = useState(null);
   const [showCode, setShowCode] = useState(false);
   const [registeredUser, setRegisteredUser] = useState(null);
@@ -3280,9 +3280,40 @@ function TeamCardActions({ team, league, onUpdate, setEditing, setModal }) {
             }}>Reassign</Btn>
           </>
         ) : (
-          <Btn small variant="secondary" onClick={genOrRegenCode}>
-            {code ? "Regenerate Code" : "Generate Invite"}
-          </Btn>
+          <>
+            {/* v2.6.25.6: Claim button so the commissioner (or anyone who
+                shouldn't need to invite-code their way into their own team)
+                can register themselves directly. Sets activations on the
+                current user's profile, stamps team.uid, and — if claimer is
+                the league commissioner — sets commissionerTeamId too. After
+                claim, chat resolves the team name via the activations path
+                (no more "Scott Phillips" fallback) and the team shows as
+                Registered. */}
+            {authUser && userProfile && onUpdateProfile && (
+              <Btn small onClick={async () => {
+                if (!confirm(`Claim ${team.name} as your team? You'll be registered as this team's manager — the team will show up in your My Leagues list, chat will use the team name, and standings will surface your rank.`)) return;
+                try {
+                  const updatedProfile = {
+                    ...userProfile,
+                    activations: { ...(userProfile.activations || {}), [league.id]: team.id },
+                  };
+                  await onUpdateProfile(updatedProfile);
+                  const updatedTeams = (league.teams || []).map(t => t.id === team.id ? { ...t, uid: authUser.uid } : t);
+                  const updates = { ...league, teams: updatedTeams };
+                  if (league.commissionerUid === authUser.uid && !league.commissionerTeamId) {
+                    updates.commissionerTeamId = team.id;
+                  }
+                  onUpdate(updates);
+                  setRegisteredUser({ displayName: userProfile.displayName || "You" });
+                } catch (e) {
+                  alert("Claim failed: " + (e?.message || "unknown error"));
+                }
+              }}>Claim This Team</Btn>
+            )}
+            <Btn small variant="secondary" onClick={genOrRegenCode}>
+              {code ? "Regenerate Code" : "Generate Invite"}
+            </Btn>
+          </>
         )}
       </div>
       {!hasRegistration && code && (
@@ -4398,9 +4429,13 @@ function ChatTab({ league, authUser, userProfile, isCommissioner, messages = [] 
       // backstop the lookup so chat reads "Love Island Boy" instead of
       // "Scott Phillips" even when uid isn't stamped.
       const myTeamId = userProfile?.activations?.[league.id];
+      const normName = (s) => (s || "").toLowerCase().trim();
       const myTeam = (myTeamId && (league.teams || []).find(t => t.id === myTeamId))
         || (league.teams || []).find(t => t.uid === authUser.uid)
-        || (userProfile?.displayName && (league.teams || []).find(t => t.owner === userProfile.displayName));
+        || (league.commissionerUid === authUser.uid && league.commissionerTeamId &&
+            (league.teams || []).find(t => t.id === league.commissionerTeamId))
+        || (userProfile?.displayName && (league.teams || []).find(t =>
+            normName(t.owner) === normName(userProfile.displayName)));
       await sendChatMessage(league.id, {
         uid: authUser.uid,
         authorName: myTeam?.name || userProfile?.displayName || authUser.email?.split("@")[0] || "Player",
@@ -4468,9 +4503,13 @@ function ChatTab({ league, authUser, userProfile, isCommissioner, messages = [] 
           let authorTeam;
           if (m.uid === authUser?.uid) {
             const myTeamId = userProfile?.activations?.[league.id];
+            const norm = (s) => (s || "").toLowerCase().trim();
             authorTeam = (myTeamId && (league.teams || []).find(t => t.id === myTeamId))
               || teamForUid(m.uid)
-              || (userProfile?.displayName && (league.teams || []).find(t => t.owner === userProfile.displayName));
+              || (league.commissionerUid === authUser.uid && league.commissionerTeamId &&
+                  (league.teams || []).find(t => t.id === league.commissionerTeamId))
+              || (userProfile?.displayName && (league.teams || []).find(t =>
+                  norm(t.owner) === norm(userProfile.displayName)));
           } else {
             authorTeam = teamForUid(m.uid);
           }
@@ -7695,7 +7734,7 @@ function CoCommissionersEditor({ league, onUpdate, userProfile, isPrimaryCommiss
   );
 }
 
-function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userProfile, isCommissioner = false, isPrimaryCommissioner = false }) {
+function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userProfile, authUser, onUpdateProfile, isCommissioner = false, isPrimaryCommissioner = false }) {
   const [editingInfo, setEditingInfo] = useState(false);
   const [leagueInfo, setLeagueInfo] = useState({
     name: league.name || "",
@@ -8101,7 +8140,7 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
                     <div style={{ color:"#6a6a8a",fontSize:11,marginTop:1 }}>{team.owner}</div>
                   </div>
                 </div>
-                <TeamCardActions team={team} league={league} onUpdate={onUpdate} setEditing={setEditing} setModal={setModal} />
+                <TeamCardActions team={team} league={league} onUpdate={onUpdate} setEditing={setEditing} setModal={setModal} authUser={authUser} userProfile={userProfile} onUpdateProfile={onUpdateProfile} />
               </div>
             ))}
           </div>
