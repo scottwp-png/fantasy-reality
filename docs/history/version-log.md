@@ -30,7 +30,7 @@
 - **Edge cases handled.** Admin-only commissioners (no team in this league) → falls back to `userProfile.displayName`. Deleted teams or users no longer in the league → falls back to the stored `m.authorName`. New users mid-conversation → their messages stamp the current team name.
 - **What this commit does NOT do.** No team-avatar restoration alongside team-name display (was removed in v2.6.24.2; not requested back). No `u/<reddit-handle>` parsing or special formatting for team names that look like Reddit usernames — they just render as-is. No reverse-lookup performance optimization (linear scan per message in the render loop, fine for <200 messages).
 - `node _snapshots/diff-against-baseline.mjs` deferred — UI-only. `npm run build` clean (3.06s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `8dd5d2f`
 
 ### v2.6.25.3 — 2026-06-02
 **Standings: re-rank by the selected breakdown period.** Completes the v2.6.25.2 work — score AND order now reflect the dropdown selection.
