@@ -29,7 +29,7 @@
 - **Main score → period total** at `App.jsx:2123-2147`. Previously the big number on each team's row always showed `team.total` (season cumulative). When the `Roster Breakdown Period` dropdown switched to a specific week, the breakdown content updated but the main score didn't — felt inconsistent. Now: if `viewWeek === "season"` show `team.total`; else show `calcTeamWeekPoints(league, team, viewWeek)`. H2H rows still show the W/L record as the headline (record is a season aggregate); their sub-line "X pts" tracks the period. Roto rows still show `rotoTotal` (also a season aggregate). Color coding (teal/red/grey) keys off the period score so a positive week reads green and a negative week reads red even if the season total is positive.
 - **Sort order unchanged.** Standings still rank by season total — switching the breakdown period doesn't reshuffle the leaderboard. The score number you see in row N reflects week M; the rank reflects season. Open question for later if you want re-rank-on-period behavior.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.06s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `153b107`
 
 ### v2.6.25.1 — 2026-06-02
 **Browse Public lifted out of a collapsed panel into a full section under My Leagues + includes own public leagues.** Reported — commissioner made a league public, didn't see it in Browse. The previous panel collapsed everything into a small input area with a sub-toggle, and the filter excluded leagues the user was already in.
