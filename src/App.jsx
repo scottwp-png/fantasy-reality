@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import ReactDOM from "react-dom"
 import { loadData, saveData, loadRootData, saveRootData, deleteData, loadAllLeagues, saveAllLeagues, saveLeague, computeLeagueMembers, subscribeLeague, subscribeLeagueChat, sendChatMessage, deleteChatMessage, loadUserProfile, saveUserProfile, loadAllUserProfiles, deleteUserProfile, deleteAuthAccount, onAuthChange, signUp, signIn, signInWithGoogle, signOut, resetPassword, ADMIN_EMAIL, ADMIN_UID } from "./firebase.js"
 import * as XLSX from "xlsx"
-import { calcContestantWeekPoints, calcTeamWeekPoints, calcStandings } from "./scoring.js"
+import { calcContestantWeekPoints, calcTeamWeekPoints, calcStandings, attachRanks } from "./scoring.js"
 
 
 const IMPORTED_LEAGUES = [];
@@ -1988,6 +1988,21 @@ function StandingsTab({ league, standings, onUpdate, isCommissioner, myTeamId })
   // it's the headline number for the season-long story. Per-week view stays
   // available via the dropdown for drilling into a specific episode.
   const [viewWeek, setViewWeek] = useState("season");
+
+  // v2.6.25.3: re-rank by the selected breakdown period. Season → use the
+  // standings as-passed (calcStandings already ranked by season total).
+  // Specific week → sort by that week's calcTeamWeekPoints desc and re-
+  // attach rank/tied via attachRanks. Skipped weeks return 0 by design so
+  // every team tied at 0 ranks T-1 across an entire excluded period.
+  const displayStandings = useMemo(() => {
+    if (viewWeek === "season") return standings;
+    const sorted = [...standings].sort((a, b) => {
+      const aPts = calcTeamWeekPoints(league, a, viewWeek);
+      const bPts = calcTeamWeekPoints(league, b, viewWeek);
+      return bPts - aPts;
+    });
+    return attachRanks(sorted, t => calcTeamWeekPoints(league, t, viewWeek));
+  }, [standings, viewWeek, league]);
   const weekOpts = [
     ...Array.from({length:Math.max(league.currentWeek||1,1)},(_,i)=>({value:String(i+1),label:cadenceLabel(league, i+1)})),
     { value:"season", label:"Season Total" },
@@ -2060,7 +2075,7 @@ function StandingsTab({ league, standings, onUpdate, isCommissioner, myTeamId })
       )}
       {standings.length === 0 ? <EmptyState message={`Add teams in Settings → Invite & Teams and score ${cadenceWord(league).toLowerCase()}s to see standings.`} /> : (
         <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
-          {standings.map((team,i) => {
+          {displayStandings.map((team,i) => {
             const lastWk = weeks[weeks.length-1];
             const wkPts = lastWk ? (team.weeklyTotals?.[lastWk]||0) : 0;
             const isExp = expanded === team.id;

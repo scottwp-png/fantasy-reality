@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.25.2
+**Current Production Version:** v2.6.25.3
 **Last Deploy Date:** 2026-06-02
-**App.jsx Line Count:** ~10,715
+**App.jsx Line Count:** ~10,730
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,17 @@
 ---
 
 ## Version Log
+
+### v2.6.25.3 — 2026-06-02
+**Standings: re-rank by the selected breakdown period.** Completes the v2.6.25.2 work — score AND order now reflect the dropdown selection.
+- **`displayStandings` memo** at `App.jsx:1991-2005`. Season → return the standings prop unchanged (calcStandings already ranked by season). Specific week → clone the standings, sort by `calcTeamWeekPoints(league, t, viewWeek)` desc, re-attach `rank` / `tied` via the existing `attachRanks` helper from `src/scoring.js`. So the leaderboard, the medal styling, the row gradient — all of it shifts to the selected period's perspective.
+- **`attachRanks` imported** from scoring.js — already exported there since v2.6.23.1 (was used internally by `calcStandings`'s four format branches). Adding to the App.jsx import line.
+- **Tie handling carries over.** Three teams tied at 0 in an excluded week → all share rank T-1 with the TIED subscript, same medal styling as a season tie at the top.
+- **Map switched** at `App.jsx:2078` from `standings.map(...)` to `displayStandings.map(...)`. The map's `team` callback receives the entry with the period-specific rank/tied attached.
+- **Sort comparator quirk worth noting.** `attachRanks` looks at consecutive equality on the keyFn output, so it works regardless of whether the underlying total is positive or negative. Skipped-week teams (which all return 0 from calcTeamWeekPoints) bunch together at the top of that week's leaderboard, which is the expected presentation for an excluded period.
+- **What this commit does NOT do.** Doesn't update the team profile modal — that pulls from the standings prop directly for `team.total` display and uses the `rank` field. Since `displayStandings` shares object references with `standings` (just sorted + new rank fields), the modal would need to look up via `displayStandings.find(...)` to see the period rank. Currently it shows the season rank. Easy follow-up if you want it consistent.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.81s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.25.2 — 2026-06-02
 **Standings: long-name overflow fix + main score reflects the breakdown period.** Two reported polish items.
