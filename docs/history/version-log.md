@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.24.3
+**Current Production Version:** v2.6.24.4
 **Last Deploy Date:** 2026-06-02
-**App.jsx Line Count:** ~10,565
+**App.jsx Line Count:** ~10,585
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,16 @@
 ---
 
 ## Version Log
+
+### v2.6.24.4 — 2026-06-02
+**Notification bell: "Clear all" action.** Lets the user dismiss the current list of notifications outright instead of only marking them read on open.
+- **`notifClearedAt` profile field** added at `App.jsx:11288-11292`. Stores the timestamp of the user's last "Clear all" click. The events memo filters to entries where `time > notifClearedAt`, so dismissed events disappear from the dropdown entirely. Existing entries reappear if their `time > current notifClearedAt` (e.g., a freshly-saved scoring event after a clear).
+- **`clearAll` handler** at `App.jsx:11321-11325` bumps both `notifLastSeenAt` AND `notifClearedAt` to `Date.now()` in one profile write — the dropdown empties, the badge drops to 0, and any subsequent event has to be genuinely new to surface.
+- **Button** at `App.jsx:11354-11362` in the dropdown header, between the title and the close ×. Only renders when `events.length > 0` so it doesn't clutter the empty state. Styled as a subtle bordered chip to match the close button's weight.
+- **Mark-on-open behavior preserved** — opening the dropdown still bumps `notifLastSeenAt` (so the badge clears when the user sees the dropdown). Events themselves remain visible until "Clear all" is explicitly clicked. Two-stage UX: see → acknowledge → dismiss.
+- **What this commit does NOT do.** No per-event dismiss (X on each row). No undo for an accidental clear (events newer than `cleared` are gone from the list, but if anything fires after the clear it'll reappear naturally). No tab-level archive of cleared notifications — once dismissed, they're not viewable through the bell, only through the Activity tab if applicable.
+- UI / state only — `src/scoring.js` untouched. `npm run build` clean (2.69s).
+- **Commit:** `_pending_`
 
 ### v2.6.24.3 — 2026-06-02
 **Mobile header: right-align the buttons row when it wraps.** Reported — Admin / Support / Account / Notification Bell were all bunching up on the left side of the screen on mobile.

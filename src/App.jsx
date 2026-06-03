@@ -11280,6 +11280,12 @@ function AuthScreen({ onJoinViaCode, pendingJoinCode }) {
 function NotificationBell({ leagues, userProfile, onUpdateProfile, onSelectLeague }) {
   const [open, setOpen] = useState(false);
   const lastSeen = userProfile?.notifLastSeenAt || 0;
+  // v2.6.24.4: notifClearedAt — set by the "Clear all" action so older
+  // events disappear from the dropdown entirely. lastSeen still tracks the
+  // dropdown's open timestamp for badge calculation; cleared filters the
+  // visible list. Clear bumps both, so the dropdown empties and the badge
+  // drops to 0 in one action.
+  const cleared = userProfile?.notifClearedAt || 0;
   const myName = userProfile?.displayName || "";
 
   const events = useMemo(() => {
@@ -11312,8 +11318,8 @@ function NotificationBell({ leagues, userProfile, onUpdateProfile, onSelectLeagu
         });
       });
     });
-    return all.sort((a, b) => (b.time || 0) - (a.time || 0)).slice(0, 30);
-  }, [leagues, myName]);
+    return all.sort((a, b) => (b.time || 0) - (a.time || 0)).filter(e => (e.time || 0) > cleared).slice(0, 30);
+  }, [leagues, myName, cleared]);
 
   const unread = events.filter(e => (e.time || 0) > lastSeen).length;
 
@@ -11322,6 +11328,12 @@ function NotificationBell({ leagues, userProfile, onUpdateProfile, onSelectLeagu
     if (unread > 0 && onUpdateProfile && userProfile) {
       onUpdateProfile({ ...userProfile, notifLastSeenAt: Date.now() });
     }
+  }
+
+  function clearAll() {
+    if (!onUpdateProfile || !userProfile) return;
+    const now = Date.now();
+    onUpdateProfile({ ...userProfile, notifLastSeenAt: now, notifClearedAt: now });
   }
 
   function formatRel(ms) {
@@ -11372,9 +11384,18 @@ function NotificationBell({ leagues, userProfile, onUpdateProfile, onSelectLeagu
             background:"#12121f",border:"1px solid #2a2a4a",borderRadius:12,
             boxShadow:"0 16px 48px rgba(0,0,0,0.6)",
           }}>
-            <div style={{ padding:"12px 14px",borderBottom:"1px solid #1e1e38",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+            <div style={{ padding:"12px 14px",borderBottom:"1px solid #1e1e38",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8 }}>
               <div style={{ fontSize:12,fontWeight:700,color:"#e8e8f0",textTransform:"uppercase",letterSpacing:"0.05em" }}>Activity</div>
-              <button onClick={()=>setOpen(false)} title="Close" style={{ background:"none",border:"none",color:"#6a6a8a",cursor:"pointer",fontSize:14,padding:2 }}>×</button>
+              <div style={{ display:"flex",gap:6,alignItems:"center" }}>
+                {events.length > 0 && (
+                  <button onClick={clearAll} title="Dismiss all notifications" style={{
+                    background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#aaaabf",
+                    cursor:"pointer",fontSize:10,fontWeight:600,padding:"4px 8px",
+                    fontFamily:"'Outfit',sans-serif",
+                  }}>Clear all</button>
+                )}
+                <button onClick={()=>setOpen(false)} title="Close" style={{ background:"none",border:"none",color:"#6a6a8a",cursor:"pointer",fontSize:14,padding:2 }}>×</button>
+              </div>
             </div>
             {events.length === 0 ? (
               <div style={{ padding:"24px 14px",textAlign:"center",color:"#6a6a8a",fontSize:12,lineHeight:1.5 }}>
