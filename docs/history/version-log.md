@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.25.3
+**Current Production Version:** v2.6.25.4
 **Last Deploy Date:** 2026-06-02
-**App.jsx Line Count:** ~10,730
+**App.jsx Line Count:** ~10,735
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,15 @@
 ---
 
 ## Version Log
+
+### v2.6.25.4 — 2026-06-02
+**Chat: show team name in the league instead of the user's global display name.** Reported — chat read "Scott Phillips" instead of "Love Island Boy". Team identity is the league-native identity; the global display name belongs to the user settings page.
+- **Send-side** at `App.jsx:4393-4400` — `sendChatMessage` now stamps the sender's team name in this league as `authorName`. Looks up via `(league.teams || []).find(t => t.uid === authUser.uid)`. Falls back to global display name only for users without a team (admin-only commissioners, etc.).
+- **Render-side** at `App.jsx:4457-4462` — adds a live `teamForUid(m.uid)` lookup per message and prefers the current team name over the stored `authorName`. This means existing messages also re-label retroactively (the stored authorName was a display name; we now use the team name) AND future team renames propagate to historical messages without needing a backfill. Falls back to the stored `m.authorName` for legacy messages whose UID can't be found in the current teams array (deleted teams, etc.).
+- **Edge cases handled.** Admin-only commissioners (no team in this league) → falls back to `userProfile.displayName`. Deleted teams or users no longer in the league → falls back to the stored `m.authorName`. New users mid-conversation → their messages stamp the current team name.
+- **What this commit does NOT do.** No team-avatar restoration alongside team-name display (was removed in v2.6.24.2; not requested back). No `u/<reddit-handle>` parsing or special formatting for team names that look like Reddit usernames — they just render as-is. No reverse-lookup performance optimization (linear scan per message in the render loop, fine for <200 messages).
+- `node _snapshots/diff-against-baseline.mjs` deferred — UI-only. `npm run build` clean (3.06s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.25.3 — 2026-06-02
 **Standings: re-rank by the selected breakdown period.** Completes the v2.6.25.2 work — score AND order now reflect the dropdown selection.

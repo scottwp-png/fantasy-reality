@@ -4390,9 +4390,13 @@ function ChatTab({ league, authUser, userProfile, isCommissioner, messages = [] 
     if (!text || sending || !authUser) return;
     setSending(true);
     try {
+      // v2.6.25.4: stamp the sender's TEAM name in this league as authorName
+      // (was the user's global display name). Falls back to display name only
+      // for users without a team in this league (e.g., admin-only).
+      const myTeam = (league.teams || []).find(t => t.uid === authUser.uid);
       await sendChatMessage(league.id, {
         uid: authUser.uid,
-        authorName: userProfile?.displayName || authUser.email?.split("@")[0] || "Player",
+        authorName: myTeam?.name || userProfile?.displayName || authUser.email?.split("@")[0] || "Player",
         text,
       });
       setDraft("");
@@ -4450,6 +4454,11 @@ function ChatTab({ league, authUser, userProfile, isCommissioner, messages = [] 
           const canDelete = isMe || isCommissioner;
           const prev = i > 0 ? messages[i - 1] : null;
           const sameAuthorAsPrev = prev && prev.uid === m.uid && (m.createdAt - prev.createdAt) < 5 * 60 * 1000;
+          // v2.6.25.4: live team lookup. Picks up renames after the message
+          // was sent; falls back to the stored authorName for legacy messages
+          // / users with no team in this league.
+          const authorTeam = teamForUid(m.uid);
+          const displayName = authorTeam?.name || m.authorName || "Player";
           return (
             <div key={m.id} style={{
               display:"flex",flexDirection:"column",
@@ -4460,7 +4469,7 @@ function ChatTab({ league, authUser, userProfile, isCommissioner, messages = [] 
               <div style={{ display:"flex",flexDirection:"column",maxWidth:"80%",alignItems: isMe ? "flex-end" : "flex-start" }}>
                 {!sameAuthorAsPrev && (
                   <div style={{ display:"flex",gap:6,alignItems:"baseline",marginBottom:3,flexWrap:"wrap",paddingLeft: isMe ? 0 : 4, paddingRight: isMe ? 4 : 0 }}>
-                    <span style={{ fontSize:11,fontWeight:700,color:"#e8e8f0" }}>{m.authorName || "Player"}</span>
+                    <span style={{ fontSize:11,fontWeight:700,color:"#e8e8f0" }}>{displayName}</span>
                     <span style={{ fontSize:9,color:"#6a6a8a" }}>{formatTime(m.createdAt)}</span>
                   </div>
                 )}
