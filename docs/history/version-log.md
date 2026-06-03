@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.24.5
+**Current Production Version:** v2.6.25.0
 **Last Deploy Date:** 2026-06-02
-**App.jsx Line Count:** ~10,585
+**App.jsx Line Count:** ~10,675
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,18 @@
 ---
 
 ## Version Log
+
+### v2.6.25.0 — 2026-06-02
+**Public / private leagues + Browse Public directory + server-side privacy gating.** Two-part feature: (a) a UI-level discovery directory for opt-in public leagues, and (b) RTDB-rule-level enforcement that non-members can't even read private leagues' data, not just hide them from browse.
+- **`league.isPublic` flag** (defaults `false` — every league is private until the commissioner flips it). Set via the create-league wizard at `App.jsx:1518-1525` and the new Settings > General toggle at `App.jsx:7813-7838`. The Settings toggle audit-logs the change.
+- **`computeLeagueMembers(league)`** in `src/firebase.js:103-110` — derives `{[uid]: true}` from `commissionerUid` + `coCommissioners` + `teams[].uid`. Attached on every `saveLeague` and `saveAllLeagues` call so the field stays in sync with team additions, removals, and commissioner transfers without per-flow plumbing.
+- **Browse Public sub-mode** in the Join League panel at `App.jsx:11620-11688`. Pill toggle `Enter Code | Browse Public`. Browse view lists every league with `isPublic === true` that the user isn't already in and that isn't season-complete, with show icon, name, season, team count, and commissioner name. Click → triggers `onJoinViaCode(league.leagueInviteCode)` which opens the existing confirm modal → joins.
+- **Members backfill effect** at `App.jsx:8794-8800` — runs once per app load. Any league in the user's visible list that lacks a `members` map gets a no-op save, which through `saveLeague` populates the map. This is the migration path for existing leagues. Inactive leagues that no one visits stay un-backfilled (and become unreadable post-rule-deploy, which is the intended state).
+- **`database.rules.json` updated** to gate the wildcard `$league_key.read` on `(isPublic || members[auth.uid] || admin)`. Chat paths (`league_*_chat`) stay auth-readable — gating chat by membership would need either a denormalized members map at the chat path or string-manipulation in rules; deferred to a follow-up. Writes stay open to any auth user so the join flow can add a new team to a league before the user is in members.
+- **Two-phase deploy required.** Code (with backfill) ships first; once leagues have been backfilled (admin refresh covers all leagues, since the visible list for admin is the full set), rules deploy second. Doing rules first would lock users out of leagues that don't yet have a `members` map.
+- **What this commit does NOT do.** Chat path is still auth-readable, not membership-gated — anyone with a league ID can still query its chat. Max-team enforcement deferred to a follow-up (the user mentioned it but said it doesn't matter for Captains/Heroes which is the only live format). No Browse search/filter UI (just a list). No public-list pagination.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (4.00s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.24.5 — 2026-06-02
 **Security: admin gating switched from email to Firebase Auth UID + email_verified required.** Defense in depth against admin takeover via email-account compromise. With the public Reddit traffic now live, anyone who managed to hijack `scottwpii@gmail.com` could previously have password-reset their way into the admin role. Now they can't — they'd need this exact Firebase Auth UID, which is assigned at account creation and isn't reproducible.

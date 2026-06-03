@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import ReactDOM from "react-dom"
-import { loadData, saveData, loadRootData, saveRootData, deleteData, loadAllLeagues, saveAllLeagues, saveLeague, subscribeLeague, subscribeLeagueChat, sendChatMessage, deleteChatMessage, loadUserProfile, saveUserProfile, loadAllUserProfiles, deleteUserProfile, deleteAuthAccount, onAuthChange, signUp, signIn, signInWithGoogle, signOut, resetPassword, ADMIN_EMAIL, ADMIN_UID } from "./firebase.js"
+import { loadData, saveData, loadRootData, saveRootData, deleteData, loadAllLeagues, saveAllLeagues, saveLeague, computeLeagueMembers, subscribeLeague, subscribeLeagueChat, sendChatMessage, deleteChatMessage, loadUserProfile, saveUserProfile, loadAllUserProfiles, deleteUserProfile, deleteAuthAccount, onAuthChange, signUp, signIn, signInWithGoogle, signOut, resetPassword, ADMIN_EMAIL, ADMIN_UID } from "./firebase.js"
 import * as XLSX from "xlsx"
 import { calcContestantWeekPoints, calcTeamWeekPoints, calcStandings } from "./scoring.js"
 
@@ -1109,6 +1109,10 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, commissionerNam
   const [salaryBudget, setSalaryBudget] = useState(100);
   const [rotoScoring, setRotoScoring] = useState(false);
   const [decimalScoring, setDecimalScoring] = useState(true);
+  // v2.6.25.0: public/private discovery. Private (default) means invite-code
+  // only — the league never appears in the Browse list. Public adds it to
+  // the discoverable list any signed-in user sees when they tap Join League.
+  const [isPublic, setIsPublic] = useState(false);
   const [scoringRules, setScoringRules] = useState([]);
   // v2.6.23.3: full admin library for this show — drives the rule picker so
   // rules the admin deleted from the library don't reappear here as
@@ -1263,6 +1267,9 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, commissionerNam
       // surface "Alex's league" for friends in a multi-league world.
       // Falls back to null; the My Leagues card hides the suffix when absent.
       commissionerName: commissionerName || null,
+      // v2.6.25.0: public-discovery flag. Defaults false; toggleable in
+      // Settings > General after creation.
+      ...(isPublic ? { isPublic: true } : {}),
       leagueInviteCode: generateInviteCode(),
       createdAt: Date.now(),
     };
@@ -1513,6 +1520,16 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, commissionerNam
               <div>
                 <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>Decimal Scoring</div>
                 <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>Show scores to two decimal places (e.g. 66.80 instead of 67). Turn off for whole numbers only.</div>
+              </div>
+            </label>
+            {/* v2.6.25.0: public-discovery toggle. Off by default — keeps the
+                league invite-code-only. On adds it to the Browse Public list
+                any signed-in user sees from the Join League panel. */}
+            <label style={{ display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",cursor:"pointer" }}>
+              <input type="checkbox" checked={isPublic} onChange={e=>setIsPublic(e.target.checked)} style={{ accentColor:"#e94560",width:18,height:18 }} />
+              <div>
+                <div style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>Public League</div>
+                <div style={{ color:"#6a6a8a",fontSize:11,marginTop:2 }}>List this league in the Browse Public directory so anyone can find and join it. Off = invite-code only (private). Reversible from Settings.</div>
               </div>
             </label>
           </div>
@@ -7793,6 +7810,38 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
         </div>
       </div>
 
+      {/* v2.6.25.0: public/private discovery toggle. Default OFF (private).
+          ON adds the league to the Browse Public directory; OFF keeps it
+          invite-code-only. Server-side enforcement: RTDB read rule on
+          frtv/league_<id> requires (isPublic || member). */}
+      <div style={{ marginBottom:20,padding:"16px",background:league.isPublic?"#4ecdc411":"#12121f",borderRadius:10,border:league.isPublic?"1px solid #4ecdc433":"1px solid #1e1e38" }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12 }}>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:4,display:"flex",alignItems:"center",gap:6 }}>
+              {league.isPublic ? "🌎" : "🔒"} {league.isPublic ? "Public League" : "Private League"}
+              {league.isPublic && <Badge color="#4ecdc4">DISCOVERABLE</Badge>}
+            </div>
+            <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.5 }}>
+              {league.isPublic
+                ? "Anyone signed in can find this league in the Browse Public directory and join without an invite code."
+                : "Only people with the invite code or link can find or join this league. Non-members can't read the league's data."}
+            </div>
+          </div>
+          <Btn small variant={league.isPublic?"danger":"secondary"} onClick={()=>{
+            const next = !league.isPublic;
+            const actorName = userProfile?.displayName || "Commissioner";
+            const audited = appendAudit(league, {
+              type: "setting", actorName,
+              desc: `${actorName} ${next ? "made the league public" : "made the league private"}`,
+              meta: { setting: "isPublic", value: next },
+            });
+            onUpdate({ ...audited, isPublic: next });
+          }}>
+            {league.isPublic ? "Make Private" : "Make Public"}
+          </Btn>
+        </div>
+      </div>
+
       {/* Episodes per Week */}
       <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
         <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:8 }}>Episodes per Week</div>
@@ -8740,6 +8789,23 @@ export default function FantasyRealityTV() {
     })();
   }, [isAdmin, leagues.length]);
 
+  // v2.6.25.0: members-map backfill. Every visible league that lacks a
+  // `members` map gets saved (saveLeague computes and attaches the map
+  // automatically). One-time per league per session. Critical for the
+  // upcoming RTDB rule change — the new read rule on private leagues
+  // requires `members.<uid> === true`, so leagues without a map become
+  // unreadable to non-admin members after rule deploy. This effect runs
+  // for every league the user can see (member or admin) and lazily
+  // populates the map. Inactive leagues that no one opens won't get
+  // backfilled — that's intentional: their data stays locked.
+  useEffect(() => {
+    if (!leagues || leagues.length === 0 || !authUser) return;
+    leagues.forEach(l => {
+      if (l.members && Object.keys(l.members).length > 0) return;
+      saveLeague(l).catch(() => {});
+    });
+  }, [leagues.length, authUser?.uid]);
+
   const [showWideData, setShowWideData] = useState(null);
   useEffect(() => {
     if (!rawSelected?.useShowWideScoring) { setShowWideData(null); return; }
@@ -8883,7 +8949,7 @@ export default function FantasyRealityTV() {
       {view==="faq" && <FAQPage onBack={()=>setView(authUser?"home":"login")} />}
       {view==="admin" && isAdmin && <AdminPanel leagues={leagues} onBack={()=>setView("home")} onUpdate={persist} featureFlags={featureFlags} setFeatureFlags={setFeatureFlags} />}
       {view==="home" && authUser && <AppHome
-        user={authUser} profile={userProfile} leagues={visibleLeagues}
+        user={authUser} profile={userProfile} leagues={visibleLeagues} allLeagues={leagues}
         isAdmin={isAdmin} onSelectLeague={(id, target)=>{ setSelectedId(id); setView("league"); setNavTarget(target || null); }}
         onCreateLeague={()=>setView("create")} onDeleteLeague={deleteLeague} onDuplicateLeague={duplicateLeague}
         onLogout={handleLogout}
@@ -11442,7 +11508,7 @@ function NotificationBell({ leagues, userProfile, onUpdateProfile, onSelectLeagu
   );
 }
 
-function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeague, onDeleteLeague, onDuplicateLeague, onLogout, onJoinViaCode, onOpenAdmin, onOpenSettings, onUpdateProfile, allLeaguesCount, announcement, pendingJoinCode }) {
+function AppHome({ user, profile, leagues, allLeagues, isAdmin, onSelectLeague, onCreateLeague, onDeleteLeague, onDuplicateLeague, onLogout, onJoinViaCode, onOpenAdmin, onOpenSettings, onUpdateProfile, allLeaguesCount, announcement, pendingJoinCode }) {
   const [inviteCode, setInviteCode] = useState(pendingJoinCode || "");
   const [error, setError] = useState("");
   const [joining, setJoining] = useState(false);
@@ -11452,6 +11518,8 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
   // already in). URL-based invite links still auto-apply via the useEffect
   // below — the button is only for the bare-code-via-text/Discord path.
   const [showJoin, setShowJoin] = useState(false);
+  // v2.6.25.0: Join mode — invite code (legacy) vs Browse Public.
+  const [joinMode, setJoinMode] = useState("code");
 
 
 
@@ -11546,25 +11614,86 @@ function AppHome({ user, profile, leagues, isAdmin, onSelectLeague, onCreateLeag
 
         {/* Invite-code entry — collapsed by default, revealed by Join League button.
             URL-based invite LINKS bypass this entirely (auto-applied at app boot). */}
-        {showJoin && (
-          <div style={{ marginBottom:20,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6 }}>
-              <div style={{ fontSize:12,fontWeight:600,color:"#8888aa" }}>Have an invite code?</div>
-              <button onClick={()=>{ setShowJoin(false); setError(""); setInviteCode(""); }} title="Cancel" style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#8888aa",fontSize:10,cursor:"pointer",padding:"3px 8px",fontFamily:"'Outfit',sans-serif" }}>× Cancel</button>
+        {showJoin && (() => {
+          // v2.6.25.0: derived browseable list. Public leagues the user
+          // isn't already in. After the RTDB rule deploy, allLeagues for
+          // non-admin users only contains leagues the server let them
+          // read, so this filter is essentially "public + not-in".
+          const myLeagueIds = new Set((leagues || []).map(l => l.id));
+          const publicList = (allLeagues || []).filter(l => l.isPublic && !myLeagueIds.has(l.id) && !l.seasonComplete);
+          return (
+            <div style={{ marginBottom:20,padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,gap:8 }}>
+                <div style={{ display:"flex",gap:4,padding:3,background:"#0d0d18",border:"1px solid #1e1e38",borderRadius:99 }}>
+                  {[
+                    { id: "code", label: "Enter Code" },
+                    { id: "browse", label: "Browse Public" },
+                  ].map(m => (
+                    <button key={m.id} onClick={()=>{ setJoinMode(m.id); setError(""); }} style={{
+                      padding:"5px 12px",borderRadius:99,border:"none",cursor:"pointer",
+                      background: joinMode===m.id ? "#e9456033" : "transparent",
+                      color: joinMode===m.id ? "#e94560" : "#7a7a9a",
+                      fontSize:11,fontWeight:joinMode===m.id?700:600,fontFamily:"'Outfit',sans-serif",
+                    }}>{m.label}</button>
+                  ))}
+                </div>
+                <button onClick={()=>{ setShowJoin(false); setError(""); setInviteCode(""); }} title="Cancel" style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#8888aa",fontSize:10,cursor:"pointer",padding:"3px 8px",fontFamily:"'Outfit',sans-serif" }}>× Cancel</button>
+              </div>
+              {joinMode === "code" ? (
+                <>
+                  <div style={{ fontSize:11,color:"#6a6a8a",marginBottom:8,lineHeight:1.4 }}>If someone shared an invite link, just tap it &mdash; no code entry needed.</div>
+                  <div style={{ display:"flex",gap:6 }}>
+                    <input value={inviteCode} onChange={e=>setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,""))}
+                      placeholder="Enter code" maxLength={8} autoFocus onKeyDown={e=>{if(e.key==="Enter")handleJoin()}}
+                      style={{ flex:1,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                        color:"#e8e8f0",fontSize:16,fontFamily:"monospace",letterSpacing:"0.15em",textAlign:"center" }} />
+                    <Btn small onClick={handleJoin} disabled={inviteCode.length<6 || joining}>
+                      {joining ? "Checking..." : "Join"}
+                    </Btn>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize:11,color:"#6a6a8a",marginBottom:8,lineHeight:1.4 }}>Public leagues anyone can join. Private leagues never appear here.</div>
+                  {publicList.length === 0 ? (
+                    <div style={{ padding:"20px 14px",textAlign:"center",color:"#6a6a8a",fontSize:12,background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a",lineHeight:1.6 }}>
+                      No public leagues to join yet. Commissioners can make their league public from Settings &rsaquo; General.
+                    </div>
+                  ) : (
+                    <div style={{ display:"flex",flexDirection:"column",gap:6,maxHeight:360,overflowY:"auto" }}>
+                      {publicList.map(l => {
+                        const teamCount = (l.teams || []).length;
+                        return (
+                          <button key={l.id} onClick={async ()=>{
+                            setError("");
+                            const err = await onJoinViaCode(l.leagueInviteCode);
+                            if (err) setError(err);
+                          }} style={{
+                            display:"flex",alignItems:"center",gap:10,padding:"10px 12px",
+                            background:"#0d0d18",border:"1px solid #1e1e38",borderRadius:8,
+                            cursor:"pointer",textAlign:"left",fontFamily:"'Outfit',sans-serif",width:"100%",
+                          }}>
+                            <div style={{ width:32,height:32,borderRadius:8,background:(SHOW_PRESETS[l.showType]?.color||"#9d5dff")+"22",border:"1px solid "+(SHOW_PRESETS[l.showType]?.color||"#9d5dff")+"66",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Anybody',sans-serif",fontWeight:900,fontSize:11,color:SHOW_PRESETS[l.showType]?.color||"#9d5dff",flexShrink:0 }}>
+                              {SHOW_PRESETS[l.showType]?.emoji || "TV"}
+                            </div>
+                            <div style={{ flex:1,minWidth:0 }}>
+                              <div style={{ fontSize:13,fontWeight:700,color:"#e8e8f0",lineHeight:1.2 }}>{l.name}</div>
+                              <div style={{ fontSize:10,color:"#6a6a8a",marginTop:2 }}>
+                                {l.seasonName} · {teamCount} team{teamCount===1?"":"s"}{l.commissionerName ? ` · ${l.commissionerName}'s league` : ""}
+                              </div>
+                            </div>
+                            <Btn small variant="ghost">Join</Btn>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
+              {error && <div style={{ color:"#e94560",fontSize:12,marginTop:8,padding:"8px 10px",background:"#e9456011",borderRadius:6,border:"1px solid #e9456033" }}>{error}</div>}
             </div>
-            <div style={{ fontSize:11,color:"#6a6a8a",marginBottom:8,lineHeight:1.4 }}>If someone shared an invite link, just tap it &mdash; no code entry needed.</div>
-            <div style={{ display:"flex",gap:6 }}>
-              <input value={inviteCode} onChange={e=>setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,""))}
-                placeholder="Enter code" maxLength={8} autoFocus onKeyDown={e=>{if(e.key==="Enter")handleJoin()}}
-                style={{ flex:1,padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
-                  color:"#e8e8f0",fontSize:16,fontFamily:"monospace",letterSpacing:"0.15em",textAlign:"center" }} />
-              <Btn small onClick={handleJoin} disabled={inviteCode.length<6 || joining}>
-                {joining ? "Checking..." : "Join"}
-              </Btn>
-            </div>
-            {error && <div style={{ color:"#e94560",fontSize:12,marginTop:8,padding:"8px 10px",background:"#e9456011",borderRadius:6,border:"1px solid #e9456033" }}>{error}</div>}
-          </div>
-        )}
+          );
+        })()}
 
         {leagues.length > 0 ? (
           <div style={{ display:"flex",flexDirection:"column",gap:10 }}>

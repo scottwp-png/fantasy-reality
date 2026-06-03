@@ -91,7 +91,11 @@ export async function loadAllLeagues() {
   try { const index = await loadData("league_index", []); const leagues = []; for (const id of index) { const league = await loadData("league_" + id, null); if (league) leagues.push(league); } return leagues } catch { return [] }
 }
 export async function saveAllLeagues(leagues) {
-  const index = leagues.map(l => l.id); await saveData("league_index", index); for (const league of leagues) { await saveData("league_" + league.id, league); }
+  // v2.6.25.0: ensure every league gets a fresh members map on bulk save too.
+  const index = leagues.map(l => l.id); await saveData("league_index", index);
+  for (const league of leagues) {
+    await saveData("league_" + league.id, { ...league, members: computeLeagueMembers(league) });
+  }
 }
 // v2.6.23.2: live-sync subscription for a single league. Caller passes the
 // league id + a callback; we attach an onValue listener at the league's
@@ -139,13 +143,29 @@ export async function deleteChatMessage(leagueId, messageId) {
   await remove(ref(db, "frtv/league_" + leagueId + "_chat/" + messageId));
 }
 
+// v2.6.25.0: denormalized members map derived from teams[].uid + commissioner
+// + co-commissioners. Used by the RTDB read rule on frtv/league_<id> to
+// gate access on private leagues. Recomputed on every save so it stays in
+// sync with team additions / removals / commissioner transfers automatically.
+export function computeLeagueMembers(league) {
+  const members = {};
+  if (league?.commissionerUid) members[league.commissionerUid] = true;
+  (league?.coCommissioners || []).forEach(uid => { if (uid) members[uid] = true; });
+  (league?.teams || []).forEach(t => { if (t?.uid) members[t.uid] = true; });
+  return members;
+}
+
 // Saves a single league by path — avoids the race condition where saveAllLeagues
 // replaces the entire league object, causing concurrent edits to overwrite each other.
 // Use this for all in-session league updates (scoring, roster changes, settings, etc.)
 // Only use saveAllLeagues for bulk operations (import, initial seed).
+//
+// v2.6.25.0: every save attaches a fresh `members` map so the RTDB read rule
+// can gate private leagues. Caller never needs to pass it.
 export async function saveLeague(league) {
   try {
-    await update(ref(db, "frtv"), { ["league_" + league.id]: league });
+    const withMembers = { ...league, members: computeLeagueMembers(league) };
+    await update(ref(db, "frtv"), { ["league_" + withMembers.id]: withMembers });
   } catch (e) {
     console.error("Firebase saveLeague error:", e);
     throw e;
