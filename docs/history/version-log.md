@@ -32,7 +32,7 @@
 - **"Bulk Add" button** at `App.jsx:8221-8226` next to the existing "+ Add Team" so the commissioner doesn't have to scroll to find it.
 - **What this commit does NOT do.** No CSV/XLSX file upload (paste only). No "Send invite URLs to all pending teams" bulk action — commissioner copies them per-team. No "Resend" affordance for teams that have been pending too long. No template export ("download a starter CSV"). No prevention of duplicate team names or emails.
 - `node _snapshots/diff-against-baseline.mjs` deferred — UI-only. `npm run build` clean (2.94s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `544947e`
 
 ### v2.6.25.9 — 2026-06-04
 **Claim banner: explicit commissioner assignment by email (replaces v2.6.25.8 name-match auto-detect).** Reported — the name-match self-serve was too prone to abuse / collisions. Any user named "Steve" could claim any unstamped team whose owner was "Steve" in any league.
