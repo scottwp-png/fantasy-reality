@@ -1,7 +1,7 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.19
+**Current Production Version:** v2.6.27.20
 **Last Deploy Date:** 2026-06-04
 **App.jsx Line Count:** ~11,920
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
@@ -22,6 +22,14 @@
 ---
 
 ## Version Log
+
+### v2.6.27.20 — 2026-06-04
+**Tour: single smooth scroll + tab chips at natural position.** Two follow-ups to v2.6.27.19.
+- **Single smooth scroll instead of snap-then-smooth.** v2.6.27.19's `locate` did `scrollIntoView({behavior: "auto"})` followed by `scrollBy({behavior: "smooth"})`. When the prior step was deep on the page and the next target was at the top, the snap was a huge instant jump and the user perceived the transition as jarring even though the smooth residual followed. Now: one `scrollIntoView({behavior: "smooth"})` call. Browser animates the whole motion as a single continuous scroll.
+- **Tab chips stay at their natural top-of-page position.** v2.6.27.19's "top" placement pinned chips at `PAD * 4 = 48px` from the viewport top, which on a typical mobile viewport pushed the league header partially off-screen. The user reported the chips landing "further down on the page than the rest of the chips" — meaning lower than where they expect chips to sit relative to the surrounding page layout. Now: `scrollIntoView({block: "nearest"})` with `scroll-padding-top: 80px` set on the document element. Chips stay at their natural y (with the league header above) when already visible; if offscreen, smooth-scroll up so they land just below the league-header region.
+- **Cleanup.** `scroll-padding-top` is cleared on tour close so it doesn't affect other scrolling behavior elsewhere on the page.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.91s).
+- **Commit:** `_pending_`
 
 ### v2.6.27.19 — 2026-06-04
 **Tour: per-step placement + Lounge step rework + flash fix.** Three targeted fixes on top of the v2.6.27.18 centered-block placement.

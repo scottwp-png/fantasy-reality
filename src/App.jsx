@@ -13073,21 +13073,26 @@ function LeagueTour({ steps, onClose, onSwitchTab }) {
         if (scrolledForStepRef.current !== step) {
           scrolledForStepRef.current = step;
           try {
-            el.scrollIntoView({ behavior: "auto", block: "nearest", inline: "center" });
-            const rect0 = el.getBoundingClientRect();
-            const vh = window.innerHeight;
-            const SH = rect0.height;
-            const blockH = SH + GAP + CARD_H_EST;
-            let desiredSpotlightTop;
+            // v2.6.27.20: single smooth scroll instead of snap-then-
+            // smooth. Previous code did `scrollIntoView({block:"auto"})`
+            // (snap) then `scrollBy({behavior:"smooth"})` (animated
+            // residual). When the prior step was deep on the page and
+            // the next step's target was elsewhere, the snap was a
+            // huge jump and the user perceived it as jarring even
+            // though the smooth residual followed.
+            //
+            // Now: one smooth scroll. For "top" placement, use
+            // `block:"nearest"` with `scroll-padding-top` set to ~80px
+            // so chips land just below where the league header would
+            // naturally sit (preserving the page layout the user
+            // expects). For "center", browser's native centering.
             if (placement === "top") {
-              desiredSpotlightTop = PAD * 4;
+              document.documentElement.style.scrollPaddingTop = "80px";
+              el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
             } else {
-              desiredSpotlightTop = blockH + 2 * PAD <= vh
-                ? Math.floor((vh - blockH) / 2)
-                : PAD * 4;
+              document.documentElement.style.scrollPaddingTop = "";
+              el.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
             }
-            const delta = rect0.top - desiredSpotlightTop;
-            if (Math.abs(delta) > 4) window.scrollBy({ top: delta, behavior: "smooth" });
           } catch {}
         }
         const rect = el.getBoundingClientRect();
@@ -13121,6 +13126,12 @@ function LeagueTour({ steps, onClose, onSwitchTab }) {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose, onSwitchTab, steps]);
+
+  // v2.6.27.20: clean up scroll-padding-top on tour close so other
+  // scrolling on the page isn't affected after the tour ends.
+  useEffect(() => {
+    return () => { document.documentElement.style.scrollPaddingTop = ""; };
+  }, []);
 
   const hasSpotlight = !!targetRect;
   // v2.6.27.15: always-below placement. The spotlight is scrolled to
