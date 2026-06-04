@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.25.7
-**Last Deploy Date:** 2026-06-02
-**App.jsx Line Count:** ~10,785
+**Current Production Version:** v2.6.25.8
+**Last Deploy Date:** 2026-06-04
+**App.jsx Line Count:** ~10,840
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,16 @@
 ---
 
 ## Version Log
+
+### v2.6.25.8 — 2026-06-04
+**Self-service "Claim My Team" banner + backlog refresh.** Followed up the v2.6.25.6 commissioner-only Claim button with a banner any signed-in user sees when an unclaimed team in their league has their display name in its `owner` field.
+- **Banner** at `App.jsx:1933-1985` inside LeagueDashboard, above the tab content so it's visible on every tab until the user claims. Computes `claimable` as `(league.teams || []).filter(t => !t.uid && norm(t.owner) === norm(userProfile.displayName))` after gating on `!userProfile.activations[league.id]` so already-registered users don't see it. Lists each match in a card with team name + "Listed as &lt;owner&gt;" sub-line + Claim button. Same write path as the commissioner Claim button: profile activations + team.uid stamp.
+- **Trust model (option a — pre-approval by name match).** The commissioner's typed `team.owner` is the signal. If they typed "Steve" when adding the team, only users with display name "Steve" see the claim affordance. Nickname or first-name-only mismatches (Steve vs Stephen) don't match — those users still need the commissioner's Reassign / invite code path.
+- **Auto-hides after claim.** Once `userProfile.activations[league.id]` is set, the banner disappears entirely. Returns if the user un-claims via Reassign and re-opens the league.
+- **`BACKLOG.md` refreshed** from v2.4.2.2 (a month behind) to v2.6.25.8. The "Now / Next / Later" sections were ~70% complete on shipped items (real-time sync, league chat, scoring cascade, show-wide scoring, per-episode cadence, season-complete archiving). Rewrote the live items to reflect actual upcoming work: live draft + push notifications (paired), max-teams enforcement, Teams tab rework, membership-gated chat, trade system, social-sharing meta tags, MFA on admin account, survivor-pool sort-comparator bug.
+- **What this commit does NOT do.** No fuzzy name matching ("Steve" matches "Stephen" / "u/Steve_Rocks"). No "request claim" workflow that pings the commissioner for approval. No batch claim UI for users who own multiple teams (rare). No banner outside league context (e.g., in My Leagues home, showing "you have unclaimed teams in 3 leagues") — would be useful but not in scope here.
+- UI / docs only — `src/scoring.js` untouched. `npm run build` clean (3.22s).
+- **Commit:** `_pending_`
 
 ### v2.6.25.7 — 2026-06-02
 **Removed redundant "My Team" dropdown from Settings > General.** The Claim This Team button in Settings > Invite & Teams now does everything that dropdown did and more — sets `userProfile.activations`, stamps `team.uid`, and links `commissionerTeamId`. The dropdown only wrote `league.adminTeamId`.

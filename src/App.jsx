@@ -1929,6 +1929,59 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
         }}/>
       </div>
 
+      {/* v2.6.25.8: self-service "Claim My Team" banner. Visible to any
+          signed-in user who isn't already activated to a team in this
+          league AND has at least one unregistered team in the league whose
+          `team.owner` field matches their display name (case-insensitive
+          trim). The commissioner's "owner" field is the pre-approval
+          signal — they typed that name when setting up the team. Users
+          whose name doesn't match get no claim affordance here (commissioner
+          still has Reassign / Regenerate Code in Settings > Invite & Teams).
+          Banner spans across tabs so it's visible from anywhere in the
+          league dashboard until the user claims. */}
+      {(() => {
+        if (!authUser || !userProfile) return null;
+        const alreadyActivated = !!userProfile?.activations?.[league.id];
+        if (alreadyActivated) return null;
+        const norm = (s) => (s || "").toLowerCase().trim();
+        const myName = norm(userProfile.displayName);
+        if (!myName) return null;
+        const claimable = (league.teams || []).filter(t => !t.uid && norm(t.owner) === myName);
+        if (claimable.length === 0) return null;
+        async function claim(team) {
+          if (!confirm(`Claim "${team.name}"? You'll be registered as this team's manager. Chat will use your team name, and standings will surface your rank.`)) return;
+          try {
+            const updatedProfile = { ...userProfile, activations: { ...(userProfile.activations || {}), [league.id]: team.id } };
+            await onUpdateProfile(updatedProfile);
+            const updatedTeams = (league.teams || []).map(t => t.id === team.id ? { ...t, uid: authUser.uid } : t);
+            onUpdate({ ...league, teams: updatedTeams });
+          } catch (e) {
+            alert("Claim failed: " + (e?.message || "unknown error"));
+          }
+        }
+        return (
+          <div style={{ margin:"16px 20px 0",padding:"14px 16px",background:"#4ecdc411",border:"1px solid #4ecdc433",borderRadius:10 }}>
+            <div style={{ fontSize:13,fontWeight:700,color:"#4ecdc4",marginBottom:4 }}>
+              {claimable.length === 1 ? "Is this your team?" : "Are any of these your team?"}
+            </div>
+            <div style={{ fontSize:11,color:"#aaaabf",marginBottom:10,lineHeight:1.5 }}>
+              The commissioner set up {claimable.length === 1 ? "a team" : `${claimable.length} teams`} with your name. Claim to link your account — chat will use your team name and standings will track you.
+            </div>
+            <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
+              {claimable.map(team => (
+                <div key={team.id} style={{ display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38" }}>
+                  <div style={{ flex:1,minWidth:0 }}>
+                    <div style={{ fontSize:13,fontWeight:700,color:"#e8e8f0" }}>{team.name}</div>
+                    <div style={{ fontSize:10,color:"#6a6a8a",marginTop:1 }}>Listed as {team.owner}</div>
+                  </div>
+                  <Btn small onClick={()=>claim(team)}>Claim →</Btn>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       <div style={{ padding:20 }}>
         {tab === "standings" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><StandingsTab league={league} standings={standings} onUpdate={onUpdate} isCommissioner={isCommissioner} myTeamId={loggedInTeamId} /></SpoilerBlur>}
         {tab === "lounge" && <LoungeTab league={league} team={loggedInTeam} authUser={authUser} userProfile={userProfile} onUpdate={onUpdate} isCommissioner={isCommissioner} chatMessages={chatMessages} section={loungeSection} onSetSection={setLoungeSection} unreadChatCount={unreadChatCount} unreadPollsCount={unreadPollsCount} />}
