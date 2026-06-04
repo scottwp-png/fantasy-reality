@@ -30,7 +30,7 @@
 - **New closing step on the roster tab.** Old final step was the chat composer; users finished the tour on the Lounge tab. New final step targets the roster tab chip with copy: "That's the tour. Head to My Roster, set your starting lineup, and don't forget to customize your team name before the episode airs." Frames the immediate next action. The close-handler-switches-to-roster behavior from v2.6.27.16 stays as defense-in-depth for users who Skip/Exit/ESC out before reaching the closing step.
 - **Non-Heroes tour gets the same closing step** when its format has a roster tab (`survivor_pool`, `elimination_pool`, `salary_cap`, `predictions`). `standard` format has no per-user roster tab, so the closing step is omitted.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.93s).
-- **Commit:** `_pending_`
+- **Commit:** `ef783a9`
 
 ### v2.6.27.16 — 2026-06-04
 **Tour polish: centered block + smooth transitions + roster-tab landing + tighter Live Draft gating.** Three reported follow-ups to v2.6.27.15.
