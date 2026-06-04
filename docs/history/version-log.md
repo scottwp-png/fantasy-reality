@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.2
+**Current Production Version:** v2.6.27.3
 **Last Deploy Date:** 2026-06-04
-**App.jsx Line Count:** ~11,180
+**App.jsx Line Count:** ~11,260
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,17 @@
 ---
 
 ## Version Log
+
+### v2.6.27.3 — 2026-06-04
+**In-league walkthrough.** Follow-up to v2.6.27.0's welcome tour — that one teaches the concept (what is fantasy reality TV), this one teaches the league UI (which tab does what). Was parked in Later post-v2.6.27.0; promoted because it's a coherent polish bundle to ship with v2.6.27.1 (social meta tags) and v2.6.27.2 (survivor_pool fix) in the next push.
+- **`LeagueTour` component** at `App.jsx:12056-12106`. Four centered modal cards anchored to **actual tab switches** — when the step advances, the underlying league tab snaps to the step's `tabId` via an `onSwitchTab` callback, so the user sees the real tab content behind the modal as it's being explained. Visually mirrors `WelcomeTour` but the body copy is UI-specific and the header reads "League tour · Step N of M" to distinguish it from the welcome modal.
+- **Per-format step config** at `App.jsx:12030-12054`. The roster tab varies by format (`depth-chart` for captains, `my-pick` for survivor_pool, `weekly-pick` for elimination_pool, `my-roster-cap` for salary_cap, `predict` for predictions); `buildLeagueTourSteps(league)` produces a 4-step array tailored to the active format. Standard format has no per-user roster tab (commissioner runs the weekly draft), so the roster step is skipped — the tour is 3 steps and starts on Scoring.
+- **Auto-open trigger** at `App.jsx:1828-1842`. Fires once when a profile with `inLeagueTourPending=true` first enters a league with a claimed team (`loggedInTeamId` set). A `useRef` guard prevents the effect from re-firing if `userProfile` mutates mid-session (which it does for spoiler reveals, lounge-last-seen stamps, etc.). On close: `inLeagueTourPending: false` + `inLeagueTourDoneAt: <timestamp>` written to the profile, parallel to the v2.6.27.0 walkthrough flag pattern.
+- **`?` re-launcher** at `App.jsx:1865-1869`. Sits next to the Back button in the LeagueDashboard header — same visual size and chip styling so it reads as a peer navigational/help affordance. Plain ASCII glyph, same pattern as the AppHome version.
+- **New profiles** get both `walkthroughPending: true` AND `inLeagueTourPending: true` at signup (`App.jsx:8910`). Order of fire: welcome on first home-screen load → in-league on first league entry with a team. Each is dismissed independently. Legacy users have neither flag and don't get auto-opened; they can launch either tour from the respective `?` icons.
+- **What's deferred.** No tour for purely-spectator users (browsing a public league without joining a team) — `loggedInTeamId` gate suppresses auto-open in that case. They can still launch manually via the `?` icon. Also: no programmatic anchoring to specific UI elements within a tab — the tour delivers narrative paired with real tab content, not Joyride-style spotlight tooltips on individual buttons. Adding that would multiply maintenance cost on every layout shift; the current narrative-with-tab-context pattern hits the explanation gap without that fragility.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.84s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.27.2 — 2026-06-04
 **Survivor Pool standings: asymmetric-comparator + isAlive-null + "survived all weeks" trio fixed.** Three correctness bugs at the same site in `calcStandings` — flagged in the regression-harness `_note` since the v2.6.0.x era and parked in Later until the Play Store re-prioritization promoted it to Now.

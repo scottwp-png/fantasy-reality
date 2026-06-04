@@ -1812,6 +1812,28 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
   }, [tab, loungeUnreadTotal]);
   const [modal, setModal] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
+  // v2.6.27.3: in-league walkthrough. Auto-opens once per profile when
+  // a user with inLeagueTourPending=true first enters a league with a
+  // claimed team (loggedInTeamId set). Re-launchable via the ? icon in
+  // the header. The autoOpenedRef guard prevents the effect from
+  // re-firing if userProfile changes mid-session (e.g. spoiler reveal
+  // edits the profile).
+  const [leagueTourOpen, setLeagueTourOpen] = useState(false);
+  const leagueTourAutoOpenedRef = useRef(false);
+  const leagueTourSteps = useMemo(() => buildLeagueTourSteps(league), [league?.format]);
+  useEffect(() => {
+    if (leagueTourAutoOpenedRef.current) return;
+    if (!userProfile?.inLeagueTourPending) return;
+    if (!loggedInTeamId) return;
+    leagueTourAutoOpenedRef.current = true;
+    setLeagueTourOpen(true);
+  }, [userProfile?.inLeagueTourPending, loggedInTeamId]);
+  async function handleCloseLeagueTour() {
+    setLeagueTourOpen(false);
+    if (userProfile?.inLeagueTourPending && onUpdateProfile) {
+      onUpdateProfile({ ...userProfile, inLeagueTourPending: false, inLeagueTourDoneAt: Date.now() });
+    }
+  }
 
   const standings = useMemo(() => calcStandings(league), [league]);
 
@@ -1857,6 +1879,12 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
       <div style={{ padding:"18px 20px 14px",background:"linear-gradient(180deg,rgba(233,69,96,0.04),transparent)",borderBottom:"1px solid #1e1e38" }}>
         <div style={{ display:"flex",alignItems:"center",gap:12 }}>
           <button onClick={onBack} style={{ background:"#12121f",border:"1px solid #1e1e38",borderRadius:8,color:"#8888aa",cursor:"pointer",padding:6,display:"flex",alignItems:"center",justifyContent:"center" }}><Icon name="back" size={18}/></button>
+          {/* v2.6.27.3: ? button replays the in-league tour. Sits next
+              to Back so it's a peer navigational/help affordance. */}
+          <button onClick={()=>setLeagueTourOpen(true)} title="How this league works" aria-label="How this league works"
+            style={{ background:"#12121f",border:"1px solid #1e1e38",borderRadius:8,color:"#8888aa",cursor:"pointer",padding:"6px 10px",fontSize:13,fontFamily:"'Outfit',sans-serif",fontWeight:700,lineHeight:1 }}>
+            ?
+          </button>
           <div style={{ flex:1,minWidth:0 }}>
             <div style={{ display:"flex",alignItems:"center",gap:8 }}>
               <span style={{ fontFamily:"'Anybody',sans-serif",fontSize:13,fontWeight:900,
@@ -2013,6 +2041,7 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
             league={league} onUpdate={onUpdate} />
         </>
       )}
+      {leagueTourOpen && <LeagueTour steps={leagueTourSteps} onSwitchTab={setTab} onClose={handleCloseLeagueTour} />}
     </div>
   );
 }
@@ -8902,7 +8931,7 @@ export default function FantasyRealityTV() {
         if (isNew) {
           // v2.6.14.0: stamp createdAt on first profile creation so admin
           // Stats can chart signup velocity over time.
-          profile = { displayName: user.displayName || user.email.split("@")[0], activations: {}, createdAt: nowMs, walkthroughPending: true };
+          profile = { displayName: user.displayName || user.email.split("@")[0], activations: {}, createdAt: nowMs, walkthroughPending: true, inLeagueTourPending: true };
           await saveUserProfile(user.uid, profile);
         } else {
           // v2.6.14.0: stamp lastLoginAt on every auth load so admin Stats
@@ -12063,6 +12092,88 @@ function WelcomeTour({ onClose }) {
           <button onClick={() => isLast ? onClose() : setStep(s => s + 1)}
             style={{ background:"#e94560",border:"none",borderRadius:6,padding:"8px 20px",color:"#fff",fontSize:13,fontFamily:"'Outfit',sans-serif",fontWeight:700,cursor:"pointer" }}>
             {isLast ? "Got it — let's go" : "Next"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// v2.6.27.3: in-league walkthrough. Follow-up to the v2.6.27.0 welcome
+// tour — that one teaches the concept (what is fantasy reality TV);
+// this one teaches the league UI (which tab does what). 4 steps that
+// switch tabs as they advance so the user actually lands on the tab
+// being described. Auto-opens once when a profile with
+// inLeagueTourPending=true first enters a league as a logged-in
+// manager; re-launchable from the ? icon in the league header.
+//
+// Roster tab varies by format. Standard format has no per-user
+// roster tab (commissioner draws weekly draft), so the roster step
+// is skipped — the tour starts on Scoring.
+const LEAGUE_ROSTER_TAB_BY_FORMAT = {
+  captains: "depth-chart",
+  survivor_pool: "my-pick",
+  elimination_pool: "weekly-pick",
+  salary_cap: "my-roster-cap",
+  predictions: "predict",
+};
+
+function buildLeagueTourSteps(league) {
+  const rosterTab = LEAGUE_ROSTER_TAB_BY_FORMAT[league?.format];
+  const rosterStep = rosterTab && {
+    tabId: rosterTab,
+    title: "Your team lives here",
+    body: "Set your starting lineup before each episode airs. Rosters lock when the episode begins, so don't leave it for the last minute.",
+  };
+  return [
+    rosterStep,
+    { tabId: "scoring", title: "Every scoring rule", body: "Every event that earns or loses points is listed here, with its value. Your commissioner can tweak the rules per league, so the same show can play very differently across leagues." },
+    { tabId: "standings", title: "Where you stand", body: "Rankings refresh after each episode. Tap any team — yours or a rival's — to drill into how their roster scored that week." },
+    { tabId: "lounge", title: "Trash talk and polls", body: "Every league has its own chat and polls. Talk smack, run side bets, and remember whose pick you mocked the night they won the whole thing." },
+  ].filter(Boolean);
+}
+
+function LeagueTour({ steps, onClose, onSwitchTab }) {
+  const [step, setStep] = useState(0);
+  const isFirst = step === 0;
+  const isLast = step === steps.length - 1;
+  const current = steps[step];
+  // Snap the underlying tab to match the current step. Fires on mount
+  // (so step 0's tab is active even before the user clicks Next) and
+  // on every step change.
+  useEffect(() => {
+    if (onSwitchTab && current?.tabId) onSwitchTab(current.tabId);
+  }, [step]);
+  return (
+    <div onClick={onClose} role="dialog" aria-modal="true"
+      style={{ position:"fixed",inset:0,background:"rgba(8,8,18,0.85)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20 }}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ background:"#15152a",border:"1px solid #2a2a4a",borderRadius:14,padding:24,maxWidth:440,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.5)" }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
+          <div style={{ fontSize:11,color:"#6a6a8a",fontFamily:"'Outfit',sans-serif",fontWeight:600,letterSpacing:"0.08em",textTransform:"uppercase" }}>
+            League tour · Step {step + 1} of {steps.length}
+          </div>
+          <button onClick={onClose} style={{ background:"none",border:"none",color:"#6a6a8a",fontSize:13,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>Skip</button>
+        </div>
+        <div style={{ fontSize:20,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:"#e8e8f0",marginBottom:10,lineHeight:1.25 }}>
+          {current.title}
+        </div>
+        <div style={{ fontSize:14,color:"#aaaabf",lineHeight:1.6,marginBottom:20 }}>
+          {current.body}
+        </div>
+        <div style={{ display:"flex",gap:6,marginBottom:18,justifyContent:"center" }}>
+          {steps.map((_, i) => (
+            <div key={i} style={{ width:6,height:6,borderRadius:"50%",background: i === step ? "#e94560" : "#2a2a4a" }} />
+          ))}
+        </div>
+        <div style={{ display:"flex",justifyContent:"space-between",gap:8 }}>
+          <button onClick={() => setStep(s => Math.max(0, s - 1))} disabled={isFirst}
+            style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"8px 16px",color: isFirst ? "#3a3a5a" : "#aaaabf",fontSize:13,fontFamily:"'Outfit',sans-serif",fontWeight:600,cursor: isFirst ? "default" : "pointer" }}>
+            Back
+          </button>
+          <button onClick={() => isLast ? onClose() : setStep(s => s + 1)}
+            style={{ background:"#e94560",border:"none",borderRadius:6,padding:"8px 20px",color:"#fff",fontSize:13,fontFamily:"'Outfit',sans-serif",fontWeight:700,cursor:"pointer" }}>
+            {isLast ? "Done" : "Next"}
           </button>
         </div>
       </div>
