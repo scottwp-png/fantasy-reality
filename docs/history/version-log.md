@@ -28,7 +28,7 @@
 - Back to: position the combined spotlight + gap + card block centered vertically in the viewport. If the block is taller than the viewport, pin spotlight `PAD * 4` from the top.
 - Specific steps that need spacing tweaks can be addressed in a follow-up — flag which ones.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.06s).
-- **Commit:** `_pending_`
+- **Commit:** `74116a5`
 
 ### v2.6.27.17 — 2026-06-04
 **Tour: card hugs spotlight + condensed Lounge step + closing roster CTA.** Three more follow-ups.
