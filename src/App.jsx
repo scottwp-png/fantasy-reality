@@ -12930,8 +12930,13 @@ function buildLeagueTourSteps(league, { isCommissioner = false } = {}) {
   // tabs (like Live Draft) before they're active.
   const formatHasLiveDraft = league?.format === "captains" || league?.format === "standard";
   const liveDraftActive = !!(league?.liveDraft && league.liveDraft.state !== "pre");
-  // Tab visibility logic at App.jsx:1864 — must match.
-  const liveDraftTabVisible = formatHasLiveDraft && (isCommissioner || liveDraftActive);
+  // v2.6.27.16: gate the tour step on whether a draft is actually
+  // active (live or done), NOT just on commissioner visibility. The
+  // tab is visible to commissioners even before they've started a
+  // draft, but the tour shouldn't pitch a feature the commissioner
+  // hasn't activated yet — they can discover the empty tab via the
+  // nav if they want to set one up.
+  const liveDraftTabVisible = formatHasLiveDraft && liveDraftActive;
   const currentWeek = league?.currentWeek || 1;
   const hasSwapTracker = league?.format === "captains" && currentWeek > 1;
   // Heroes/Captains is the format with the most mechanics worth
@@ -13001,6 +13006,15 @@ function LeagueTour({ steps, onClose, onSwitchTab }) {
   const isFirst = step === 0;
   const isLast = step === steps.length - 1;
   const current = steps[step];
+  // v2.6.27.16: when the tour closes, land the user on the roster
+  // tab (steps[0].tabId — by convention the tour always starts on
+  // the roster tab when the format has one). This gives them a
+  // clear "set your team" next-step instead of dumping them on
+  // whichever tab the last spotlight was on.
+  const handleClose = () => {
+    if (onSwitchTab && steps[0]?.tabId) onSwitchTab(steps[0].tabId);
+    onClose();
+  };
 
   // Snap the underlying tab to match the current step.
   useEffect(() => {
@@ -13017,28 +13031,44 @@ function LeagueTour({ steps, onClose, onSwitchTab }) {
     if (!current?.target) { setTargetRect(null); return; }
     let cancelled = false;
     let retryTimer = null;
+    // v2.6.27.16: card height estimate used for centering math.
+    // Real measured height varies by content length; 320 is a
+    // reasonable midpoint that produces close-to-centered results
+    // across the range of step body lengths. If the block can't
+    // be centered (vh too small), we pin spotlight near the top.
+    const CARD_H_EST = 320;
+    const PAD = 12;
+    const GAP = 12;
     const locate = () => {
       if (cancelled) return;
       const el = document.querySelector(current.target);
       if (el) {
+        // Initial scroll-to-center for this step (only fires once).
+        // Position the combined block (spotlight + gap + card) so its
+        // vertical center matches the viewport center. If the block
+        // would be taller than the viewport allows, pin spotlight
+        // a few pads from the top. v2.6.27.16: scroll is smooth so
+        // both the spotlight and card glide between step positions
+        // instead of snapping. The scroll listener re-measures rect
+        // during the animation so the targetRect tracks the element
+        // continuously.
         if (scrolledForStepRef.current !== step) {
           scrolledForStepRef.current = step;
-          // v2.6.27.15: scroll the spotlight to the *top* of the
-          // viewport, not the center. Combined with the below-only
-          // card placement, this guarantees the card never covers
-          // the spotlight. A small offset (16px) above gives the
-          // spotlight some breathing room from the very top edge.
-          // `behavior: "auto"` is synchronous so we can measure on
-          // the next line.
           try {
-            el.scrollIntoView({ behavior: "auto", block: "start", inline: "center" });
-            window.scrollBy(0, -16);
+            el.scrollIntoView({ behavior: "auto", block: "nearest", inline: "center" });
+            const rect0 = el.getBoundingClientRect();
+            const vh = window.innerHeight;
+            const SH = rect0.height;
+            const blockH = SH + GAP + CARD_H_EST;
+            const desiredSpotlightTop = blockH + 2 * PAD <= vh
+              ? Math.floor((vh - blockH) / 2)
+              : PAD * 4;
+            const delta = rect0.top - desiredSpotlightTop;
+            if (Math.abs(delta) > 4) window.scrollBy({ top: delta, behavior: "smooth" });
           } catch {}
         }
         const rect = el.getBoundingClientRect();
         if (rect.width > 0 && rect.height > 0) {
-          // Round to integers — sub-pixel deltas across scroll events
-          // produced visible 1px jitter on the spotlight outline.
           const intRect = { top: Math.round(rect.top), left: Math.round(rect.left), width: Math.round(rect.width), height: Math.round(rect.height) };
           setTargetRect(prev => {
             if (prev && prev.top === intRect.top && prev.left === intRect.left && prev.width === intRect.width && prev.height === intRect.height) return prev;
@@ -13064,10 +13094,10 @@ function LeagueTour({ steps, onClose, onSwitchTab }) {
 
   // ESC key dismisses the tour.
   useEffect(() => {
-    const handler = e => { if (e.key === "Escape") onClose(); };
+    const handler = e => { if (e.key === "Escape") handleClose(); };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
+  }, [onClose, onSwitchTab, steps]);
 
   const hasSpotlight = !!targetRect;
   // v2.6.27.15: always-below placement. The spotlight is scrolled to
@@ -13106,7 +13136,7 @@ function LeagueTour({ steps, onClose, onSwitchTab }) {
           outer glow softens the edge. No CSS transition — sliding
           between step positions was the v2.6.27.5 visual bug. */}
       {hasSpotlight ? (
-        <div onClick={onClose}
+        <div onClick={handleClose}
           style={{
             position:"fixed",
             top: targetRect.top - 6,
@@ -13118,7 +13148,7 @@ function LeagueTour({ steps, onClose, onSwitchTab }) {
             pointerEvents: "auto",
           }} />
       ) : (
-        <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(8,8,18,0.85)",pointerEvents:"auto" }} />
+        <div onClick={handleClose} style={{ position:"fixed",inset:0,background:"rgba(8,8,18,0.85)",pointerEvents:"auto" }} />
       )}
       {/* Tooltip card. Always positioned below the spotlight (which
           is scrolled to the top of the viewport at step change).
@@ -13131,7 +13161,7 @@ function LeagueTour({ steps, onClose, onSwitchTab }) {
           <div style={{ fontSize:11,color:"#6a6a8a",fontFamily:"'Outfit',sans-serif",fontWeight:600,letterSpacing:"0.08em",textTransform:"uppercase" }}>
             Tour · {step + 1} of {steps.length}
           </div>
-          <button onClick={onClose} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",color:"#aaaabf",fontSize:12,cursor:"pointer",fontFamily:"'Outfit',sans-serif",fontWeight:600,minHeight:32 }}>Exit</button>
+          <button onClick={handleClose} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",color:"#aaaabf",fontSize:12,cursor:"pointer",fontFamily:"'Outfit',sans-serif",fontWeight:600,minHeight:32 }}>Exit</button>
         </div>
         <div style={{ overflowY:"auto",flex:"1 1 auto",minHeight:0 }}>
           <div style={{ fontSize:18,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:"#e8e8f0",marginBottom:8,lineHeight:1.25 }}>
@@ -13152,7 +13182,7 @@ function LeagueTour({ steps, onClose, onSwitchTab }) {
             style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 18px",color: isFirst ? "#3a3a5a" : "#aaaabf",fontSize:14,fontFamily:"'Outfit',sans-serif",fontWeight:600,cursor: isFirst ? "default" : "pointer",minHeight:44,flex:"0 1 auto" }}>
             Back
           </button>
-          <button onClick={() => isLast ? onClose() : setStep(s => s + 1)}
+          <button onClick={() => isLast ? handleClose() : setStep(s => s + 1)}
             style={{ background:"#e94560",border:"none",borderRadius:8,padding:"10px 22px",color:"#fff",fontSize:14,fontFamily:"'Outfit',sans-serif",fontWeight:700,cursor:"pointer",minHeight:44,flex:"0 1 auto" }}>
             {isLast ? "Done" : "Next"}
           </button>

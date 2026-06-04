@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.15
+**Current Production Version:** v2.6.27.16
 **Last Deploy Date:** 2026-06-04
-**App.jsx Line Count:** ~11,900
+**App.jsx Line Count:** ~11,910
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,15 @@
 ---
 
 ## Version Log
+
+### v2.6.27.16 — 2026-06-04
+**Tour polish: centered block + smooth transitions + roster-tab landing + tighter Live Draft gating.** Three reported follow-ups to v2.6.27.15.
+- **Centered combined block.** v2.6.27.15 scrolled the spotlight all the way to the top of the viewport, which felt off — the card was anchored to the bottom of the page and the rest of the layout drifted out of frame. Now the scroll math centers the combined **spotlight + gap + card** block vertically in the viewport. If the block is too tall to center fully, the spotlight pins a few pads from the top with the card filling the rest. Card is still always placed below the spotlight so overlap remains impossible.
+- **Smooth transitions.** `window.scrollBy({ behavior: "smooth" })` for the per-step scroll. Combined with the existing scroll listener that re-measures the target rect on every scroll event, both the spotlight ring and the card position update continuously as the page glides between step positions. No CSS transition needed — the spotlight tracks the element naturally because we re-paint its `top/left` every animation frame.
+- **Live Draft step gating tightened.** v2.6.27.12 gated it on `(isCommissioner || draft active)`. The user reported this surfaced a confusing "Commissioner Setup" flash in the tour for commissioners who'd never started a draft — the tour switched to the empty Live Draft tab, the pre-state UI rendered, the tour step said "Live Draft." Now gated on draft active only (`liveDraft.state !== "pre"`). Commissioners can still discover the empty tab via the nav; the tour doesn't pitch a feature they haven't activated.
+- **Tour close → roster tab.** All close paths (Skip, Done, Exit button, ESC, scrim click) now switch the tab back to `steps[0].tabId` (which is the roster tab by convention — the tour always starts there for formats that have one). Users finish the tour landing on My Roster so the obvious next action is to set their team. Previously they were dumped on whichever tab the final step lived on (usually Lounge).
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.90s).
+- **Commit:** `_pending_`
 
 ### v2.6.27.15 — 2026-06-04
 **Tour: scroll spotlight to top + always-below card placement.** v2.6.27.14's "edge-pinning when neither side fits" fallback still produced overlap on small viewports — when the card was tall enough relative to the viewport, pinning it to one edge while the spotlight sat near the middle meant the card and spotlight regions could collide. Switched to a stricter pattern that makes overlap impossible.
