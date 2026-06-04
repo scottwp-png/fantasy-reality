@@ -11,6 +11,7 @@ import {
   updateProfile,
   sendPasswordResetEmail,
 } from 'firebase/auth'
+import { getMessaging, getToken, onMessage, isSupported as isMessagingSupported } from 'firebase/messaging'
 
 const firebaseConfig = {
   apiKey: "AIzaSyDKmOEL0eT0YL47wBz24RYChyWIPUv00OM",
@@ -238,4 +239,94 @@ export async function deleteAuthAccount() {
   if (!user) throw new Error("No user signed in");
   const { deleteUser } = await import('firebase/auth');
   await deleteUser(user);
+}
+
+// ─── Push Notifications (FCM, receive-side) ───
+// v2.6.27.11: receive-side scaffolding for Firebase Cloud Messaging.
+// Send-side (Cloud Functions trigger when it's a manager's pick,
+// etc.) is parked behind a design discussion — see CLAUDE.md
+// no-go zone for Cloud Functions. This module exports helpers that
+// the app uses to:
+//
+//   1. detect FCM support (some browsers + iOS PWA don't),
+//   2. request OS-level Notification permission,
+//   3. obtain a per-device FCM token,
+//   4. subscribe to foreground messages (in-app banner / state
+//      update), background messages are handled by
+//      public/firebase-messaging-sw.js.
+//
+// The receive plumbing is dormant until a sender starts pushing.
+// Until then, the only way to verify the wiring works is to send
+// a test message from Firebase Console → Cloud Messaging.
+//
+// VAPID_KEY must come from Firebase Console:
+//   Project Settings → Cloud Messaging → Web Push certificates →
+//   "Web push certificates" → Generate Key Pair → copy the public
+//   key. Placeholder below MUST be replaced before the feature flag
+//   is flipped on — getToken() will fail otherwise.
+export const VAPID_KEY = "REPLACE_WITH_VAPID_PUBLIC_KEY_FROM_FIREBASE_CONSOLE";
+
+let messagingInstance = null;
+async function getMessagingInstance() {
+  if (messagingInstance) return messagingInstance;
+  try {
+    const supported = await isMessagingSupported();
+    if (!supported) return null;
+    messagingInstance = getMessaging(app);
+    return messagingInstance;
+  } catch (e) {
+    console.warn("[FRTV push] Messaging unavailable:", e?.message || e);
+    return null;
+  }
+}
+
+// Detect FCM web support. Returns true only on browsers that
+// expose all required APIs (Service Worker, Push, Notification,
+// IndexedDB). iOS Safari requires the site to be installed as a
+// PWA via Add to Home Screen.
+export async function isPushSupported() {
+  try { return await isMessagingSupported(); } catch { return false; }
+}
+
+// Request OS-level Notification permission. Browsers throw or
+// reject if called outside a user gesture; the caller (UI button
+// handler) provides the gesture.
+export async function requestNotificationPermission() {
+  if (!("Notification" in window)) return { ok: false, reason: "unsupported" };
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") return { ok: false, reason: perm };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: "error", error: e?.message || String(e) };
+  }
+}
+
+// Fetch the FCM token for this device. Internally triggers the
+// browser's permission prompt if not already granted, and ensures
+// the messaging service worker is registered.
+export async function getPushToken() {
+  if (VAPID_KEY.startsWith("REPLACE_")) {
+    console.warn("[FRTV push] VAPID_KEY placeholder not replaced — getPushToken will fail.");
+    return null;
+  }
+  const m = await getMessagingInstance();
+  if (!m) return null;
+  try {
+    const token = await getToken(m, { vapidKey: VAPID_KEY });
+    return token || null;
+  } catch (e) {
+    console.error("[FRTV push] getToken failed:", e?.message || e);
+    return null;
+  }
+}
+
+// Subscribe to foreground push messages (app is open + focused).
+// FCM doesn't show a system notification in this case — the app
+// has to render its own UI. Background messages bypass this and
+// go through firebase-messaging-sw.js.
+export async function subscribeForegroundPush(callback) {
+  const m = await getMessagingInstance();
+  if (!m) return () => {};
+  try { return onMessage(m, callback); } catch { return () => {}; }
 }

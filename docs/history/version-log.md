@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.10
+**Current Production Version:** v2.6.27.11
 **Last Deploy Date:** 2026-06-04
-**App.jsx Line Count:** ~11,700
+**App.jsx Line Count:** ~11,790
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,21 @@
 ---
 
 ## Version Log
+
+### v2.6.27.11 — 2026-06-04
+**Push notifications: receive-side scaffolding (dormant behind a flag).** Pre-launch prep for the app-store rollout. The receive plumbing — Firebase Messaging SDK integration, `getToken()` for a per-device FCM token, foreground/background message handlers, opt-in UI — is in place but inert until two things happen: (1) admin flips `feature_flags.push_enabled` from `false` to `true`, and (2) a send-side starts pushing (Cloud Functions or similar, parked behind a design discussion per CLAUDE.md no-go zone).
+- **Why receive-side now, send-side later.** The receive plumbing has a long calendar of small gotchas — VAPID key generation, separate service-worker scope, iOS PWA requirements, browser permission UX. Getting it ready now means when the user is ready for the app-store launch, only the send side has to be designed + built. Until that flip, the receive plumbing is dead code with zero user impact (flag-gated UI doesn't render).
+- **`firebase.js` exports** (~80 lines added around the auth/db helpers): `isPushSupported()` (wraps `isSupported` from `firebase/messaging`, returns false on iOS Safari without a PWA install), `requestNotificationPermission()`, `getPushToken()`, `subscribeForegroundPush(callback)`. `VAPID_KEY` is a placeholder constant — must be replaced with the actual Web Push certificate from Firebase Console before flipping the flag. `getPushToken()` warns and returns null if the placeholder is still in place.
+- **`public/firebase-messaging-sw.js`** (NEW): the Firebase Messaging Web SDK auto-registers this as a separate service worker at `/firebase-messaging-sw.js` when `getToken()` is called. Doesn't conflict with the existing `/sw.js` (asset cache) since the two register at different scopes. Handles background messages (app closed / backgrounded) by showing the OS notification, and `notificationclick` by focusing any existing FRTV tab or opening one if none exists. Firebase web config duplicated from `src/firebase.js` — the API key is intentionally public, with access control in `database.rules.json` (per CLAUDE.md no-go zones).
+- **`PushNotificationsSection` UI** at `App.jsx:10118-10198`. Renders inside `UserSettingsScreen` only when `featureFlags.push_enabled` is true. States: support-not-detected (loading), unsupported (iOS Safari pre-PWA-install), permission-denied (browser blocks), unregistered (Enable button), registered (Disable button). Permission prompt fires from the Enable click (browser requirement: must be a user gesture).
+- **Profile fields** are `pushToken: string` and `pushTokenRegisteredAt: number`. Single token per profile for MVP — multi-device support is a `pushTokens: { [tokenId]: { token, createdAt, lastSeen } }` follow-up.
+- **`feature_flags.push_enabled`** defaults to `false`. Admin can flip in `AdminPanel → Feature Flags` (existing UI). Flipping it true:
+  - Surfaces the Enable button in `Account → My Account` for every user.
+  - Doesn't itself send anything — a separate sender (Cloud Function or admin tool) has to fan out messages keyed by the stored `pushToken`s.
+- **What this commit does NOT do.** No send-side. No notification triggers on live-draft state changes. No FCM topic subscriptions (the natural shape for league-wide notifications). No multi-device. No notification preferences (per-league mute, per-type opt-in). All deferred until the send-side design conversation happens.
+- **How to test the receive side without a send-side.** Flip `feature_flags.push_enabled` in admin, replace `VAPID_KEY` placeholder, click Enable in Account Settings, grant permission, copy the FCM token from RTDB at `frtv_users/<your uid>/pushToken`, paste it into Firebase Console → Cloud Messaging → Send test message. Test notification should appear.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.75s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.27.10 — 2026-06-04
 **Live draft polish.** Real-use feedback round on v2.6.27.9 — undo, pause/resume, and attention-grabbers for the manager on the clock.

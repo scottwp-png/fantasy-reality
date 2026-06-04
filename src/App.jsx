@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import ReactDOM from "react-dom"
-import { loadData, saveData, loadRootData, saveRootData, deleteData, loadAllLeagues, saveAllLeagues, saveLeague, computeLeagueMembers, subscribeLeague, subscribeLeagueChat, sendChatMessage, deleteChatMessage, backfillChatMembers, loadUserProfile, saveUserProfile, loadAllUserProfiles, deleteUserProfile, deleteAuthAccount, onAuthChange, signUp, signIn, signInWithGoogle, signOut, resetPassword, ADMIN_EMAIL, ADMIN_UID } from "./firebase.js"
+import { loadData, saveData, loadRootData, saveRootData, deleteData, loadAllLeagues, saveAllLeagues, saveLeague, computeLeagueMembers, subscribeLeague, subscribeLeagueChat, sendChatMessage, deleteChatMessage, backfillChatMembers, loadUserProfile, saveUserProfile, loadAllUserProfiles, deleteUserProfile, deleteAuthAccount, onAuthChange, signUp, signIn, signInWithGoogle, signOut, resetPassword, isPushSupported, requestNotificationPermission, getPushToken, subscribeForegroundPush, ADMIN_EMAIL, ADMIN_UID } from "./firebase.js"
 import * as XLSX from "xlsx"
 import { calcContestantWeekPoints, calcTeamWeekPoints, calcStandings, attachRanks } from "./scoring.js"
 
@@ -9423,7 +9423,11 @@ export default function FantasyRealityTV() {
     if (email) window.history.replaceState({}, "", window.location.pathname);
     return email ? decodeURIComponent(email).toLowerCase().trim() : "";
   });
-  const [featureFlags, setFeatureFlags] = useState({ new_formats: true, h2h: true, best_ball: true, roto: true });
+  // v2.6.27.11: push_enabled gates the receive-side push UI. Defaults
+  // off so the "Enable notifications" button doesn't surface until
+  // the user manually flips it in Admin → Feature Flags (typically
+  // alongside an app-store launch where send-side is live).
+  const [featureFlags, setFeatureFlags] = useState({ new_formats: true, h2h: true, best_ball: true, roto: true, push_enabled: false });
   const [pendingJoin, setPendingJoin] = useState(null); // { league, code, type: "league"|"team", teamId? }
   const [confirmJoinError, setConfirmJoinError] = useState("");
   // v2.6.27.0: welcome walkthrough. Auto-opens once after signup
@@ -9996,7 +10000,7 @@ export default function FantasyRealityTV() {
         }
       `}</style>
       {view==="login" && <AuthScreen onJoinViaCode={handleJoinViaCode} pendingJoinCode={pendingJoinCode} pendingEmail={pendingEmail} />}
-      {view==="settings" && authUser && <UserSettingsScreen user={authUser} onBack={()=>setView("home")} onLogout={handleLogout} userProfile={userProfile} onUpdateProfile={async (updated) => { await saveUserProfile(authUser.uid, updated); setUserProfile(updated); }} />}
+      {view==="settings" && authUser && <UserSettingsScreen user={authUser} onBack={()=>setView("home")} onLogout={handleLogout} userProfile={userProfile} onUpdateProfile={async (updated) => { await saveUserProfile(authUser.uid, updated); setUserProfile(updated); }} featureFlags={featureFlags} />}
       {view==="faq" && <FAQPage onBack={()=>setView(authUser?"home":"login")} />}
       {view==="admin" && isAdmin && <AdminPanel leagues={leagues} onBack={()=>setView("home")} onUpdate={persist} featureFlags={featureFlags} setFeatureFlags={setFeatureFlags} />}
       {view==="home" && authUser && <AppHome
@@ -10117,7 +10121,87 @@ function AccountInfoSection({ user, userProfile, onUpdateProfile }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // USER SETTINGS SCREEN
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function UserSettingsScreen({ user, onBack, onLogout, userProfile, onUpdateProfile }) {
+// v2.6.27.11: Push notifications UI (receive-side). Gated behind
+// featureFlags.push_enabled at the call site, so this only renders
+// when an admin has flipped the flag. Even then, the user must opt
+// in via the Enable button — browser permission prompts always fire
+// from a user gesture.
+function PushNotificationsSection({ userProfile, onUpdateProfile }) {
+  const [supported, setSupported] = useState(null); // null=loading, bool=resolved
+  const [working, setWorking] = useState(false);
+  const [browserPermission, setBrowserPermission] = useState("default");
+  useEffect(() => {
+    isPushSupported().then(setSupported);
+    if (typeof Notification !== "undefined") setBrowserPermission(Notification.permission);
+  }, []);
+  const isRegistered = !!userProfile?.pushToken;
+  async function enable() {
+    setWorking(true);
+    const perm = await requestNotificationPermission();
+    if (!perm.ok) {
+      const msg = perm.reason === "denied"
+        ? "Notifications are blocked. Re-enable in your browser settings, then try again."
+        : perm.reason === "unsupported"
+          ? "Your browser doesn't support web notifications."
+          : `Permission ${perm.reason}.`;
+      alert(msg);
+      setBrowserPermission(typeof Notification !== "undefined" ? Notification.permission : "default");
+      setWorking(false);
+      return;
+    }
+    const token = await getPushToken();
+    if (!token) {
+      alert("Couldn't register for push notifications. The VAPID key may not be configured yet — check the browser console.");
+      setWorking(false);
+      return;
+    }
+    await onUpdateProfile({
+      ...userProfile,
+      pushToken: token,
+      pushTokenRegisteredAt: Date.now(),
+    });
+    setBrowserPermission("granted");
+    setWorking(false);
+  }
+  async function disable() {
+    if (!window.confirm("Stop receiving push notifications on this device?")) return;
+    setWorking(true);
+    await onUpdateProfile({ ...userProfile, pushToken: null, pushTokenRegisteredAt: null });
+    setWorking(false);
+  }
+  if (supported === false) {
+    return (
+      <div style={{ padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",marginBottom:16 }}>
+        <div style={{ fontSize:13,color:"#e8e8f0",fontWeight:600,marginBottom:4 }}>Push notifications</div>
+        <div style={{ fontSize:11,color:"#6a6a8a",lineHeight:1.5 }}>
+          Your browser doesn't support web push notifications. On iOS, install the app to your home screen first, then come back.
+        </div>
+      </div>
+    );
+  }
+  if (supported === null) return null;
+  return (
+    <div style={{ padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",marginBottom:16 }}>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap" }}>
+        <div style={{ flex:1,minWidth:180 }}>
+          <div style={{ fontSize:13,color:"#e8e8f0",fontWeight:600,marginBottom:4 }}>Push notifications</div>
+          <div style={{ fontSize:11,color:"#6a6a8a",lineHeight:1.5 }}>
+            {isRegistered
+              ? "You're set up to receive pushes — like when it's your pick during a live draft."
+              : browserPermission === "denied"
+                ? "Notifications are blocked in your browser. Re-enable in your browser's site settings, then return here."
+                : "Get an alert when it's your turn to pick during a live draft and other time-sensitive moments."}
+          </div>
+        </div>
+        {isRegistered
+          ? <Btn small variant="ghost" disabled={working} onClick={disable}>Disable</Btn>
+          : <Btn small disabled={working || browserPermission === "denied"} onClick={enable}>{working ? "Working…" : "Enable"}</Btn>}
+      </div>
+    </div>
+  );
+}
+
+function UserSettingsScreen({ user, onBack, onLogout, userProfile, onUpdateProfile, featureFlags = {} }) {
   return (
     <div style={{ padding:20 }}>
       <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:24 }}>
@@ -10127,6 +10211,13 @@ function UserSettingsScreen({ user, onBack, onLogout, userProfile, onUpdateProfi
 
       {/* Account info */}
       <AccountInfoSection user={user} userProfile={userProfile} onUpdateProfile={onUpdateProfile} />
+
+      {/* v2.6.27.11: Push notifications — gated by feature flag.
+          Receive-side only; send-side is parked behind Cloud
+          Functions design discussion. */}
+      {featureFlags?.push_enabled && userProfile && onUpdateProfile && (
+        <PushNotificationsSection userProfile={userProfile} onUpdateProfile={onUpdateProfile} />
+      )}
 
       {/* Spoiler Protection */}
       {userProfile && onUpdateProfile && (
