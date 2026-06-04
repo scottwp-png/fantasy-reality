@@ -41,7 +41,7 @@
   - Done: per-team picks summary with role labels; "Reset draft" for commissioner.
 - **What this commit does NOT do.** No draft chat (use the existing Lounge chat). No undo/redo of individual picks. No "pause / resume" mid-draft — commissioner can only reset. No pre-draft mock board. No draft order customization (auto-shuffled at start; commissioner can reset and restart if unhappy). No notifications when it's your pick — that's the v2.6.27.x push notifications work, which the backlog parks under Cloud Functions design discussion. All of these are reasonable follow-ups.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.88s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `64bf1a6`
 
 ### v2.6.27.8 — 2026-06-04
 **Membership-gated chat reads — Phase 1 (code only).** Closes the last open privacy hole flagged since v2.6.25.0: the chat path `frtv/league_<id>_chat` was auth-readable by any signed-in user, so anyone could subscribe to any league's chat. Two-phase rollout — this commit writes the gating data structure on every save and backfills existing leagues; the actual rule change is **deferred to a follow-up commit** that lands only after we've confirmed backfill has run in production.
