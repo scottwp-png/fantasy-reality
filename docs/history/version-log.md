@@ -32,7 +32,7 @@
 - **Tighter padding on small viewports.** Card padding dropped from 24/22px to 18px, viewport pad from 20 to 12 (WelcomeTour) and 16 to 12 (LeagueTour). Small but reclaims usable space on narrow phones.
 - **Header chip relabel** (LeagueTour). "League tour · Step N of M" → "Tour · N of M" to fit the narrower header row when paired with the new bordered Exit button.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.93s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `454ed0b`
 
 ### v2.6.27.13 — 2026-06-04
 **Membership-gated chat reads — Phase 2 (rules deploy).** Closes the rollout started in v2.6.27.8 by dropping the `$league_key.contains('_chat')` short-circuit from `database.rules.json`. After this rule deploys, chat reads require the same `members.<auth.uid>` check that league docs require — no more "any signed-in user can read any league's chat."
