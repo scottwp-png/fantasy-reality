@@ -19,31 +19,50 @@
         ".write": "auth != null && auth.uid === 'sQE6Z9On55c7rLpsEBz8Hg5VQCk2' && auth.token.email_verified === true"
       },
 
-      // v2.6.25.0: per-league read gating. Three categories of children sit
-      // under `frtv/`: the user-facing league doc at frtv/league_<id>, the
-      // sibling chat path at frtv/league_<id>_chat (any-auth read so the
-      // chat tab works), and the admin paths matched above. The wildcard
-      // here applies to everything under frtv that isn't explicitly named.
+      // v2.6.25.0 / v2.6.27.8: per-league read gating. Three categories
+      // of children sit under `frtv/`: the user-facing league doc at
+      // frtv/league_<id>, the sibling chat path at frtv/league_<id>_chat
+      // (gated by members map — see below), and the admin paths matched
+      // above. The wildcard here applies to everything under frtv that
+      // isn't explicitly named.
+      //
+      // v2.6.27.13: chat reads are now membership-gated. The previous
+      // rule had a `$league_key.contains('_chat')` short-circuit that
+      // made chat auth-readable to anyone signed in. Phase 1 (v2.6.27.8,
+      // commit 62a8a29) deployed code that writes a `members` sibling
+      // map at every chat path on every saveLeague(), plus a one-time
+      // admin backfill that populates the same map for existing leagues.
+      // Phase 2 (this rule) drops the short-circuit and requires the
+      // same members check for chat paths as for league docs.
+      //
+      // PRE-DEPLOY CHECKLIST:
+      //   1. v2.6.27.8 must be in production AND
+      //   2. The admin must have signed in to that build at least once
+      //      so the backfill effect has stamped their profile with
+      //      `chatMembersBackfilledAt`. Verify via the RTDB console at
+      //      `frtv_users/sQE6Z9On55c7rLpsEBz8Hg5VQCk2/chatMembersBackfilledAt`.
+      //   3. Spot-check a few `frtv/league_<id>_chat/members/<uid>: true`
+      //      entries to confirm the map exists.
+      // If any of the above isn't true and this rule is deployed, every
+      // existing league's chat reads will fail until each league's
+      // saveLeague() next fires.
       //
       // Read rule:
-      //   - Chat paths (key ends with "_chat") — auth-readable. Membership
-      //     gating on chat would need either a denormalized members map at
-      //     the chat path OR string-manipulation in rules to look up the
-      //     parent league's members. Deferred to a follow-up.
-      //   - League docs — readable when:
-      //       * The league is marked public (`isPublic === true`), OR
-      //       * The signed-in user's UID is in the league's `members` map.
-      //     The members map is denormalized from teams[].uid +
-      //     commissionerUid + coCommissioners and rewritten on every
-      //     saveLeague() via computeLeagueMembers() in firebase.js.
-      //   - Admin can read anything (defense in depth, same UID + verified
-      //     check used for the other admin paths).
+      //   - Any path (league doc OR chat) — readable when:
+      //       * (League docs only) the league is marked public
+      //         (`isPublic === true`), OR
+      //       * The signed-in user's UID is in the path's `members` map.
+      //         For league docs this is the original v2.6.25.0 map; for
+      //         chat paths this is the mirrored map at
+      //         frtv/league_<id>_chat/members.
+      //   - Admin can read anything (defense in depth, same UID +
+      //     verified check used for the other admin paths).
       //
-      // Write rule stays open to any auth user so the join flow works —
-      // the app must be able to add a new team to a league before the user
-      // is in members.
+      // Write rule stays open to any auth user so the join flow works
+      // and chat messages can be posted — message validation is handled
+      // client-side via sendChatMessage.
       "$league_key": {
-        ".read": "auth != null && ($league_key.contains('_chat') || data.child('isPublic').val() === true || data.child('members').child(auth.uid).val() === true || (auth.uid === 'sQE6Z9On55c7rLpsEBz8Hg5VQCk2' && auth.token.email_verified === true))",
+        ".read": "auth != null && (data.child('isPublic').val() === true || data.child('members').child(auth.uid).val() === true || (auth.uid === 'sQE6Z9On55c7rLpsEBz8Hg5VQCk2' && auth.token.email_verified === true))",
         ".write": "auth != null"
       }
     },

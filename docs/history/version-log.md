@@ -1,7 +1,7 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.12
+**Current Production Version:** v2.6.27.13
 **Last Deploy Date:** 2026-06-04
 **App.jsx Line Count:** ~11,900
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
@@ -22,6 +22,21 @@
 ---
 
 ## Version Log
+
+### v2.6.27.13 — 2026-06-04
+**Membership-gated chat reads — Phase 2 (rules deploy).** Closes the rollout started in v2.6.27.8 by dropping the `$league_key.contains('_chat')` short-circuit from `database.rules.json`. After this rule deploys, chat reads require the same `members.<auth.uid>` check that league docs require — no more "any signed-in user can read any league's chat."
+- **Manual deploy step.** `database.rules.json` is the only file in this commit. Netlify's auto-deploy doesn't touch RTDB rules — you have to run `firebase deploy --only database` from this branch when ready.
+- **DO NOT deploy until you've verified Phase 1 has fully rolled out:**
+  1. v2.6.27.8 (`62a8a29`) is in production.
+  2. Admin has signed in to that build at least once. Check `frtv_users/<admin uid>/chatMembersBackfilledAt` in the RTDB console — it should be a recent timestamp.
+  3. Spot-check a handful of `frtv/league_<id>_chat/members/<uid>: true` entries to confirm the gating map exists on real leagues.
+  4. If any of the above isn't true and this rule lands anyway, existing chats become unreadable until each league's `saveLeague()` next fires (which writes the members map).
+- **What changes.** Only the wildcard `$league_key` read rule. The `_chat` clause `$league_key.contains('_chat') || ...` is removed; the existing `data.child('members').child(auth.uid).val() === true` check now applies uniformly to league docs and chat paths. The `isPublic` check still applies but only matters for league docs (chat paths don't have isPublic). Admin-uid-with-verified-email override unchanged.
+- **What stays the same.** Write rule is still `auth != null` (so the join flow works and chat messages can be posted; client-side sendChatMessage handles validation). Other rule blocks (`league_index`, `site_announcement`, `feature_flags`, `scoringRuleLibrary`, `scoringLibrary`, `showScoring`, `showCast`, `frtv_users`) untouched.
+- **Comments rewritten** to document the new behavior + the deployment dependency on Phase 1, so future-me has the context if a rollback is ever needed.
+- **No code changes.** App.jsx, firebase.js, baselines all untouched.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean.
+- **Commit:** `_pending_`
 
 ### v2.6.27.12 — 2026-06-04
 **Live draft polish round 2 + tour gated on actual league state.** Reported during testing: the in-league tour shouldn't pitch features that aren't active in a specific league (e.g. a Live Draft step in a Heroes league whose commissioner hasn't started one). Plus four polish items on the draft itself.
