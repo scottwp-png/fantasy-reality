@@ -30,7 +30,7 @@
 - Heroes-format step 7 ("Commissioners tune the rules") still uses centered fallback — it's a *follow-up* to step 6's tab intro, so spotlighting the same tab chip twice in a row felt repetitive.
 - No content changes to body copy or step ordering.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.74s).
-- **Commit:** `_pending_`
+- **Commit:** `662a792`
 
 ### v2.6.27.6 — 2026-06-04
 **Spotlight tour polish: punch-through scrim + no slide.** Two reported bugs in the v2.6.27.5 spotlight tour, both fixed.
