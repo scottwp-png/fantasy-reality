@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.7
+**Current Production Version:** v2.6.27.8
 **Last Deploy Date:** 2026-06-04
-**App.jsx Line Count:** ~11,340
+**App.jsx Line Count:** ~11,360
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,23 @@
 ---
 
 ## Version Log
+
+### v2.6.27.8 — 2026-06-04
+**Membership-gated chat reads — Phase 1 (code only).** Closes the last open privacy hole flagged since v2.6.25.0: the chat path `frtv/league_<id>_chat` was auth-readable by any signed-in user, so anyone could subscribe to any league's chat. Two-phase rollout — this commit writes the gating data structure on every save and backfills existing leagues; the actual rule change is **deferred to a follow-up commit** that lands only after we've confirmed backfill has run in production.
+- **Schema.** A `members` sibling key under each chat path: `frtv/league_<id>_chat/members/<uid>: true`. Lives alongside the existing pushId-keyed message children. Generalizes the v2.6.25.0 read rule — `data.child('members').child(auth.uid)` already gates league-doc reads; with the same shape mirrored at the chat path, the same rule expression works for both with the `_chat` short-circuit removed.
+- **`saveLeague`** at `firebase.js:165-179` now does a single multi-location `update()` that writes both the league doc AND `league_<id>_chat/members` atomically — one server round trip, no race window where the league has new members but chat doesn't.
+- **`saveAllLeagues`** at `firebase.js:93-104` does the same mirror for bulk saves (join-via-invite, create/duplicate, admin bulk ops).
+- **`subscribeLeagueChat`** at `firebase.js:127-141` filters the `members` key out of the message list so it doesn't render as a chat row. Key-based filter (`id !== "members"`) — message pushIds always start with `-` so collision is impossible.
+- **`backfillChatMembers(leagues)`** at `firebase.js:182-196` is a new exported helper. Iterates every league, computes membership, writes the map to that league's chat path. Idempotent — safe to re-run.
+- **Backfill trigger** at `App.jsx:8949-8966`. Fires once on admin login when `userProfile.chatMembersBackfilledAt` is unset. Stamps the profile with `chatMembersBackfilledAt` + `chatMembersBackfilledCount` so it doesn't re-run. Admin-gated because admin's UID has uniform write access to all leagues via the wildcard rule. Fire-and-forget — Phase 2 rules haven't deployed so a slow backfill doesn't break anything.
+- **What's deferred to Phase 2.** `database.rules.json` is NOT touched in this commit. The chat read rule still has `$league_key.contains('_chat') || ...` so existing chat reads continue to work for any signed-in user. The next commit will:
+  - Drop the `_chat` short-circuit from the chat read rule.
+  - Require `data.child('members').child(auth.uid).val() === true` for chat reads.
+  - Be manually deployed via `firebase deploy --only database` — Netlify auto-deploy doesn't touch rules.
+  - Must land AFTER admin has logged in to this build and backfill has stamped their profile.
+- **Why two phases.** Deploying the rule before the chat paths have a members map would lock everyone (including the admin) out of all existing chats until each league's `saveLeague` next fires. By writing the map first and running the admin backfill, Phase 2 lands on a world where every chat path already has the gating data — no permission errors at the cutover.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.75s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.27.7 — 2026-06-04
 **Spotlight tab-intro steps.** Reported — the tab-intro steps ("This tab is your team", "This is the Scoring tab", etc.) rendered as centered modals with the whole page scrim'd out, so the body copy read as pointing at nothing. Fixed by targeting the tab nav button itself for each intro step.

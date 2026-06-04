@@ -92,9 +92,15 @@ export async function loadAllLeagues() {
 }
 export async function saveAllLeagues(leagues) {
   // v2.6.25.0: ensure every league gets a fresh members map on bulk save too.
+  // v2.6.27.8: same members map is mirrored at the chat path so the chat
+  // read rule (post-deploy) can gate on it. The mirror is a sibling key
+  // under league_<id>_chat alongside the pushId-keyed message children;
+  // subscribeLeagueChat filters it out so it doesn't render as a message.
   const index = leagues.map(l => l.id); await saveData("league_index", index);
   for (const league of leagues) {
-    await saveData("league_" + league.id, { ...league, members: computeLeagueMembers(league) });
+    const members = computeLeagueMembers(league);
+    await saveData("league_" + league.id, { ...league, members });
+    await saveData("league_" + league.id + "_chat/members", members);
   }
 }
 // v2.6.23.2: live-sync subscription for a single league. Caller passes the
@@ -128,7 +134,15 @@ export function subscribeLeagueChat(leagueId, callback) {
   const q = query(ref(db, "frtv/league_" + leagueId + "_chat"), limitToLast(200));
   return onValue(q, (snap) => {
     const val = snap.val() || {};
-    const list = Object.entries(val).map(([id, m]) => ({ id, ...m })).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    // v2.6.27.8: filter the `members` sibling key (denormalized
+    // membership map for chat read gating) out of the message list —
+    // it lives at frtv/league_<id>_chat/members alongside the pushId-
+    // keyed messages. Messages have createdAt; `members` is a uid->true
+    // map. Filtering by key is sufficient and avoids relying on shape.
+    const list = Object.entries(val)
+      .filter(([id]) => id !== "members")
+      .map(([id, m]) => ({ id, ...m }))
+      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
     callback(list);
   });
 }
@@ -164,12 +178,40 @@ export function computeLeagueMembers(league) {
 // can gate private leagues. Caller never needs to pass it.
 export async function saveLeague(league) {
   try {
-    const withMembers = { ...league, members: computeLeagueMembers(league) };
-    await update(ref(db, "frtv"), { ["league_" + withMembers.id]: withMembers });
+    const members = computeLeagueMembers(league);
+    const withMembers = { ...league, members };
+    // v2.6.27.8: mirror the same members map at the chat path. A
+    // single multi-location update() does both in one server round
+    // trip and stays atomic — chat read rule gates on this map.
+    await update(ref(db, "frtv"), {
+      ["league_" + withMembers.id]: withMembers,
+      ["league_" + withMembers.id + "_chat/members"]: members,
+    });
   } catch (e) {
     console.error("Firebase saveLeague error:", e);
     throw e;
   }
+}
+
+// v2.6.27.8: one-time backfill of chat members maps for existing
+// leagues. Called on admin login; iterates every league, computes
+// its membership, and writes the map to the chat path. Idempotent
+// — re-running just rewrites the same map. Required before the
+// stricter chat read rule (database.rules.json) is deployed —
+// without it, existing chats become unreadable when the rule lands.
+export async function backfillChatMembers(leagues) {
+  let written = 0;
+  for (const league of (leagues || [])) {
+    if (!league?.id) continue;
+    const members = computeLeagueMembers(league);
+    try {
+      await saveData("league_" + league.id + "_chat/members", members);
+      written++;
+    } catch (e) {
+      console.error("backfillChatMembers error for league", league.id, e);
+    }
+  }
+  return written;
 }
 export async function clearAllStorage() {
   try { const index = await loadData("league_index", []); for (const id of index) { await deleteData("league_" + id); } await deleteData("league_index"); await deleteData("users"); } catch (e) { console.error("Clear error:", e) }

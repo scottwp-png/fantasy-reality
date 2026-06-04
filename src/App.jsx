@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import ReactDOM from "react-dom"
-import { loadData, saveData, loadRootData, saveRootData, deleteData, loadAllLeagues, saveAllLeagues, saveLeague, computeLeagueMembers, subscribeLeague, subscribeLeagueChat, sendChatMessage, deleteChatMessage, loadUserProfile, saveUserProfile, loadAllUserProfiles, deleteUserProfile, deleteAuthAccount, onAuthChange, signUp, signIn, signInWithGoogle, signOut, resetPassword, ADMIN_EMAIL, ADMIN_UID } from "./firebase.js"
+import { loadData, saveData, loadRootData, saveRootData, deleteData, loadAllLeagues, saveAllLeagues, saveLeague, computeLeagueMembers, subscribeLeague, subscribeLeagueChat, sendChatMessage, deleteChatMessage, backfillChatMembers, loadUserProfile, saveUserProfile, loadAllUserProfiles, deleteUserProfile, deleteAuthAccount, onAuthChange, signUp, signIn, signInWithGoogle, signOut, resetPassword, ADMIN_EMAIL, ADMIN_UID } from "./firebase.js"
 import * as XLSX from "xlsx"
 import { calcContestantWeekPoints, calcTeamWeekPoints, calcStandings, attachRanks } from "./scoring.js"
 
@@ -8947,6 +8947,28 @@ export default function FantasyRealityTV() {
         }
         setUserProfile(profile);
         if (profile.walkthroughPending) setTourOpen(true);
+        // v2.6.27.8: one-time admin backfill of chat members maps.
+        // Required before the stricter chat read rule lands — without
+        // this pass, existing leagues' chat paths have no members map
+        // and the rule would lock everyone out. Stamped on admin profile
+        // so it runs at most once even across re-login. Fire-and-forget
+        // — the bundle hasn't deployed the rule yet so a slow backfill
+        // doesn't break anything. Admin's UID matches ADMIN_UID and is
+        // already authorized to write any league path via the wildcard
+        // write rule, so this just iterates and stamps.
+        if (user.uid === ADMIN_UID && !profile.chatMembersBackfilledAt) {
+          (async () => {
+            try {
+              const n = await backfillChatMembers(data);
+              const stamped = { ...profile, chatMembersBackfilledAt: Date.now(), chatMembersBackfilledCount: n };
+              setUserProfile(stamped);
+              saveUserProfile(user.uid, stamped).catch(() => {});
+              console.log(`[v2.6.27.8] chat members backfill: ${n} leagues`);
+            } catch (e) {
+              console.error("Chat members backfill failed:", e);
+            }
+          })();
+        }
         // Load site announcement and feature flags
         try { const ann = await loadData("site_announcement", ""); setAnnouncement(ann || ""); } catch {}
         try { const flags = await loadData("feature_flags", null); if (flags) setFeatureFlags(flags); } catch {}
