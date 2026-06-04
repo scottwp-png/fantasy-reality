@@ -31,7 +31,7 @@
 - **Banner still functions as a fallback** for users whose email doesn't match at join time but does later (commissioner sets assignment after the user already joined → the user sees the Claim banner on next visit). And for users who joined via team-specific code or invite-link-without-email, the banner is still the path.
 - **What this commit does NOT do.** No "merge" logic when a user has an existing auto-created team AND becomes assigned to another team — the existing-uid idempotency check returns the existing team before we'd consider the assignment. Solution: commissioner reassigns via the existing Reassign button. No notification to the commissioner that a pending claim auto-resolved.
 - `node _snapshots/diff-against-baseline.mjs` deferred — UI / state only. `npm run build` clean (3.15s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `803daeb`
 
 ### v2.6.26.0 — 2026-06-04
 **Commissioner team setup upgrade: Pending-claim indicator + Invite-URL pre-fill + Bulk add teams.** Three coordinated additions that build on the v2.6.25.9 email-assignment model into a real onboarding pipeline.
