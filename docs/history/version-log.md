@@ -38,7 +38,7 @@
   - Must land AFTER admin has logged in to this build and backfill has stamped their profile.
 - **Why two phases.** Deploying the rule before the chat paths have a members map would lock everyone (including the admin) out of all existing chats until each league's `saveLeague` next fires. By writing the map first and running the admin backfill, Phase 2 lands on a world where every chat path already has the gating data — no permission errors at the cutover.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.75s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `62a8a29`
 
 ### v2.6.27.7 — 2026-06-04
 **Spotlight tab-intro steps.** Reported — the tab-intro steps ("This tab is your team", "This is the Scoring tab", etc.) rendered as centered modals with the whole page scrim'd out, so the body copy read as pointing at nothing. Fixed by targeting the tab nav button itself for each intro step.
