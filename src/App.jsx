@@ -13052,13 +13052,12 @@ function LeagueTour({ steps, onClose, onSwitchTab }) {
       if (cancelled) return;
       const el = document.querySelector(current.target);
       if (el) {
-        // Minimal-scroll placement (v2.6.27.17): keep the spotlight
-        // at its natural position when possible — only scroll up
-        // enough to make the card fit directly below it. The card
-        // sits right below the spotlight (PAD-sized gap), so when
-        // the spotlight is e.g. a tab chip at the top of the page,
-        // the card appears immediately under it without the empty
-        // upper space the centered-block algorithm produced.
+        // Centered-block placement (v2.6.27.18 — reverted from
+        // v2.6.27.17's minimal-scroll attempt). Position the
+        // combined spotlight + gap + card block so its vertical
+        // center matches the viewport center. If the block is
+        // taller than the viewport, pin the spotlight a few pads
+        // from the top.
         if (scrolledForStepRef.current !== step) {
           scrolledForStepRef.current = step;
           try {
@@ -13066,20 +13065,11 @@ function LeagueTour({ steps, onClose, onSwitchTab }) {
             const rect0 = el.getBoundingClientRect();
             const vh = window.innerHeight;
             const SH = rect0.height;
-            const cardNeedsBelow = GAP + CARD_H_EST + PAD;
-            const spaceBelow = vh - rect0.bottom;
-            let delta = 0;
-            if (spaceBelow < cardNeedsBelow) {
-              // Not enough room below — scroll page down so spotlight
-              // sits higher. Target a position where the card just
-              // fits below; never push spotlight above PAD * 2.
-              const targetTop = Math.max(PAD * 2, vh - cardNeedsBelow - SH);
-              delta = rect0.top - targetTop;
-            } else if (rect0.top < PAD * 2) {
-              // Spotlight is too flush to top of viewport — nudge
-              // down a touch for breathing room.
-              delta = rect0.top - PAD * 2;
-            }
+            const blockH = SH + GAP + CARD_H_EST;
+            const desiredSpotlightTop = blockH + 2 * PAD <= vh
+              ? Math.floor((vh - blockH) / 2)
+              : PAD * 4;
+            const delta = rect0.top - desiredSpotlightTop;
             if (Math.abs(delta) > 4) window.scrollBy({ top: delta, behavior: "smooth" });
           } catch {}
         }

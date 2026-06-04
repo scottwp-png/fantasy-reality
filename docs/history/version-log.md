@@ -1,7 +1,7 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.17
+**Current Production Version:** v2.6.27.18
 **Last Deploy Date:** 2026-06-04
 **App.jsx Line Count:** ~11,910
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
@@ -22,6 +22,13 @@
 ---
 
 ## Version Log
+
+### v2.6.27.18 — 2026-06-04
+**Tour placement revert.** v2.6.27.17's minimal-scroll placement felt worse than v2.6.27.16's centered-block math — reverted just the positioning algorithm. The other v2.6.27.17 changes (merged Lounge/composer step, closing roster CTA step) stay.
+- Back to: position the combined spotlight + gap + card block centered vertically in the viewport. If the block is taller than the viewport, pin spotlight `PAD * 4` from the top.
+- Specific steps that need spacing tweaks can be addressed in a follow-up — flag which ones.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.06s).
+- **Commit:** `_pending_`
 
 ### v2.6.27.17 — 2026-06-04
 **Tour: card hugs spotlight + condensed Lounge step + closing roster CTA.** Three more follow-ups.
