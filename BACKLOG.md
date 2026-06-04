@@ -25,7 +25,6 @@
 ## Next (post-Play-Store growth)
 
 - [ ] 🟡 **Max-teams per league** — optional `league.maxTeams` field, enforced at join time. Mostly relevant for Head-to-Head (needs even count). Deferred from v2.6.25.0 — minimal payoff for Heroes/Captains which is the only live format.
-- [ ] 🟡 **Teams tab rework** — make useful for regular players: all teams' rosters, H2H records, comparative stats, league-wide views.
 - [ ] 🟡 **Desktop/web layout rework** — true multi-column layout with sidebar nav, better use of horizontal space. Mobile-first carries us through Play Store launch; desktop polish is the next visual upgrade. *Explicitly deferred behind Play Store — Play Store is Android-mobile-focused.*
 - [ ] 🟡 **Trade system between managers** — two-sided contestant swaps. Propose, counter, accept, veto. Commissioner can enable/disable per league.
 - [ ] 🟡 **Re-sortable standings** — currently season-total is the canonical rank; v2.6.25.3 re-ranks on period change but doesn't expose other sort options (best week, worst week, biggest swing, etc.).

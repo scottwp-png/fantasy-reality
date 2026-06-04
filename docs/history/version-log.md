@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.9
+**Current Production Version:** v2.6.27.10
 **Last Deploy Date:** 2026-06-04
-**App.jsx Line Count:** ~11,635
+**App.jsx Line Count:** ~11,700
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,18 @@
 ---
 
 ## Version Log
+
+### v2.6.27.10 — 2026-06-04
+**Live draft polish.** Real-use feedback round on v2.6.27.9 — undo, pause/resume, and attention-grabbers for the manager on the clock.
+- **Commissioner: undo last pick.** Decrements `currentPick`, drops the most recent entry from `picks[]`, and resets the clock so the team that just picked gets a fresh decision. Available during both `live` and `paused`. The `autoPickIdRef` guard is cleared so the auto-pick effect can re-fire on the rolled-back pick if the new clock expires without a manual selection.
+- **Commissioner: pause / resume mid-draft.** New `paused` state. Pausing stamps `pausedSecondsLeft` with the current displayed countdown and clears `pickDeadline`; the auto-pick effect short-circuits (it requires `state === "live"`). Resuming reinstates `pickDeadline = now + pausedSecondsLeft * 1000` and clears `pausedSecondsLeft`. Tab visibility logic at `App.jsx:1864` already gated on `state !== "pre"` so the paused state stays visible to managers without further changes.
+- **"You're on the clock" banner.** Full-width red gradient banner above the on-the-clock panel when it's the logged-in manager's pick. Hidden while paused — clock isn't running so the urgency is gone. Reads above the fold even on small viewports so the alert lands fast.
+- **Browser tab title change.** When it's your pick: `document.title = "🔴 YOUR PICK · …"`. Restored on cleanup. Useful when the user has the draft open in a background tab.
+- **Audio chime on transition into "my pick".** A 350ms 880Hz sine wave via the Web Audio API. Single `wasMyPickRef` tracks the previous state so the chime fires exactly once per turn. AudioContext gracefully no-ops if the page hasn't seen user interaction yet (browsers suspend pre-interaction contexts).
+- **Paused state UI** uses the purple accent (`#9d5dff`) — different enough from live (pink) and offline (greys) to read at a glance. "On the clock" panel border + clock text both shift to purple; clock label changes from "Time left" to "Frozen at."
+- **BACKLOG.md cleanup.** Removed the "Teams tab rework" item — that work was already done via Standings tab consolidation in an earlier session (the Teams tab itself doesn't exist any more). Was misremembered as still pending.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.93s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.27.9 — 2026-06-04
 **Live Draft (Heroes + Standard formats).** First swing at the #1 backlog item — a real-time snake draft so a group can sit down together and run a draft instead of the commissioner manually assigning picks for everyone.

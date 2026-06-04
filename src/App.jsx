@@ -4219,11 +4219,18 @@ function LiveDraftTab({ league, onUpdate, loggedInTeamId, isCommissioner }) {
     const id = setInterval(() => setNowMs(Date.now()), 500);
     return () => clearInterval(id);
   }, [state]);
-  const secondsLeft = pickDeadline ? Math.max(0, Math.ceil((pickDeadline - nowMs) / 1000)) : pickTimerSec;
+  // v2.6.27.10: when paused, the displayed countdown is frozen at
+  // draft.pausedSecondsLeft (stamped when commissioner paused).
+  // When live, it's computed from the deadline as before.
+  const secondsLeft = state === "paused"
+    ? Number(draft?.pausedSecondsLeft ?? pickTimerSec) || pickTimerSec
+    : (pickDeadline ? Math.max(0, Math.ceil((pickDeadline - nowMs) / 1000)) : pickTimerSec);
 
   // Deterministic auto-pick on every client viewing the draft. First
   // available contestant by id (alphabetical). Every client computes
-  // the same id, so racing saveLeague calls converge.
+  // the same id, so racing saveLeague calls converge. Disabled while
+  // paused — the deadline check below short-circuits since `state`
+  // isn't "live".
   const autoPickIdRef = useRef(null);
   useEffect(() => {
     if (state !== "live") { autoPickIdRef.current = null; return; }
@@ -4236,6 +4243,42 @@ function LiveDraftTab({ league, onUpdate, loggedInTeamId, isCommissioner }) {
       makePick(choice.id, true);
     }
   }, [nowMs, state, pickDeadline, currentPick, available]);
+
+  // v2.6.27.10: attention-grabbers for when it's the logged-in
+  // manager's pick. Browser tab title prepends a red dot; a short
+  // chime plays via the Web Audio API on the transition into "my
+  // pick" state. Both degrade gracefully — Audio API may be
+  // suspended pre-interaction and just no-ops, and the title
+  // restore in the cleanup function handles tab navigation away.
+  useEffect(() => {
+    if (state !== "live" || !isMyPick) return;
+    const original = document.title;
+    document.title = `🔴 YOUR PICK · ${original}`;
+    return () => { document.title = original; };
+  }, [state, isMyPick]);
+  const wasMyPickRef = useRef(false);
+  useEffect(() => {
+    if (state !== "live") { wasMyPickRef.current = false; return; }
+    if (isMyPick && !wasMyPickRef.current) {
+      try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (Ctx) {
+          const ctx = new Ctx();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(880, ctx.currentTime);
+          gain.gain.setValueAtTime(0.25, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.35);
+        }
+      } catch {}
+    }
+    wasMyPickRef.current = isMyPick;
+  }, [isMyPick, state]);
 
   function shuffledTeamIds() {
     const ids = teams.map(t => t.id);
@@ -4274,6 +4317,64 @@ function LiveDraftTab({ league, onUpdate, loggedInTeamId, isCommissioner }) {
         draftWeek: startedWeek,
         startedAt: now,
         completedAt: null,
+      },
+    });
+  }
+
+  // v2.6.27.10: undo the most recent pick. Commissioner-only,
+  // available during live OR paused (lets the commissioner walk
+  // back a mistake before unpausing). The autoPickIdRef gets
+  // reset so the auto-pick effect can re-fire on the rolled-
+  // back pick if the new clock expires.
+  function undoLastPick() {
+    if (!isCommissioner) return;
+    if (state !== "live" && state !== "paused") return;
+    if (picks.length === 0) return;
+    if (!window.confirm("Undo the last pick? The clock will reset for the manager who just picked.")) return;
+    const newPicks = picks.slice(0, -1);
+    const now = Date.now();
+    autoPickIdRef.current = null;
+    onUpdate({
+      ...league,
+      liveDraft: {
+        ...draft,
+        picks: newPicks,
+        currentPick: currentPick - 1,
+        pickDeadline: state === "live" ? now + pickTimerSec * 1000 : null,
+        // Clear paused state so resume starts a fresh clock.
+        pausedSecondsLeft: state === "paused" ? pickTimerSec : null,
+      },
+    });
+  }
+
+  // v2.6.27.10: pause/resume mid-draft. Commissioner-only.
+  // Pausing freezes the displayed clock at the current secondsLeft;
+  // resuming gives the manager the same number of seconds again.
+  function pauseDraft() {
+    if (!isCommissioner) return;
+    if (state !== "live") return;
+    onUpdate({
+      ...league,
+      liveDraft: {
+        ...draft,
+        state: "paused",
+        pausedSecondsLeft: secondsLeft,
+        pickDeadline: null,
+      },
+    });
+  }
+  function resumeDraft() {
+    if (!isCommissioner) return;
+    if (state !== "paused") return;
+    const seconds = Number(draft?.pausedSecondsLeft ?? pickTimerSec) || pickTimerSec;
+    const now = Date.now();
+    onUpdate({
+      ...league,
+      liveDraft: {
+        ...draft,
+        state: "live",
+        pausedSecondsLeft: null,
+        pickDeadline: now + seconds * 1000,
       },
     });
   }
@@ -4439,29 +4540,48 @@ function LiveDraftTab({ league, onUpdate, loggedInTeamId, isCommissioner }) {
     );
   }
 
-  // ─── Live state ───
+  // ─── Live / Paused state ───
+  const isPaused = state === "paused";
   return (
     <div>
+      {/* v2.6.27.10: full-width "your pick" banner. Pre-tab, so the
+          alert reads above the fold even on small viewports when the
+          on-the-clock panel might be partially scrolled. Hidden when
+          paused — clock isn't running so the urgency is gone. */}
+      {isMyPick && !isPaused && (
+        <div style={{
+          padding:"10px 14px",borderRadius:10,marginBottom:12,
+          background:"linear-gradient(90deg, #e9456033, #e9456015)",
+          border:"1px solid #e94560",
+          display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap",
+        }}>
+          <div style={{ fontSize:13,fontWeight:800,color:"#e94560",fontFamily:"'Anybody',sans-serif" }}>YOU'RE ON THE CLOCK</div>
+          <div style={{ fontSize:11,color:"#e94560",fontWeight:600 }}>Pick a contestant below before the timer runs out.</div>
+        </div>
+      )}
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,gap:8,flexWrap:"wrap" }}>
         <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Live Draft</h3>
-        <Badge color="#f5a623">Pick {displayPick} of {totalPicks}</Badge>
+        <div style={{ display:"flex",gap:6,alignItems:"center" }}>
+          {isPaused && <Badge color="#9d5dff">Paused</Badge>}
+          <Badge color="#f5a623">Pick {displayPick} of {totalPicks}</Badge>
+        </div>
       </div>
       {/* On-the-clock panel */}
       <div style={{
         padding:"14px 16px",borderRadius:10,marginBottom:14,
-        background: isMyPick ? "#e9456015" : "#12121f",
-        border: isMyPick ? "1px solid #e9456044" : "1px solid #1e1e38",
+        background: isPaused ? "#9d5dff11" : (isMyPick ? "#e9456015" : "#12121f"),
+        border: isPaused ? "1px solid #9d5dff44" : (isMyPick ? "1px solid #e9456044" : "1px solid #1e1e38"),
       }}>
         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8 }}>
           <div>
             <div style={{ fontSize:11,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>On the clock</div>
-            <div style={{ fontSize:17,fontWeight:800,fontFamily:"'Anybody',sans-serif",color: isMyPick ? "#e94560" : "#e8e8f0" }}>
-              {currentPickerTeam?.name || "—"} {isMyPick && <span style={{ fontSize:12,color:"#e94560" }}>(you)</span>}
+            <div style={{ fontSize:17,fontWeight:800,fontFamily:"'Anybody',sans-serif",color: isPaused ? "#9d5dff" : (isMyPick ? "#e94560" : "#e8e8f0") }}>
+              {currentPickerTeam?.name || "—"} {isMyPick && !isPaused && <span style={{ fontSize:12,color:"#e94560" }}>(you)</span>}
             </div>
           </div>
           <div style={{ textAlign:"right" }}>
-            <div style={{ fontSize:11,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Time left</div>
-            <div style={{ fontSize:24,fontWeight:800,fontFamily:"'Anybody',sans-serif",color: secondsLeft <= 10 ? "#e94560" : "#e8e8f0",lineHeight:1 }}>{secondsLeft}s</div>
+            <div style={{ fontSize:11,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>{isPaused ? "Frozen at" : "Time left"}</div>
+            <div style={{ fontSize:24,fontWeight:800,fontFamily:"'Anybody',sans-serif",color: isPaused ? "#9d5dff" : (secondsLeft <= 10 ? "#e94560" : "#e8e8f0"),lineHeight:1 }}>{secondsLeft}s</div>
           </div>
         </div>
       </div>
@@ -4471,13 +4591,16 @@ function LiveDraftTab({ league, onUpdate, loggedInTeamId, isCommissioner }) {
           Available · {available.length}
         </div>
         <div style={{ display:"flex",flexDirection:"column",gap:4,maxHeight:360,overflowY:"auto" }}>
-          {available.map(c => (
-            <button key={c.id} onClick={() => isMyPick && makePick(c.id)} disabled={!isMyPick}
-              style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:8,background:"#0d0d18",border:"1px solid #1e1e38",color:"#e8e8f0",fontSize:13,textAlign:"left",cursor: isMyPick ? "pointer" : "default",opacity: isMyPick ? 1 : 0.6,fontFamily:"'Outfit',sans-serif" }}>
-              <span style={{ flex:1 }}>{c.name}</span>
-              {isMyPick && <span style={{ fontSize:11,color:"#e94560",fontWeight:600 }}>Pick</span>}
-            </button>
-          ))}
+          {available.map(c => {
+            const canPick = isMyPick && !isPaused;
+            return (
+              <button key={c.id} onClick={() => canPick && makePick(c.id)} disabled={!canPick}
+                style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:8,background:"#0d0d18",border:"1px solid #1e1e38",color:"#e8e8f0",fontSize:13,textAlign:"left",cursor: canPick ? "pointer" : "default",opacity: canPick ? 1 : 0.6,fontFamily:"'Outfit',sans-serif" }}>
+                <span style={{ flex:1 }}>{c.name}</span>
+                {canPick && <span style={{ fontSize:11,color:"#e94560",fontWeight:600 }}>Pick</span>}
+              </button>
+            );
+          })}
           {available.length === 0 && <div style={{ fontSize:12,color:"#6a6a8a",fontStyle:"italic",padding:"10px 0" }}>No contestants left.</div>}
         </div>
       </div>
@@ -4501,7 +4624,11 @@ function LiveDraftTab({ league, onUpdate, loggedInTeamId, isCommissioner }) {
         </div>
       )}
       {isCommissioner && (
-        <div style={{ marginTop:12 }}>
+        <div style={{ marginTop:12,display:"flex",gap:6,flexWrap:"wrap" }}>
+          {isPaused
+            ? <Btn small onClick={resumeDraft}>▶ Resume</Btn>
+            : <Btn small variant="ghost" onClick={pauseDraft}>⏸ Pause</Btn>}
+          {picks.length > 0 && <Btn small variant="ghost" onClick={undoLastPick}>↶ Undo last pick</Btn>}
           <Btn variant="ghost" small onClick={resetDraft}>Reset draft</Btn>
         </div>
       )}
