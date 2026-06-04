@@ -32,7 +32,7 @@
 - **`captainsConfig.swapBanking`** (bool, default false) + **`swapBankMax`** (number, default 0 = unlimited) are the new config fields. Backwards-compatible — leagues without them behave as no-banking.
 - **What this commit does NOT do.** Banking is purely client-side computed — if a manager loaded the page in week 5 with bank = 2 but the commissioner changed `swapsPerPeriod` mid-season, the bank gets recomputed from the new config (retroactive). No "snapshot" or "lock in" of bank state per period. Also no UI for managers to see their bank history (you only see the current available count).
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.03s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `3613f4e`
 
 ### v2.6.26.2 — 2026-06-04
 **Heroes / Captains swap rule: fix the per-episode bug + configurable period and count.** Reported — the My Roster swap tracker labeled itself "Episode Swap" for multi-episode shows like Love Island, but the FAQ promised "1 per week." Investigation found that wasn't just a label issue — the swap detection compared against the *previous episode's* chart (`weeklyDepthCharts[currentWeek - 1]`), so the limit actually fired six times per week on Love Island instead of once. Six free swaps was hiding under the wrong label.
