@@ -40,7 +40,7 @@
 - **UI conveniences.** Step indicator dots are now clickable buttons so users can jump to any step (useful for re-reviewing the Hero/Side-Kick distinction). The skip button is renamed to "Exit" since it now lives in the corner of every spotlight and the original "Skip" label felt mid-task; "Exit" makes the dismissal intent clearer. ESC closes the tour.
 - **What this commit does NOT touch.** Scoring tab gets no `data-tour` attributes — its rule-row structure varies by view mode (events / assign / summary / rules) and the right spotlight target depends on which view is active. Adding view-aware spotlight selectors is a follow-up if the tour reads well enough without it. Also: I considered programmatically scrolling the highlighted element to viewport center, which the code does via `scrollIntoView({ block: "center" })`, but on very small viewports the tooltip card itself can still cover the spotlight — acceptable since the copy describes what's behind the card.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.74s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `7e1a3ac`
 
 ### v2.6.27.4 — 2026-06-04
 **PWA manifest hardening for Play Store / TWA readiness.** Pre-launch prep for the TWA submission flow on the v2.6.27.0 Play Store backlog — Bubblewrap pulls fields directly from `public/manifest.json` to generate the Android app shell, so any gap in the manifest is a gap in the store listing.
