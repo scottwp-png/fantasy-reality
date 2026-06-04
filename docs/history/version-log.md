@@ -30,7 +30,7 @@
 - **Live Draft step gating tightened.** v2.6.27.12 gated it on `(isCommissioner || draft active)`. The user reported this surfaced a confusing "Commissioner Setup" flash in the tour for commissioners who'd never started a draft — the tour switched to the empty Live Draft tab, the pre-state UI rendered, the tour step said "Live Draft." Now gated on draft active only (`liveDraft.state !== "pre"`). Commissioners can still discover the empty tab via the nav; the tour doesn't pitch a feature they haven't activated.
 - **Tour close → roster tab.** All close paths (Skip, Done, Exit button, ESC, scrim click) now switch the tab back to `steps[0].tabId` (which is the roster tab by convention — the tour always starts there for formats that have one). Users finish the tour landing on My Roster so the obvious next action is to set their team. Previously they were dumped on whichever tab the final step lived on (usually Lounge).
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.90s).
-- **Commit:** `_pending_`
+- **Commit:** `961fab6`
 
 ### v2.6.27.15 — 2026-06-04
 **Tour: scroll spotlight to top + always-below card placement.** v2.6.27.14's "edge-pinning when neither side fits" fallback still produced overlap on small viewports — when the card was tall enough relative to the viewport, pinning it to one edge while the spotlight sat near the middle meant the card and spotlight regions could collide. Switched to a stricter pattern that makes overlap impossible.
