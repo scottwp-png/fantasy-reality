@@ -32,7 +32,7 @@
 - **Landing-page FAQ** at `landing_page/landing-page.html:688-707`. Existing FAQ already had ten items, but most were commissioner-mechanic-heavy (scoring workflow, co-commissioners, spoiler protection). Inserted five new pre-signup user questions at the top: "I've never played fantasy anything...", "Do I need a group of friends?", "How much time?", "Can I see the rules before the season?", "Current vs old season?". Replaced the existing "What is Fantasy Reality TV?" item — the new "never played fantasy anything" question covers the same ground in friendlier language. All five answers are written for someone deciding whether to sign up, not for someone already operating the app.
 - **What's deferred.** No in-league tour (Roster → Scoring → Standings → Chat) — that's a separate follow-up since first-signup users don't have a league to anchor it to. No interactive DOM-anchored tooltips either — the maintenance cost on an 11k-line single-file app where layout shifts every few releases is too high, and the centered-modal narrative covers the concept gap on its own.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.75s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `a004516`
 
 ### v2.6.26.3 — 2026-06-04
 **Heroes swap banking.** Optional Heroes-format mechanic: unused swaps roll forward into a per-team bank, with an optional cap. Encourages strategic saving — if you didn't swap last week, you can swap two contestants this week.
