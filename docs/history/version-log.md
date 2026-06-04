@@ -1,7 +1,7 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.1
+**Current Production Version:** v2.6.27.2
 **Last Deploy Date:** 2026-06-04
 **App.jsx Line Count:** ~11,180
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
@@ -22,6 +22,16 @@
 ---
 
 ## Version Log
+
+### v2.6.27.2 — 2026-06-04
+**Survivor Pool standings: asymmetric-comparator + isAlive-null + "survived all weeks" trio fixed.** Three correctness bugs at the same site in `calcStandings` — flagged in the regression-harness `_note` since the v2.6.0.x era and parked in Later until the Play Store re-prioritization promoted it to Now.
+- **Root cause** at the pre-fix [src/scoring.js:113-125](src/scoring.js#L113-L125): `isAlive` was set via short-circuit (`contestant && contestant.status !== "eliminated"`), so for a team with no `survivorPoolPick`, `contestant` was `null` and `isAlive` evaluated to literal `null` — not `false`. The sort comparator then asked `if (a.isAlive !== b.isAlive) return a.isAlive ? -1 : 1`, which returned `+1` for both `compare(false, null)` and `compare(null, false)` — antisymmetry violated, so the relative order of eliminated and no-pick teams was V8-dependent. Separately, `weeksAlive = contestant?.eliminatedWeek ? contestant.eliminatedWeek - 1 : weeks.length` fell through to `weeks.length` when `eliminatedWeek` was undefined (true for both no-pick and still-alive teams), so the UI rendered no-pick teams as "survived all weeks." Two related bugs at one line, one comparator-contract bug at the next.
+- **Fix.** Explicit three-tier ordering: `alive=2 > eliminated=1 > no-pick=0`. Tier is set unconditionally based on `hasPick = !!contestant`, then `isAlive ? 2 : 1` when picked. `isAlive` is now coerced to a true boolean via `hasPick && contestant.status !== "eliminated"`. The sort uses `b.tier - a.tier` then `b.total - a.total` — fully antisymmetric. `attachRanks` uses `tier * 1e6 + total` so ties only collapse within a tier. `weeksAlive` short-circuits to `0` when `!hasPick`, so no-pick teams now correctly report `total: 0`.
+- **`tier` is exposed in the standings output** as a new field. No UI consumer reads it (verified — only `scoring.js` itself referenced `isAlive`); it's just internal data along for the ride. Could be useful later if we want to color-code rows by tier in the standings UI.
+- **Regression harness.** Re-captured `_snapshots/baseline/survivor_pool.{json,standings.json}`. Other 9 baselines byte-identical (`captains, captains-bestball, elimination_pool, predictions, real-league, salary_cap, standard, standard-h2h, standard-roto`). Updated the `_note` in `_snapshots/synthetic/survivor_pool.json` from a known-bug warning to a regression-guard explanation — the t5 (no-pick) fixture stays in the snapshot specifically to lock the new behavior.
+- **Backlog.** Removes the `survivor_pool comparator bug` item from BACKLOG.md (was Now after v2.6.27.0 restructure).
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.83s).
+- **Commit:** `_pending_`
 
 ### v2.6.27.1 — 2026-06-04
 **Social sharing meta tags (Open Graph + Twitter Card).** Reddit/Discord/Slack/iMessage link previews now render the app brand instead of a bare URL — first Now item from the Play Store launch backlog. Touches both the app `index.html` and the landing page.

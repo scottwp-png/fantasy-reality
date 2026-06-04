@@ -111,17 +111,30 @@ export function calcStandings(league) {
   const weeks = Object.keys(league.weeklyScores || {}).sort((a, b) => +a - +b);
 
   if (league.format === "survivor_pool") {
+    // v2.6.27.2: explicit three-tier ordering — alive (2) > eliminated (1)
+    // > no-pick (0) — replaces a two-value isAlive that violated the
+    // comparator contract. The prior code set isAlive via short-circuit
+    // (`contestant && ...`) which returned literal null for no-pick teams;
+    // the sort then returned +1 in both directions for false-vs-null
+    // (asymmetric), so the relative order of eliminated and no-pick teams
+    // was V8-dependent. Two correctness bugs at the same site: isAlive
+    // was null instead of false for no-pick (now coerced via hasPick),
+    // and weeksAlive fell through to `weeks.length` when eliminatedWeek
+    // was undefined (rendering no-pick teams as "survived all weeks");
+    // now 0 for no-pick.
     const sorted = league.teams.map(team => {
       const pick = team.survivorPoolPick;
       const contestant = pick ? (league.contestants||[]).find(c=>c.id===pick) : null;
-      const isAlive = contestant && contestant.status !== "eliminated";
-      const weeksAlive = contestant?.eliminatedWeek ? contestant.eliminatedWeek - 1 : weeks.length;
-      return { ...team, total: weeksAlive, isAlive, pick: contestant?.name || "No pick", weeklyTotals: {} };
+      const hasPick = !!contestant;
+      const isAlive = hasPick && contestant.status !== "eliminated";
+      const tier = hasPick ? (isAlive ? 2 : 1) : 0;
+      const weeksAlive = !hasPick ? 0 : contestant.eliminatedWeek ? contestant.eliminatedWeek - 1 : weeks.length;
+      return { ...team, total: weeksAlive, isAlive, tier, pick: contestant?.name || "No pick", weeklyTotals: {} };
     }).sort((a,b) => {
-      if (a.isAlive !== b.isAlive) return a.isAlive ? -1 : 1;
+      if (a.tier !== b.tier) return b.tier - a.tier;
       return b.total - a.total;
     });
-    return attachRanks(sorted, t => (t.isAlive ? 1 : 0) * 1e6 + t.total);
+    return attachRanks(sorted, t => t.tier * 1e6 + t.total);
   }
 
   // Calculate base weekly points for all teams
