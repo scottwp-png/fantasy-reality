@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.11
+**Current Production Version:** v2.6.27.12
 **Last Deploy Date:** 2026-06-04
-**App.jsx Line Count:** ~11,790
+**App.jsx Line Count:** ~11,900
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,19 @@
 ---
 
 ## Version Log
+
+### v2.6.27.12 — 2026-06-04
+**Live draft polish round 2 + tour gated on actual league state.** Reported during testing: the in-league tour shouldn't pitch features that aren't active in a specific league (e.g. a Live Draft step in a Heroes league whose commissioner hasn't started one). Plus four polish items on the draft itself.
+- **Conditional tour steps.** `buildLeagueTourSteps` now accepts `{ isCommissioner }` and gates two steps:
+  - The **Live Draft** step appears only when the Live Draft tab is actually visible to this user — `(format is captains|standard) && (isCommissioner || liveDraft.state in ['live','done'])`. The same condition as the tab nav visibility at `App.jsx:1864` so the tour and the nav can't disagree.
+  - The **Swap tracker** step appears only when `currentWeek > 1` (the tracker doesn't render in week 1 since there's no prior week to compare against). Skipping the step in week 1 avoids the spotlight falling back to a confusing centered-modal with no target.
+  - `useMemo` cache key updated to depend on `league.currentWeek`, `league.liveDraft?.state`, and `isCommissioner` so the steps recompute when relevant state changes.
+- **Manual draft order (commissioner, pre-state only).** A team-by-team list with up/down arrows + a Shuffle button. State is local to the commissioner's session until Start Draft — the order persists into the schema's `liveDraft.order` field at start. On team roster changes (someone joins/leaves), proposedOrder preserves the intended sequence for teams that still exist and appends new teams to the bottom.
+- **"You're up next" heads-up.** When the team picking *after* the current one is yours and you're not currently picking, a yellow banner reads "You're up next — start picking your shortlist." Quieter than the on-the-clock red banner (yellow `#f5a623`, no border emphasis) so it signals advance notice rather than action required. Hidden when paused (no urgency while the clock's frozen).
+- **Full draft board view.** New `DraftPicksFeed` component. Defaults to the last-6 pick rows; a "Show full board" toggle expands to a per-team grid (rows = teams in draft order, columns = round number, cells = the contestant picked at that snake-order pick number). Useful for taking stock mid-draft or as a clean post-done recap. The snake math is duplicated here from `pickerForPick` because the table needs to invert the relationship (given team idx + round, what's the pick number?) rather than the forward direction.
+- **Live + paused both render the on-the-clock panel.** Previously `currentPickerId` only computed for `state === "live"`, so paused state showed "—" for the team on the clock. Now both states resolve the picker correctly.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.94s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.27.11 — 2026-06-04
 **Push notifications: receive-side scaffolding (dormant behind a flag).** Pre-launch prep for the app-store rollout. The receive plumbing — Firebase Messaging SDK integration, `getToken()` for a per-device FCM token, foreground/background message handlers, opt-in UI — is in place but inert until two things happen: (1) admin flips `feature_flags.push_enabled` from `false` to `true`, and (2) a send-side starts pushing (Cloud Functions or similar, parked behind a design discussion per CLAUDE.md no-go zone).

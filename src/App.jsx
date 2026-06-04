@@ -1820,7 +1820,7 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
   // edits the profile).
   const [leagueTourOpen, setLeagueTourOpen] = useState(false);
   const leagueTourAutoOpenedRef = useRef(false);
-  const leagueTourSteps = useMemo(() => buildLeagueTourSteps(league), [league?.format]);
+  const leagueTourSteps = useMemo(() => buildLeagueTourSteps(league, { isCommissioner }), [league?.format, league?.currentWeek, league?.liveDraft?.state, isCommissioner]);
   useEffect(() => {
     if (leagueTourAutoOpenedRef.current) return;
     if (!userProfile?.inLeagueTourPending) return;
@@ -4152,6 +4152,86 @@ function ScoringTab({ league, onUpdate, isCommissioner = true, userProfile }) {
 //
 // Snake order. Round 0 = order[0..N-1]; round 1 = order[N-1..0];
 // round 2 = order[0..N-1]; etc.
+// v2.6.27.12: Recent picks feed with a collapsible "Full board"
+// view. Defaults to showing the last 6 picks. Toggling open expands
+// to a per-team grid (rows = teams in draft order, columns = round
+// number, cells = the contestant picked at that round). Useful for
+// taking stock mid-draft or recapping post-done without scrolling
+// through every pick line by line.
+function DraftPicksFeed({ picks, teams, contestants, order, slotsPerTeam }) {
+  const [expanded, setExpanded] = useState(false);
+  const cName = (id) => contestants.find(c => c.id === id)?.name || "—";
+  const tName = (id) => teams.find(t => t.id === id)?.name || "—";
+  const numRounds = slotsPerTeam;
+  const picksByCell = useMemo(() => {
+    const map = {};
+    picks.forEach(p => { map[p.pickNum] = p; });
+    return map;
+  }, [picks]);
+  return (
+    <div style={{ marginBottom:14 }}>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
+        <div style={{ fontSize:11,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em" }}>{expanded ? "Full draft board" : "Recent picks"}</div>
+        <button onClick={()=>setExpanded(v=>!v)} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"3px 10px",color:"#aaaabf",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>
+          {expanded ? "Hide board" : "Show full board"}
+        </button>
+      </div>
+      {!expanded && (
+        <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
+          {picks.slice(-6).reverse().map(p => (
+            <div key={p.pickNum} style={{ display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderRadius:8,background:"#12121f",border:"1px solid #1e1e38",fontSize:12 }}>
+              <span style={{ color:"#6a6a8a",fontWeight:600,width:36 }}>#{p.pickNum + 1}</span>
+              <span style={{ flex:1,color:"#e8e8f0" }}><span style={{ color:"#aaaabf",fontWeight:600 }}>{tName(p.teamId)}</span> picked <span style={{ color:"#e94560",fontWeight:600 }}>{cName(p.contestantId)}</span></span>
+              {p.autoPicked && <span style={{ fontSize:10,color:"#6a6a8a" }}>auto</span>}
+            </div>
+          ))}
+        </div>
+      )}
+      {expanded && (
+        <div style={{ overflowX:"auto" }}>
+          <table style={{ width:"100%",borderCollapse:"separate",borderSpacing:0,fontSize:11,fontFamily:"'Outfit',sans-serif",minWidth: 60 + numRounds * 110 }}>
+            <thead>
+              <tr>
+                <th style={{ position:"sticky",left:0,zIndex:1,background:"#12121f",border:"1px solid #1e1e38",padding:"6px 10px",textAlign:"left",color:"#6a6a8a",fontWeight:600,minWidth:90 }}>Team</th>
+                {Array.from({ length: numRounds }).map((_, r) => (
+                  <th key={r} style={{ background:"#0d0d18",border:"1px solid #1e1e38",padding:"6px 10px",color:"#6a6a8a",fontWeight:600,minWidth:100 }}>R{r + 1}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {order.map((teamId, teamIdx) => (
+                <tr key={teamId}>
+                  <td style={{ position:"sticky",left:0,zIndex:1,background:"#12121f",border:"1px solid #1e1e38",padding:"6px 10px",color:"#e8e8f0",fontWeight:600 }}>{tName(teamId)}</td>
+                  {Array.from({ length: numRounds }).map((_, r) => {
+                    // Snake: in even rounds (0-indexed) team at teamIdx
+                    // picks at pickNum = r * order.length + teamIdx; in
+                    // odd rounds, team picks at pickNum = r * order.length
+                    // + (order.length - 1 - teamIdx).
+                    const N = order.length;
+                    const pickNum = r % 2 === 0 ? r * N + teamIdx : r * N + (N - 1 - teamIdx);
+                    const p = picksByCell[pickNum];
+                    return (
+                      <td key={r} style={{ background:p ? "#0d0d18" : "transparent",border:"1px solid #1e1e38",padding:"6px 10px",color:p ? "#e8e8f0" : "#3a3a5a" }}>
+                        {p ? (
+                          <div style={{ display:"flex",flexDirection:"column",gap:2 }}>
+                            <span style={{ color:"#6a6a8a",fontSize:9 }}>#{p.pickNum + 1}</span>
+                            <span>{cName(p.contestantId)}</span>
+                            {p.autoPicked && <span style={{ fontSize:8,color:"#6a6a8a" }}>auto</span>}
+                          </div>
+                        ) : "—"}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function pickerForPick(pickNum, order) {
   const N = order.length;
   if (N === 0) return null;
@@ -4204,9 +4284,14 @@ function LiveDraftTab({ league, onUpdate, loggedInTeamId, isCommissioner }) {
     });
   }, [league.contestants, draftedIds, isStandard, draftWeek]);
 
-  const currentPickerId = state === "live" ? pickerForPick(currentPick, order) : null;
+  const currentPickerId = (state === "live" || state === "paused") ? pickerForPick(currentPick, order) : null;
   const currentPickerTeam = teams.find(t => t.id === currentPickerId);
   const isMyPick = state === "live" && currentPickerId === loggedInTeamId;
+  // v2.6.27.12: "you're up next" — the team picking AFTER the
+  // current one. Only relevant if we have a logged-in team, and
+  // only meaningful before the draft hits the last pick.
+  const nextPickerId = (state === "live" || state === "paused") && currentPick + 1 < totalPicks ? pickerForPick(currentPick + 1, order) : null;
+  const isMyPickNext = !!loggedInTeamId && !isMyPick && nextPickerId === loggedInTeamId;
   // currentPick (0-based) is the index of the *next* pick to make.
   // Display as 1-based ("Pick 5 of 20").
   const displayPick = Math.min(currentPick + 1, totalPicks);
@@ -4293,6 +4378,49 @@ function LiveDraftTab({ league, onUpdate, loggedInTeamId, isCommissioner }) {
     return ids;
   }
 
+  // v2.6.27.12: commissioner draft-order editor (pre-state only).
+  // proposedOrder is local to the commissioner's session — it
+  // doesn't persist until Start Draft. Other clients see "(set
+  // by commissioner)" with no preview; this is fine because the
+  // pre-state is short-lived. Sliding into the real schema in a
+  // follow-up if managers want to see the order during pre-state.
+  const [proposedOrder, setProposedOrder] = useState(() => teams.map(t => t.id));
+  useEffect(() => {
+    // Reset when teams change (e.g. someone joins) or when we
+    // transition back into pre-state.
+    if (state === "pre" || !draft) {
+      setProposedOrder(prev => {
+        const teamIds = teams.map(t => t.id);
+        // Preserve user's intended order for teams that still exist,
+        // append any new teams to the end.
+        const kept = prev.filter(id => teamIds.includes(id));
+        const added = teamIds.filter(id => !kept.includes(id));
+        return [...kept, ...added];
+      });
+    }
+  }, [teams.length, state]);
+  function moveTeamUp(id) {
+    setProposedOrder(prev => {
+      const i = prev.indexOf(id);
+      if (i <= 0) return prev;
+      const next = [...prev];
+      [next[i-1], next[i]] = [next[i], next[i-1]];
+      return next;
+    });
+  }
+  function moveTeamDown(id) {
+    setProposedOrder(prev => {
+      const i = prev.indexOf(id);
+      if (i < 0 || i >= prev.length - 1) return prev;
+      const next = [...prev];
+      [next[i], next[i+1]] = [next[i+1], next[i]];
+      return next;
+    });
+  }
+  function shuffleProposedOrder() {
+    setProposedOrder(shuffledTeamIds());
+  }
+
   function startDraft() {
     if (!isCommissioner) return;
     if (teams.length < 2) { alert("Need at least 2 teams to start a draft."); return; }
@@ -4302,7 +4430,12 @@ function LiveDraftTab({ league, onUpdate, loggedInTeamId, isCommissioner }) {
     if (state === "done" || state === "live") {
       if (!window.confirm("This will clear the current draft and start over. Continue?")) return;
     }
-    const ord = shuffledTeamIds();
+    // v2.6.27.12: prefer commissioner's manually-set order if it
+    // matches the current team roster exactly; otherwise fall back
+    // to a fresh shuffle.
+    const teamIds = teams.map(t => t.id);
+    const sameSet = proposedOrder.length === teamIds.length && proposedOrder.every(id => teamIds.includes(id));
+    const ord = sameSet ? proposedOrder : shuffledTeamIds();
     const now = Date.now();
     const startedWeek = isStandard ? String(league.currentWeek || 1) : null;
     onUpdate({
@@ -4482,6 +4615,33 @@ function LiveDraftTab({ league, onUpdate, loggedInTeamId, isCommissioner }) {
                 <div><span style={{ color:"#aaaabf",fontWeight:600 }}>Total picks:</span> {totalPicks}</div>
                 <div><span style={{ color:"#aaaabf",fontWeight:600 }}>Active contestants:</span> {available.length}</div>
               </div>
+              {/* v2.6.27.12: manual draft order editor. Pre-state only.
+                  Shows the proposed order with up/down arrows for each
+                  team + a shuffle button. Order persists into the draft
+                  state when commissioner clicks Start. */}
+              {teams.length >= 2 && (
+                <div>
+                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6 }}>
+                    <label style={{ fontSize:11,fontWeight:600,color:"#8888aa",textTransform:"uppercase",letterSpacing:"0.05em" }}>Draft order</label>
+                    <button onClick={shuffleProposedOrder} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"4px 10px",color:"#aaaabf",fontSize:11,fontFamily:"'Outfit',sans-serif",cursor:"pointer" }}>↻ Shuffle</button>
+                  </div>
+                  <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
+                    {proposedOrder.map((id, i) => {
+                      const t = teams.find(x => x.id === id);
+                      if (!t) return null;
+                      return (
+                        <div key={id} style={{ display:"flex",alignItems:"center",gap:8,padding:"7px 10px",background:"#0d0d18",borderRadius:6,border:"1px solid #1e1e38" }}>
+                          <span style={{ width:22,fontSize:11,color:"#6a6a8a",fontWeight:600 }}>{i + 1}.</span>
+                          <span style={{ flex:1,fontSize:12,color:"#e8e8f0" }}>{t.name}</span>
+                          <button onClick={()=>moveTeamUp(id)} disabled={i === 0} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:4,padding:"2px 7px",color: i===0 ? "#3a3a5a" : "#aaaabf",fontSize:10,cursor: i===0 ? "default" : "pointer",fontFamily:"'Outfit',sans-serif" }}>↑</button>
+                          <button onClick={()=>moveTeamDown(id)} disabled={i === proposedOrder.length - 1} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:4,padding:"2px 7px",color: i === proposedOrder.length - 1 ? "#3a3a5a" : "#aaaabf",fontSize:10,cursor: i === proposedOrder.length - 1 ? "default" : "pointer",fontFamily:"'Outfit',sans-serif" }}>↓</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{ fontSize:10,color:"#6a6a8a",marginTop:4 }}>Snake reverses each round. Use Shuffle for a random order or arrange manually.</div>
+                </div>
+              )}
             </div>
             <Btn onClick={startDraft} disabled={teams.length < 2 || available.length === 0}>Start Live Draft</Btn>
           </div>
@@ -4559,6 +4719,18 @@ function LiveDraftTab({ league, onUpdate, loggedInTeamId, isCommissioner }) {
           <div style={{ fontSize:11,color:"#e94560",fontWeight:600 }}>Pick a contestant below before the timer runs out.</div>
         </div>
       )}
+      {/* v2.6.27.12: "up next" heads-up. Quieter than the on-the-
+          clock banner — yellow instead of red, and the text is
+          conversational rather than action-required. */}
+      {isMyPickNext && !isPaused && (
+        <div style={{
+          padding:"8px 12px",borderRadius:10,marginBottom:12,
+          background:"#f5a62315",border:"1px solid #f5a62344",
+          display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap",
+        }}>
+          <div style={{ fontSize:12,fontWeight:700,color:"#f5a623" }}>You're up next — start picking your shortlist.</div>
+        </div>
+      )}
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,gap:8,flexWrap:"wrap" }}>
         <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Live Draft</h3>
         <div style={{ display:"flex",gap:6,alignItems:"center" }}>
@@ -4604,24 +4776,9 @@ function LiveDraftTab({ league, onUpdate, loggedInTeamId, isCommissioner }) {
           {available.length === 0 && <div style={{ fontSize:12,color:"#6a6a8a",fontStyle:"italic",padding:"10px 0" }}>No contestants left.</div>}
         </div>
       </div>
-      {/* Recent picks */}
+      {/* Recent picks + full board toggle */}
       {picks.length > 0 && (
-        <div style={{ marginBottom:14 }}>
-          <div style={{ fontSize:11,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8 }}>Recent picks</div>
-          <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
-            {picks.slice(-6).reverse().map(p => {
-              const c = (league.contestants || []).find(x => x.id === p.contestantId);
-              const t = teams.find(t => t.id === p.teamId);
-              return (
-                <div key={p.pickNum} style={{ display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderRadius:8,background:"#12121f",border:"1px solid #1e1e38",fontSize:12 }}>
-                  <span style={{ color:"#6a6a8a",fontWeight:600,width:36 }}>#{p.pickNum + 1}</span>
-                  <span style={{ flex:1,color:"#e8e8f0" }}><span style={{ color:"#aaaabf",fontWeight:600 }}>{t?.name || "—"}</span> picked <span style={{ color:"#e94560",fontWeight:600 }}>{c?.name || "—"}</span></span>
-                  {p.autoPicked && <span style={{ fontSize:10,color:"#6a6a8a" }}>auto</span>}
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <DraftPicksFeed picks={picks} teams={teams} contestants={league.contestants || []} order={order} slotsPerTeam={slotsPerTeam} />
       )}
       {isCommissioner && (
         <div style={{ marginTop:12,display:"flex",gap:6,flexWrap:"wrap" }}>
@@ -12756,8 +12913,22 @@ const LEAGUE_ROSTER_TAB_BY_FORMAT = {
   predictions: "predict",
 };
 
-function buildLeagueTourSteps(league) {
+function buildLeagueTourSteps(league, { isCommissioner = false } = {}) {
   const rosterTab = LEAGUE_ROSTER_TAB_BY_FORMAT[league?.format];
+  // v2.6.27.12: condition tour steps on what the user can actually
+  // see in this specific league. The tour shouldn't pitch features
+  // that aren't active — e.g. a Live Draft step in a Heroes league
+  // where the commissioner has never started one, or the swap-
+  // tracker step in week 1 (the tracker doesn't render until week
+  // 2 since there's no prior week to compare against). The
+  // `isCommissioner` flag matters because commissioners see some
+  // tabs (like Live Draft) before they're active.
+  const formatHasLiveDraft = league?.format === "captains" || league?.format === "standard";
+  const liveDraftActive = !!(league?.liveDraft && league.liveDraft.state !== "pre");
+  // Tab visibility logic at App.jsx:1864 — must match.
+  const liveDraftTabVisible = formatHasLiveDraft && (isCommissioner || liveDraftActive);
+  const currentWeek = league?.currentWeek || 1;
+  const hasSwapTracker = league?.format === "captains" && currentWeek > 1;
   // Heroes/Captains is the format with the most mechanics worth
   // anchoring on (multipliers, swap budget). Other formats degrade
   // to a single roster-intro step + the rest of the tour.
@@ -12774,12 +12945,13 @@ function buildLeagueTourSteps(league) {
       { tabId: rosterTab, target: '[data-tour="hero-slot"]', title: "Hero — scores 2×", body: "Your Hero is your strongest pick. Every point they earn in the episode is doubled, so pick someone you really believe in." },
       { tabId: rosterTab, target: '[data-tour="sidekick-slot"]', title: "Side-Kick — scores 1.5×", body: "Your Side-Kick is your second-best pick. Their points get a 50% boost. Good slot for a strong supporting character who scores reliably but isn't quite Hero material." },
       { tabId: rosterTab, target: '[data-tour="vigilantes"]', title: "Vigilantes — score 1×", body: "Vigilantes fill out the rest of your lineup. They score at face value — no multiplier — but they're still earning points, and a great Vigilante week can carry a quiet Hero." },
-      { tabId: rosterTab, target: '[data-tour="swap-tracker"]', title: "Swaps are limited", body: "Each week you get a fixed number of swaps to move contestants in and out of your roster. Reordering slots is always free, but swapping a new contestant in costs a swap. If your commissioner has banking turned on, unused swaps from prior weeks roll forward." },
+      ...(hasSwapTracker ? [{ tabId: rosterTab, target: '[data-tour="swap-tracker"]', title: "Swaps are limited", body: "Each week you get a fixed number of swaps to move contestants in and out of your roster. Reordering slots is always free, but swapping a new contestant in costs a swap. If your commissioner has banking turned on, unused swaps from prior weeks roll forward." }] : []),
       { tabId: "scoring", target: '[data-tab="scoring"]', title: "Every scoring rule, every point value", body: "This is the Scoring tab. Every event that earns or loses points lives here with its point value, so you always know what you're playing for." },
       { tabId: "scoring", target: null, title: "Commissioners tune the rules", body: "Your commissioner can tweak rules, add new ones, and turn rules on or off per-league. Two Love Island leagues can play very differently — one might reward kisses, another might punish villa drama." },
       { tabId: "standings", target: '[data-tab="standings"]', title: "Where everyone stands", body: "Standings refresh after each episode. Your rank, your total, and league-wide records all live on this tab." },
       { tabId: "standings", target: '[data-tour="standings-row"]', title: "Tap any team to drill in", body: "Tapping a team — yours or a rival's — opens their roster breakdown for the selected week. Great for finding out exactly why someone jumped ahead of you." },
       { tabId: "standings", target: '[data-tour="standings-period"]', title: "Re-rank by any week", body: "By default standings show season totals, but the period selector lets you re-rank by any specific week. Useful for arguing whose roster peaked when." },
+      ...(liveDraftTabVisible ? [{ tabId: "live-draft", target: '[data-tab="live-draft"]', title: "Live Draft", body: "Your commissioner can run a live draft to fill rosters from this tab — snake order, a clock per pick, your team's on the clock in turn." }] : []),
       { tabId: "lounge", target: '[data-tab="lounge"]', title: "Chat and polls live here", body: "The Lounge has your league chat, polls, and announcements. Trash talk is encouraged. Polls are great for season-long bets (who wins, who gets sent home first, etc)." },
       { tabId: "lounge", target: '[data-tour="chat-composer"]', title: "Drop a message", body: "Type here to send a message to everyone in the league. Sent during the episode? Even better. Replays of someone's reactions to a blindside are league legend." },
     ];
@@ -12797,6 +12969,7 @@ function buildLeagueTourSteps(league) {
     { tabId: "scoring", target: '[data-tab="scoring"]', title: "Every scoring rule", body: "Every event that earns or loses points is listed here, with its value. Your commissioner can tweak the rules per league, so the same show can play very differently across leagues." },
     { tabId: "standings", target: '[data-tour="standings-row"]', title: "Where you stand", body: "Rankings refresh after each episode. Tap any team — yours or a rival's — to drill into how their roster scored that week." },
     { tabId: "standings", target: '[data-tour="standings-period"]', title: "Re-rank by any week", body: "By default standings show season totals, but the period selector lets you re-rank by any specific week." },
+    ...(liveDraftTabVisible ? [{ tabId: "live-draft", target: '[data-tab="live-draft"]', title: "Live Draft", body: "Your commissioner can run a live draft to fill rosters from this tab — snake order, a clock per pick." }] : []),
     { tabId: "lounge", target: '[data-tour="chat-composer"]', title: "Trash talk and polls", body: "Every league has its own chat and polls. Talk smack, run side bets, and remember whose pick you mocked the night they won the whole thing." },
   ].filter(Boolean);
 }
