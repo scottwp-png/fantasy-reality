@@ -8888,6 +8888,36 @@ export default function FantasyRealityTV() {
           setView("league");
           return null;
         }
+
+        // v2.6.26.1: auto-claim assigned team. If any team in this league
+        // has its `assignedEmail` matching the joining user's auth email,
+        // register them to THAT team instead of auto-creating a new "Team
+        // <Name>". Skips the Claim-banner extra-tap step for users arriving
+        // through the commissioner-built email-assignment flow.
+        const myEmail = (authUser.email || "").toLowerCase().trim();
+        const assignedTeam = myEmail
+          ? (freshLeague.teams || []).find(t => !t.uid && t.assignedEmail && t.assignedEmail.toLowerCase().trim() === myEmail)
+          : null;
+        if (assignedTeam) {
+          const teamsWithUid = (freshLeague.teams || []).map(t => t.id === assignedTeam.id ? { ...t, uid: authUser.uid } : t);
+          const updatedLeague = { ...freshLeague, teams: teamsWithUid };
+          if (freshLeague.commissionerUid === authUser.uid && !freshLeague.commissionerTeamId) {
+            updatedLeague.commissionerTeamId = assignedTeam.id;
+          }
+          const updatedLeagues = freshLeagues.map(l => l.id === league.id ? updatedLeague : l);
+          setLeagues(updatedLeagues);
+          await saveLeague(updatedLeague);
+          const updatedProfile = { ...userProfile, activations: { ...(userProfile.activations || {}), [league.id]: assignedTeam.id } };
+          await saveUserProfile(authUser.uid, updatedProfile);
+          setUserProfile(updatedProfile);
+          setPendingJoin(null);
+          setPendingJoinCode("");
+          setConfirmJoinError("");
+          setSelectedId(league.id);
+          setView("league");
+          return null;
+        }
+
         const newTeamId = generateId();
         const displayName = userProfile.displayName || authUser.email?.split("@")[0] || "Player";
         const newTeam = {

@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.26.0
+**Current Production Version:** v2.6.26.1
 **Last Deploy Date:** 2026-06-04
-**App.jsx Line Count:** ~10,975
+**App.jsx Line Count:** ~10,995
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,16 @@
 ---
 
 ## Version Log
+
+### v2.6.26.1 — 2026-06-04
+**Auto-claim assigned team during doJoin — drops the extra "click Claim" step from the recipient flow.** Reported — the v2.6.26.0 onboarding still required the recipient to tap Claim on the banner after signup. With email-assignment already proving who they are, that tap was busywork.
+- **`doJoin` enhancement** at `App.jsx:8893-8919` between the existing idempotency check and the new-team-creation path. After confirming the user isn't already a member, check if any team in the league has `assignedEmail` matching the joining user's auth email (lowercase + trimmed). If matched, claim that team inline: stamp `team.uid`, set `userProfile.activations[league.id]`, set `commissionerTeamId` when applicable, save both writes, land on the league page.
+- **Skips new-team creation entirely when assigned.** The auto-create path that produces a "Team &lt;Display Name&gt;" team only fires when no assignment matches. So commissioner-prepared leagues stay clean — no orphan auto-created teams to delete after.
+- **Edge case: multiple assignments for the same email.** Returns the first match. Commissioner shouldn't assign the same email to two teams; if they do, only the first gets claimed and the rest stay pending.
+- **Banner still functions as a fallback** for users whose email doesn't match at join time but does later (commissioner sets assignment after the user already joined → the user sees the Claim banner on next visit). And for users who joined via team-specific code or invite-link-without-email, the banner is still the path.
+- **What this commit does NOT do.** No "merge" logic when a user has an existing auto-created team AND becomes assigned to another team — the existing-uid idempotency check returns the existing team before we'd consider the assignment. Solution: commissioner reassigns via the existing Reassign button. No notification to the commissioner that a pending claim auto-resolved.
+- `node _snapshots/diff-against-baseline.mjs` deferred — UI / state only. `npm run build` clean (3.15s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.26.0 — 2026-06-04
 **Commissioner team setup upgrade: Pending-claim indicator + Invite-URL pre-fill + Bulk add teams.** Three coordinated additions that build on the v2.6.25.9 email-assignment model into a real onboarding pipeline.
