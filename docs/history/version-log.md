@@ -30,7 +30,7 @@
 - **Flash fix at step transitions.** `setTargetRect(null)` now fires at the start of the `locate` effect on every step change. Without this, when a step changed tabs the spotlight ring kept its previous coords (a fixed-position div) and rendered over whatever happened to sit at those coords on the new tab — sometimes a chat message, sometimes random page content. Clearing immediately means the spotlight briefly disappears between steps and reappears at the new target position, which reads cleaner than "wrong location → correct location" jumping.
 - Non-Heroes tour got the same Lounge tab chip target + closing roster step + top placement on all chip steps.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.17s).
-- **Commit:** `_pending_`
+- **Commit:** `50ff40e`
 
 ### v2.6.27.18 — 2026-06-04
 **Tour placement revert.** v2.6.27.17's minimal-scroll placement felt worse than v2.6.27.16's centered-block math — reverted just the positioning algorithm. The other v2.6.27.17 changes (merged Lounge/composer step, closing roster CTA step) stay.
