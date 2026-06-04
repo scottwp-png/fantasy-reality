@@ -8872,6 +8872,10 @@ export default function FantasyRealityTV() {
   const [featureFlags, setFeatureFlags] = useState({ new_formats: true, h2h: true, best_ball: true, roto: true });
   const [pendingJoin, setPendingJoin] = useState(null); // { league, code, type: "league"|"team", teamId? }
   const [confirmJoinError, setConfirmJoinError] = useState("");
+  // v2.6.27.0: welcome walkthrough. Auto-opens once after signup
+  // (driven by userProfile.walkthroughPending which is set true on new
+  // profile creation below). Re-launchable from the ? icon in AppHome.
+  const [tourOpen, setTourOpen] = useState(false);
 
   // v2.6.24.5: admin gating by UID rather than email. The UID is fixed at
   // Firebase Auth account creation; if attackers ever compromise the
@@ -8898,7 +8902,7 @@ export default function FantasyRealityTV() {
         if (isNew) {
           // v2.6.14.0: stamp createdAt on first profile creation so admin
           // Stats can chart signup velocity over time.
-          profile = { displayName: user.displayName || user.email.split("@")[0], activations: {}, createdAt: nowMs };
+          profile = { displayName: user.displayName || user.email.split("@")[0], activations: {}, createdAt: nowMs, walkthroughPending: true };
           await saveUserProfile(user.uid, profile);
         } else {
           // v2.6.14.0: stamp lastLoginAt on every auth load so admin Stats
@@ -8911,6 +8915,7 @@ export default function FantasyRealityTV() {
           profile = patched;
         }
         setUserProfile(profile);
+        if (profile.walkthroughPending) setTourOpen(true);
         // Load site announcement and feature flags
         try { const ann = await loadData("site_announcement", ""); setAnnouncement(ann || ""); } catch {}
         try { const flags = await loadData("feature_flags", null); if (flags) setFeatureFlags(flags); } catch {}
@@ -9424,12 +9429,25 @@ export default function FantasyRealityTV() {
         onCreateLeague={()=>setView("create")} onDeleteLeague={deleteLeague} onDuplicateLeague={duplicateLeague}
         onLogout={handleLogout}
         onOpenSettings={()=>setView("settings")}
+        onOpenTour={()=>setTourOpen(true)}
         onJoinViaCode={handleJoinViaCode}
         onOpenAdmin={()=>setView("admin")}
         onUpdateProfile={async (updated) => { await saveUserProfile(authUser.uid, updated); setUserProfile(updated); }}
         announcement={announcement}
         pendingJoinCode={pendingJoinCode}
         allLeaguesCount={leagues.filter(l => l.commissionerUid === authUser?.uid).length} />}
+      {/* v2.6.27.0: walkthrough mounts on home view only — keeps it
+          out of the way during in-league or auth flows. Closes by
+          clearing walkthroughPending so it doesn't reopen on next
+          load, and stamps walkthroughDoneAt for admin Stats. */}
+      {tourOpen && view==="home" && authUser && userProfile && <WelcomeTour onClose={async ()=>{
+        setTourOpen(false);
+        if (userProfile.walkthroughPending || !userProfile.walkthroughDoneAt) {
+          const updated = { ...userProfile, walkthroughPending: false, walkthroughDoneAt: Date.now() };
+          setUserProfile(updated);
+          saveUserProfile(authUser.uid, updated).catch(() => {});
+        }
+      }} />}
       {view==="create" && <CreateLeagueScreen commissionerUid={authUser?.uid} commissionerName={userProfile?.displayName || authUser?.displayName || ""} featureFlags={featureFlags} onSave={async l=>{ await persist([...leagues,l]); setSelectedId(l.id);setView("league"); }} onCancel={()=>setView("home")} />}
       {view==="league" && selected && authUser && <LeagueDashboard league={selected} allLeagues={leagues}
         onUpdate={u=>{
@@ -11981,7 +11999,78 @@ function NotificationBell({ leagues, userProfile, onUpdateProfile, onSelectLeagu
   );
 }
 
-function AppHome({ user, profile, leagues, allLeagues, isAdmin, onSelectLeague, onCreateLeague, onDeleteLeague, onDuplicateLeague, onLogout, onJoinViaCode, onOpenAdmin, onOpenSettings, onUpdateProfile, allLeaguesCount, announcement, pendingJoinCode }) {
+// v2.6.27.0: first-run walkthrough. Five centered modal steps explaining
+// the basic mechanic — what fantasy reality TV is, how scoring works,
+// weekly lineups, live vs replay, and how to get started. Centered (not
+// DOM-anchored) so it survives UI shifts. Auto-opens once after signup
+// via userProfile.walkthroughPending; re-launchable from the ? icon in
+// the AppHome header.
+const WALKTHROUGH_STEPS = [
+  {
+    title: "Welcome to Fantasy Reality TV",
+    body: "It's like fantasy football, but for reality TV. Pick contestants from a show, earn points when they do things on screen. 60 seconds and you're set.",
+  },
+  {
+    title: "Every event = points",
+    body: "When a contestant kisses someone, wins a challenge, gets eliminated, or has a confessional, that's points for whoever has them on their team. Every show has its own scoring rules, and your commissioner can tweak them. The full list lives in the Scoring tab inside any league.",
+  },
+  {
+    title: "Set your team each week",
+    body: "Each week (or each episode, depending on the show) you adjust your lineup. Rosters lock when the episode airs, so don't sleep on it.",
+  },
+  {
+    title: "Live season or replay",
+    body: "Most leagues follow the current season so everyone watches together. But you can replay any finished season too — the app uses real cast and episode data either way.",
+  },
+  {
+    title: "Now pick your show",
+    body: "Create a league for the show you and your friends are watching, or join one with an invite code. Replay this tour anytime from the ? icon next to your name.",
+  },
+];
+
+function WelcomeTour({ onClose }) {
+  const [step, setStep] = useState(0);
+  const isFirst = step === 0;
+  const isLast = step === WALKTHROUGH_STEPS.length - 1;
+  const current = WALKTHROUGH_STEPS[step];
+  return (
+    <div onClick={onClose} role="dialog" aria-modal="true"
+      style={{ position:"fixed",inset:0,background:"rgba(8,8,18,0.85)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20 }}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ background:"#15152a",border:"1px solid #2a2a4a",borderRadius:14,padding:24,maxWidth:440,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.5)" }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
+          <div style={{ fontSize:11,color:"#6a6a8a",fontFamily:"'Outfit',sans-serif",fontWeight:600,letterSpacing:"0.08em",textTransform:"uppercase" }}>
+            Step {step + 1} of {WALKTHROUGH_STEPS.length}
+          </div>
+          <button onClick={onClose} style={{ background:"none",border:"none",color:"#6a6a8a",fontSize:13,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>Skip</button>
+        </div>
+        <div style={{ fontSize:20,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:"#e8e8f0",marginBottom:10,lineHeight:1.25 }}>
+          {current.title}
+        </div>
+        <div style={{ fontSize:14,color:"#aaaabf",lineHeight:1.6,marginBottom:20 }}>
+          {current.body}
+        </div>
+        <div style={{ display:"flex",gap:6,marginBottom:18,justifyContent:"center" }}>
+          {WALKTHROUGH_STEPS.map((_, i) => (
+            <div key={i} style={{ width:6,height:6,borderRadius:"50%",background: i === step ? "#e94560" : "#2a2a4a" }} />
+          ))}
+        </div>
+        <div style={{ display:"flex",justifyContent:"space-between",gap:8 }}>
+          <button onClick={() => setStep(s => Math.max(0, s - 1))} disabled={isFirst}
+            style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"8px 16px",color: isFirst ? "#3a3a5a" : "#aaaabf",fontSize:13,fontFamily:"'Outfit',sans-serif",fontWeight:600,cursor: isFirst ? "default" : "pointer" }}>
+            Back
+          </button>
+          <button onClick={() => isLast ? onClose() : setStep(s => s + 1)}
+            style={{ background:"#e94560",border:"none",borderRadius:6,padding:"8px 20px",color:"#fff",fontSize:13,fontFamily:"'Outfit',sans-serif",fontWeight:700,cursor:"pointer" }}>
+            {isLast ? "Got it — let's go" : "Next"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AppHome({ user, profile, leagues, allLeagues, isAdmin, onSelectLeague, onCreateLeague, onDeleteLeague, onDuplicateLeague, onLogout, onJoinViaCode, onOpenAdmin, onOpenSettings, onOpenTour, onUpdateProfile, allLeaguesCount, announcement, pendingJoinCode }) {
   const [inviteCode, setInviteCode] = useState(pendingJoinCode || "");
   const [error, setError] = useState("");
   const [joining, setJoining] = useState(false);
@@ -12054,6 +12143,13 @@ function AppHome({ user, profile, leagues, allLeagues, isAdmin, onSelectLeague, 
             item lines after a wrap, so the row was landing on the left. */}
         <div style={{ display:"flex",gap:6,alignItems:"center",flexShrink:0,flexWrap:"wrap",marginLeft:"auto",justifyContent:"flex-end" }}>
           <NotificationBell leagues={leagues} userProfile={profile} onUpdateProfile={onUpdateProfile} onSelectLeague={onSelectLeague} />
+          {/* v2.6.27.0: ? icon replays the welcome walkthrough. Shares
+              the visual weight of the bell / Account chips so it reads
+              as a peer help affordance, not a primary action. */}
+          <button onClick={onOpenTour} title="How it works" aria-label="How it works"
+            style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 10px",color:"#6a6a8a",fontSize:13,cursor:"pointer",fontFamily:"'Outfit',sans-serif",fontWeight:700,flexShrink:0,lineHeight:1 }}>
+            ?
+          </button>
           {isAdmin && <button onClick={onOpenAdmin} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",
             color:"#f5a623",fontSize:11,cursor:"pointer",fontFamily:"'Outfit',sans-serif",fontWeight:600,flexShrink:0 }}>Admin</button>}
           <button onClick={()=>{

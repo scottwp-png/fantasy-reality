@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.26.3
+**Current Production Version:** v2.6.27.0
 **Last Deploy Date:** 2026-06-04
-**App.jsx Line Count:** ~11,115
+**App.jsx Line Count:** ~11,180
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,17 @@
 ---
 
 ## Version Log
+
+### v2.6.27.0 — 2026-06-04
+**First-run walkthrough + landing-page FAQ.** Reddit launch surfaced the gap — people asking "what is this?", "do I need friends?", "how often do I have to do something?", "can I see the rules?". Built a five-step welcome modal that auto-opens once after signup, plus dropped five pre-signup FAQ items at the top of the landing-page FAQ to catch the same questions before someone even creates an account.
+- **Walkthrough component** at `App.jsx:11984-12054`. Five centered modal cards (no DOM anchoring — intentional, so layout shifts don't break it): concept intro, "every event = points", weekly lineups, live vs replay, and a closing "now pick your show" CTA. Includes Back / Next / Skip + a dot-row progress indicator. The Anybody titles and Outfit body copy match the existing modal patterns in the app.
+- **Auto-open trigger.** New profiles created in the auth effect (`App.jsx:8909`) get `walkthroughPending: true`. The boot-time `setUserProfile(profile)` block (`App.jsx:8921`) checks that flag and opens the modal once. Existing legacy users (no `walkthroughPending` on their profile) never auto-trigger the tour — they see the `?` icon and can opt in if curious.
+- **`?` re-launcher** at `App.jsx:12132`. Sits between NotificationBell and the Admin chip in AppHome's header row. Plain ASCII question mark, no new SVG added to the Icon component (small diff). `title="How it works"` for tooltip, `aria-label` for screen readers.
+- **Profile fields** are `walkthroughPending: bool` (cleared on first close) and `walkthroughDoneAt: number` (timestamp, stamped on first close — useful later for admin Stats to see completion rate).
+- **Landing-page FAQ** at `landing_page/landing-page.html:688-707`. Existing FAQ already had ten items, but most were commissioner-mechanic-heavy (scoring workflow, co-commissioners, spoiler protection). Inserted five new pre-signup user questions at the top: "I've never played fantasy anything...", "Do I need a group of friends?", "How much time?", "Can I see the rules before the season?", "Current vs old season?". Replaced the existing "What is Fantasy Reality TV?" item — the new "never played fantasy anything" question covers the same ground in friendlier language. All five answers are written for someone deciding whether to sign up, not for someone already operating the app.
+- **What's deferred.** No in-league tour (Roster → Scoring → Standings → Chat) — that's a separate follow-up since first-signup users don't have a league to anchor it to. No interactive DOM-anchored tooltips either — the maintenance cost on an 11k-line single-file app where layout shifts every few releases is too high, and the centered-modal narrative covers the concept gap on its own.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.75s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.26.3 — 2026-06-04
 **Heroes swap banking.** Optional Heroes-format mechanic: unused swaps roll forward into a per-team bank, with an optional cap. Encourages strategic saving — if you didn't swap last week, you can swap two contestants this week.
