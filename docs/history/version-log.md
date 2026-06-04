@@ -31,7 +31,7 @@
 - **Regression harness.** Re-captured `_snapshots/baseline/survivor_pool.{json,standings.json}`. Other 9 baselines byte-identical (`captains, captains-bestball, elimination_pool, predictions, real-league, salary_cap, standard, standard-h2h, standard-roto`). Updated the `_note` in `_snapshots/synthetic/survivor_pool.json` from a known-bug warning to a regression-guard explanation — the t5 (no-pick) fixture stays in the snapshot specifically to lock the new behavior.
 - **Backlog.** Removes the `survivor_pool comparator bug` item from BACKLOG.md (was Now after v2.6.27.0 restructure).
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.83s).
-- **Commit:** `_pending_`
+- **Commit:** `8427450`
 
 ### v2.6.27.1 — 2026-06-04
 **Social sharing meta tags (Open Graph + Twitter Card).** Reddit/Discord/Slack/iMessage link previews now render the app brand instead of a bare URL — first Now item from the Play Store launch backlog. Touches both the app `index.html` and the landing page.
