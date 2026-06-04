@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.26.1
+**Current Production Version:** v2.6.26.2
 **Last Deploy Date:** 2026-06-04
-**App.jsx Line Count:** ~10,995
+**App.jsx Line Count:** ~11,055
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,18 @@
 ---
 
 ## Version Log
+
+### v2.6.26.2 — 2026-06-04
+**Heroes / Captains swap rule: fix the per-episode bug + configurable period and count.** Reported — the My Roster swap tracker labeled itself "Episode Swap" for multi-episode shows like Love Island, but the FAQ promised "1 per week." Investigation found that wasn't just a label issue — the swap detection compared against the *previous episode's* chart (`weeklyDepthCharts[currentWeek - 1]`), so the limit actually fired six times per week on Love Island instead of once. Six free swaps was hiding under the wrong label.
+- **Detection rewritten** at `App.jsx:5325-5346`. New `swapPeriod` config (default `"week"`) drives the comparison: `"week"` walks back to the chart at the start of the previous draft-week (so all episodes within the same week share the baseline); `"episode"` keeps the prior immediate-episode behavior. Walks back further if the target episode has no stored chart (gaps in early-season data). Multi-episode shows now correctly enforce one swap per draft-week by default.
+- **`swapsPerPeriod` config** (default `1`) — commissioner can raise the cap. Used at `App.jsx:5402` (`swapLimitReached = ... >= swapsPerPeriod`) and surfaced in the tracker copy.
+- **Tracker label** at `App.jsx:5910` switches from `cadenceWord(league) Swap: N / 1 used` to `Week Swap: N / X used` or `Episode Swap: N / X used` based on `swapPeriod`. Reflects the actual rule rather than the show's scoring cadence.
+- **Helper copy below the tracker** at `App.jsx:5916-5918` updates with both the limit and the period: "You may swap up to 2 contestants this week and reorganize freely."
+- **Settings > General > Swap Rules** card at `App.jsx:8085-8137`, visible only for `format === "captains"`. Number input for `swapsPerPeriod` (1–10) + pill toggle for `swapPeriod` (Week / Episode). The Episode toggle is hidden for single-episode-per-week shows (where week === episode anyway). Live preview line below: "Current rule: up to 2 swaps per week (across all 6 episodes)" so commissioner can sanity-check before saving.
+- **Backwards-compatible.** Leagues without `swapsPerPeriod` / `swapPeriod` set behave as `1 per week` — which for the first time matches what the FAQ has been promising.
+- **What this commit does NOT do.** No "force-replace eliminated contestants for free" (recommended in the user's follow-up — covered below). No swap banking (unused swaps carry forward). No per-episode-AND-per-week composite limits (e.g., "2 per week, max 1 per episode"). No swap log shown to managers.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.22s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.26.1 — 2026-06-04
 **Auto-claim assigned team during doJoin — drops the extra "click Claim" step from the recipient flow.** Reported — the v2.6.26.0 onboarding still required the recipient to tap Claim on the banner after signup. With email-assignment already proving who they are, that tap was busywork.

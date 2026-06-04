@@ -5311,11 +5311,39 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
     return map;
   }, [league, weeks]);
 
-  // Last week's chart for swap detection
+  // v2.6.26.2: swap detection uses the configured period. Default = "week"
+  // (compare against the chart at the start of the current draft week, so
+  // multi-episode shows like Love Island honor "one swap per week"); set
+  // `captainsConfig.swapPeriod = "episode"` to revert to per-episode
+  // tracking. The previous behavior treated every episode as a swap window
+  // which was a bug for shows like Love Island — the FAQ promised one swap
+  // per week but the code fired the limit six times per week.
+  const swapsPerPeriod = Number(league?.captainsConfig?.swapsPerPeriod ?? 1) || 1;
+  const swapPeriod = league?.captainsConfig?.swapPeriod === "episode" ? "episode" : "week";
+  // Last period's chart for swap detection
   const lastWeekChart = useMemo(() => {
     if (!team || currentWeek <= 1) return null;
-    return team.weeklyDepthCharts?.[String(currentWeek - 1)] || null;
-  }, [team, currentWeek]);
+    const epw = effectiveEpisodesPerWeek(league);
+    let refEpisode;
+    if (swapPeriod === "episode") {
+      // Per-episode: compare against the immediately previous episode.
+      refEpisode = currentWeek - 1;
+    } else {
+      // Per-week: compare against the chart at the start of the previous
+      // draft-week (so all episodes within the same week share the same
+      // baseline and "swap" only counts vs. the prior week's lineup).
+      const currentDraftWeek = epw > 1 ? Math.ceil(currentWeek / epw) : currentWeek;
+      const prevDraftWeekFirstEp = epw > 1 ? (currentDraftWeek - 2) * epw + 1 : currentWeek - 1;
+      refEpisode = Math.max(1, prevDraftWeekFirstEp);
+    }
+    // Walk back until we find a chart entry — some past episodes may not
+    // have a stored chart (early seasons, gaps).
+    for (let ep = refEpisode; ep >= 1; ep--) {
+      const c = team.weeklyDepthCharts?.[String(ep)];
+      if (c) return c;
+    }
+    return null;
+  }, [team, currentWeek, league, swapPeriod]);
 
   const lastWeekRosterIds = useMemo(() => {
     if (!lastWeekChart) return new Set();
@@ -5378,7 +5406,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
     isLockInEligible(league) &&
     getLockInStatus(league) === "open" &&
     team && !(team.lockedRoster && team.lockedRoster.length > 0);
-  const swapLimitReached = currentWeek > 1 && swapsMade >= 1 && !lockInOpenForTeam;
+  const swapLimitReached = currentWeek > 1 && swapsMade >= swapsPerPeriod && !lockInOpenForTeam;
 
   useEffect(() => {
     if (team) {
@@ -5860,14 +5888,14 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
         }}>
           <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
             <div style={{ fontSize:12,fontWeight:600,color:swapLimitReached?"#e94560":"#4ecdc4" }}>
-              {cadenceWord(league)} Swap: {swapsMade} / 1 used
+              {swapPeriod === "episode" ? "Episode" : "Week"} Swap: {swapsMade} / {swapsPerPeriod} used
             </div>
             {swapLimitReached && <span style={{ fontSize:10,color:"#e94560" }}>Swap limit reached</span>}
           </div>
           <div style={{ fontSize:11,color:"#6a6a8a",marginTop:4 }}>
             {swapLimitReached
-              ? "You've used your swap. You can still reorganize positions freely."
-              : "You may swap 1 contestant and reorganize freely."}
+              ? `You've used your ${swapsPerPeriod === 1 ? "swap" : "swaps"} this ${swapPeriod}. You can still reorganize positions freely.`
+              : `You may swap ${swapsPerPeriod === 1 ? "1 contestant" : `up to ${swapsPerPeriod} contestants`} this ${swapPeriod} and reorganize freely.`}
           </div>
         </div>
       )}
@@ -8056,6 +8084,58 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
         {league.format==="standard" && <div style={{ fontSize:12,color:"#6a6a8a",marginTop:6 }}>Picks/manager: {league.standardConfig?.picksPerManager||2} · Gendered: {league.standardConfig?.genderedDraft?"Yes":"No"}</div>}
         {league.format === "captains" && <CategoryMinimumsEditor league={league} onUpdate={onUpdate} />}
       </div>
+
+      {/* v2.6.26.2: Heroes / Captains swap rule editor. Default is 1 swap
+          per WEEK (correctly per draft-week, not per episode — pre-v2.6.26.2
+          shows like Love Island silently allowed 6 swaps per "week" because
+          the comparison used the previous episode's chart). For multi-
+          episode shows, commissioner can also flip to per-EPISODE tracking
+          if they want a faster rhythm. */}
+      {league.format === "captains" && (() => {
+        const cfg = league.captainsConfig || {};
+        const swapsPerPeriod = Number(cfg.swapsPerPeriod ?? 1) || 1;
+        const swapPeriod = cfg.swapPeriod === "episode" ? "episode" : "week";
+        const isMultiEp = effectiveEpisodesPerWeek(league) > 1;
+        function update(patch) {
+          onUpdate({ ...league, captainsConfig: { ...cfg, ...patch } });
+        }
+        return (
+          <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+            <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:4 }}>Swap Rules</div>
+            <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.5,marginBottom:12 }}>
+              How many roster swaps can each team make per period? Reorganizing depth-chart positions (Hero / Side-Kick / Vigilante) is always free — only changing a contestant counts as a swap.
+            </div>
+            <div style={{ display:"flex",gap:10,flexWrap:"wrap" }}>
+              <div style={{ flex:"1 1 140px",minWidth:120 }}>
+                <label style={{ display:"block",fontSize:11,fontWeight:600,color:"#8888aa",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.05em" }}>Swaps allowed</label>
+                <input type="number" min="1" max="10" value={swapsPerPeriod} onChange={e => update({ swapsPerPeriod: Math.max(1, Math.min(10, Number(e.target.value) || 1)) })}
+                  style={{ width:"100%",padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none",boxSizing:"border-box" }} />
+              </div>
+              {isMultiEp && (
+                <div style={{ flex:"1 1 140px",minWidth:140 }}>
+                  <label style={{ display:"block",fontSize:11,fontWeight:600,color:"#8888aa",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.05em" }}>Per</label>
+                  <div style={{ display:"flex",gap:4,padding:3,background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:99 }}>
+                    {[
+                      { id: "week", label: "Week" },
+                      { id: "episode", label: "Episode" },
+                    ].map(p => (
+                      <button key={p.id} onClick={() => update({ swapPeriod: p.id })} style={{
+                        flex:1,padding:"5px 10px",borderRadius:99,border:"none",cursor:"pointer",
+                        background: swapPeriod === p.id ? "#e9456033" : "transparent",
+                        color: swapPeriod === p.id ? "#e94560" : "#7a7a9a",
+                        fontSize:11,fontWeight:swapPeriod === p.id ? 700 : 600,fontFamily:"'Outfit',sans-serif",
+                      }}>{p.label}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div style={{ marginTop:8,fontSize:10,color:"#6a6a8a",fontStyle:"italic",lineHeight:1.5 }}>
+              Current rule: <span style={{ color:"#aaaabf",fontWeight:600 }}>up to {swapsPerPeriod} {swapsPerPeriod === 1 ? "swap" : "swaps"} per {swapPeriod}{isMultiEp && swapPeriod === "week" ? ` (across all ${effectiveEpisodesPerWeek(league)} episodes)` : ""}</span>.
+            </div>
+          </div>
+        );
+      })()}
       </>}
 
       {/* ─── SCORING RULES SECTION ─── */}
