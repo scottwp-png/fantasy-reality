@@ -31,7 +31,7 @@
 - **Removed measured-card-height ref.** No longer needed — placement doesn't depend on knowing the card's height because we always position below and let `maxHeight` constrain it.
 - One-paragraph trade-off: with the always-below pattern, the spotlight is always at the top of the visible page during a tour step, which means anything above the spotlight on the page is scrolled out of view. For tab-chip intro steps this means the page-level header (back button, league name) scrolls out. Acceptable — the user is in tour mode and the spotlight is what they should be focused on.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.83s).
-- **Commit:** `_pending_`
+- **Commit:** `9a017de`
 
 ### v2.6.27.14 — 2026-06-04
 **Mobile fixes for both walkthroughs.** Reported in prod: card overflows or gets cut off, buttons are too small to tap, and the spotlight gets covered by the tooltip card on small viewports. Both `WelcomeTour` and `LeagueTour` updated.
