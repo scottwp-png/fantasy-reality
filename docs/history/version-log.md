@@ -30,7 +30,7 @@
 - **Image choice.** Used the existing `icon-512.png` (square PWA icon) via the `summary` Twitter Card variant. Image URL points at the app subdomain (`https://app.fantasyrealitytv.com/icon-512.png`) on both sites — keeps one canonical asset instead of duplicating it into `landing_page/`. Cross-subdomain OG images are fine; crawlers fetch server-side.
 - **Deferred.** A proper 1200×630 `summary_large_image` social card with branded artwork is a design task — out of scope for this commit. The current square preview works correctly on every platform, just smaller. Also deferred: per-invite-link OG descriptions (so a shared `?join=ABC123` URL could say "Join Scott's Love Island league" instead of the generic tagline) — would need server-side rendering or a small redirect service, neither of which exists yet.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.68s). `dist/index.html` confirmed to contain 13 OG/Twitter meta tags post-build. `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `54059a3`
 
 ### v2.6.27.0 — 2026-06-04
 **First-run walkthrough + landing-page FAQ.** Reddit launch surfaced the gap — people asking "what is this?", "do I need friends?", "how often do I have to do something?", "can I see the rules?". Built a five-step welcome modal that auto-opens once after signup, plus dropped five pre-signup FAQ items at the top of the landing-page FAQ to catch the same questions before someone even creates an account.
