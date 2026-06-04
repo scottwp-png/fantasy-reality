@@ -31,7 +31,7 @@
 - **`BACKLOG.md` refreshed** from v2.4.2.2 (a month behind) to v2.6.25.8. The "Now / Next / Later" sections were ~70% complete on shipped items (real-time sync, league chat, scoring cascade, show-wide scoring, per-episode cadence, season-complete archiving). Rewrote the live items to reflect actual upcoming work: live draft + push notifications (paired), max-teams enforcement, Teams tab rework, membership-gated chat, trade system, social-sharing meta tags, MFA on admin account, survivor-pool sort-comparator bug.
 - **What this commit does NOT do.** No fuzzy name matching ("Steve" matches "Stephen" / "u/Steve_Rocks"). No "request claim" workflow that pings the commissioner for approval. No batch claim UI for users who own multiple teams (rare). No banner outside league context (e.g., in My Leagues home, showing "you have unclaimed teams in 3 leagues") — would be useful but not in scope here.
 - UI / docs only — `src/scoring.js` untouched. `npm run build` clean (3.22s).
-- **Commit:** `_pending_`
+- **Commit:** `116dc3c`
 
 ### v2.6.25.7 — 2026-06-02
 **Removed redundant "My Team" dropdown from Settings > General.** The Claim This Team button in Settings > Invite & Teams now does everything that dropdown did and more — sets `userProfile.activations`, stamps `team.uid`, and links `commissionerTeamId`. The dropdown only wrote `league.adminTeamId`.
