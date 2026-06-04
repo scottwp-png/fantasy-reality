@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.18
+**Current Production Version:** v2.6.27.19
 **Last Deploy Date:** 2026-06-04
-**App.jsx Line Count:** ~11,910
+**App.jsx Line Count:** ~11,920
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,15 @@
 ---
 
 ## Version Log
+
+### v2.6.27.19 — 2026-06-04
+**Tour: per-step placement + Lounge step rework + flash fix.** Three targeted fixes on top of the v2.6.27.18 centered-block placement.
+- **Per-step placement.** New `placement` field on each step. `"top"` pins the spotlight `PAD * 4` from the viewport top; `"center"` (default) centers the combined spotlight+gap+card block. Applied `"top"` to every tab-chip step (roster intro, scoring intro, standings intro, Live Draft intro, Lounge intro, closing roster CTA) so tab chips stay at their natural top-of-page position instead of floating mid-viewport with ~150px of dead space above. Body / element / row spotlights keep centered placement.
+- **Lounge step retargeted to the Lounge tab chip** (was the chat-composer). The composer is at the bottom of the lounge tab content — the smooth-scroll transition into it visibly passed over chat messages mid-animation, which the user perceived as the spotlight briefly highlighting a message before the composer. Tab chip is at the top of the page so no transition through chat content. New copy: title "The Lounge", body "Your league chat and polls are located in The Lounge. Trash talk during the episode is encouraged — drop a message and everyone in the league sees it."
+- **Flash fix at step transitions.** `setTargetRect(null)` now fires at the start of the `locate` effect on every step change. Without this, when a step changed tabs the spotlight ring kept its previous coords (a fixed-position div) and rendered over whatever happened to sit at those coords on the new tab — sometimes a chat message, sometimes random page content. Clearing immediately means the spotlight briefly disappears between steps and reappears at the new target position, which reads cleaner than "wrong location → correct location" jumping.
+- Non-Heroes tour got the same Lounge tab chip target + closing roster step + top placement on all chip steps.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.17s).
+- **Commit:** `_pending_`
 
 ### v2.6.27.18 — 2026-06-04
 **Tour placement revert.** v2.6.27.17's minimal-scroll placement felt worse than v2.6.27.16's centered-block math — reverted just the positioning algorithm. The other v2.6.27.17 changes (merged Lounge/composer step, closing roster CTA step) stay.

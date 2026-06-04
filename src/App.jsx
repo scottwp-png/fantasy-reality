@@ -12949,29 +12949,33 @@ function buildLeagueTourSteps(league, { isCommissioner = false } = {}) {
   // visual answer to "this tab" — the relevant chip lights up,
   // instead of the previous "nothing's highlighted, entire page is
   // dimmed" experience.
+  // v2.6.27.19: `placement: "top"` for tab-chip steps. Tab chips are
+  // small targets at the top of the page, so the centered-block
+  // algorithm pushes them down into the middle of the viewport with
+  // ~150px of empty space above. Top placement keeps the chip near
+  // its natural top-of-page position with the card directly below.
+  // Steps without a `placement` field default to "center".
   if (league?.format === "captains") {
     return [
-      { tabId: rosterTab, target: `[data-tab="${rosterTab}"]`, title: "Your weekly lineup lives here", body: "This tab is your team. Each week you pick which contestants fill each slot, and the lineup locks when the episode airs." },
+      { tabId: rosterTab, target: `[data-tab="${rosterTab}"]`, placement: "top", title: "Your weekly lineup lives here", body: "This tab is your team. Each week you pick which contestants fill each slot, and the lineup locks when the episode airs." },
       { tabId: rosterTab, target: '[data-tour="hero-slot"]', title: "Hero — scores 2×", body: "Your Hero is your strongest pick. Every point they earn in the episode is doubled, so pick someone you really believe in." },
       { tabId: rosterTab, target: '[data-tour="sidekick-slot"]', title: "Side-Kick — scores 1.5×", body: "Your Side-Kick is your second-best pick. Their points get a 50% boost. Good slot for a strong supporting character who scores reliably but isn't quite Hero material." },
       { tabId: rosterTab, target: '[data-tour="vigilantes"]', title: "Vigilantes — score 1×", body: "Vigilantes fill out the rest of your lineup. They score at face value — no multiplier — but they're still earning points, and a great Vigilante week can carry a quiet Hero." },
       ...(hasSwapTracker ? [{ tabId: rosterTab, target: '[data-tour="swap-tracker"]', title: "Swaps are limited", body: "Each week you get a fixed number of swaps to move contestants in and out of your roster. Reordering slots is always free, but swapping a new contestant in costs a swap. If your commissioner has banking turned on, unused swaps from prior weeks roll forward." }] : []),
-      { tabId: "scoring", target: '[data-tab="scoring"]', title: "Every scoring rule, every point value", body: "This is the Scoring tab. Every event that earns or loses points lives here with its point value, so you always know what you're playing for." },
+      { tabId: "scoring", target: '[data-tab="scoring"]', placement: "top", title: "Every scoring rule, every point value", body: "This is the Scoring tab. Every event that earns or loses points lives here with its point value, so you always know what you're playing for." },
       { tabId: "scoring", target: null, title: "Commissioners tune the rules", body: "Your commissioner can tweak rules, add new ones, and turn rules on or off per-league. Two Love Island leagues can play very differently — one might reward kisses, another might punish villa drama." },
-      { tabId: "standings", target: '[data-tab="standings"]', title: "Where everyone stands", body: "Standings refresh after each episode. Your rank, your total, and league-wide records all live on this tab." },
+      { tabId: "standings", target: '[data-tab="standings"]', placement: "top", title: "Where everyone stands", body: "Standings refresh after each episode. Your rank, your total, and league-wide records all live on this tab." },
       { tabId: "standings", target: '[data-tour="standings-row"]', title: "Tap any team to drill in", body: "Tapping a team — yours or a rival's — opens their roster breakdown for the selected week. Great for finding out exactly why someone jumped ahead of you." },
       { tabId: "standings", target: '[data-tour="standings-period"]', title: "Re-rank by any week", body: "By default standings show season totals, but the period selector lets you re-rank by any specific week. Useful for arguing whose roster peaked when." },
-      ...(liveDraftTabVisible ? [{ tabId: "live-draft", target: '[data-tab="live-draft"]', title: "Live Draft", body: "Your commissioner can run a live draft to fill rosters from this tab — snake order, a clock per pick, your team's on the clock in turn." }] : []),
-      // v2.6.27.17: lounge intro + chat composer collapsed into a
-      // single spotlight on the composer. The intro-on-tab-chip step
-      // was redundant — same tab as the composer step — and the
-      // double-tab-switch produced a visible flash.
-      { tabId: "lounge", target: '[data-tour="chat-composer"]', title: "Chat and polls", body: "The Lounge has your league chat and polls. Trash talk during the episode is encouraged — type here to drop a message everyone in the league sees." },
-      // v2.6.27.17: closing step lands the user on the roster tab
-      // with a clear call to action. Tour close handler also switches
-      // tabs (defense-in-depth) but the spotlight here makes the
-      // next step obvious.
-      { tabId: rosterTab, target: `[data-tab="${rosterTab}"]`, title: "Now set your team", body: "That's the tour. Head to My Roster, set your starting lineup, and don't forget to customize your team name before the episode airs." },
+      ...(liveDraftTabVisible ? [{ tabId: "live-draft", target: '[data-tab="live-draft"]', placement: "top", title: "Live Draft", body: "Your commissioner can run a live draft to fill rosters from this tab — snake order, a clock per pick, your team's on the clock in turn." }] : []),
+      // v2.6.27.19: Lounge step targets the Lounge tab chip itself
+      // (was the chat composer). The composer is at the bottom of
+      // the page and the smooth-scroll transition into it passed
+      // visibly over chat messages mid-animation. The chip is at
+      // the top of the page so no transition over chat content.
+      { tabId: "lounge", target: '[data-tab="lounge"]', placement: "top", title: "The Lounge", body: "Your league chat and polls are located in The Lounge. Trash talk during the episode is encouraged — drop a message and everyone in the league sees it." },
+      // Closing step lands on the roster tab with a clear CTA.
+      { tabId: rosterTab, target: `[data-tab="${rosterTab}"]`, placement: "top", title: "Now set your team", body: "That's the tour. Head to My Roster, set your starting lineup, and don't forget to customize your team name before the episode airs." },
     ];
   }
   // Non-Heroes formats: shorter tour, no per-slot anchors. Tab-button
@@ -12979,17 +12983,18 @@ function buildLeagueTourSteps(league, { isCommissioner = false } = {}) {
   const rosterStep = rosterTab && {
     tabId: rosterTab,
     target: `[data-tab="${rosterTab}"]`,
+    placement: "top",
     title: "Your team lives here",
     body: "Set your starting lineup before each episode airs. Rosters lock when the episode begins, so don't leave it for the last minute.",
   };
   return [
     rosterStep,
-    { tabId: "scoring", target: '[data-tab="scoring"]', title: "Every scoring rule", body: "Every event that earns or loses points is listed here, with its value. Your commissioner can tweak the rules per league, so the same show can play very differently across leagues." },
+    { tabId: "scoring", target: '[data-tab="scoring"]', placement: "top", title: "Every scoring rule", body: "Every event that earns or loses points is listed here, with its value. Your commissioner can tweak the rules per league, so the same show can play very differently across leagues." },
     { tabId: "standings", target: '[data-tour="standings-row"]', title: "Where you stand", body: "Rankings refresh after each episode. Tap any team — yours or a rival's — to drill into how their roster scored that week." },
     { tabId: "standings", target: '[data-tour="standings-period"]', title: "Re-rank by any week", body: "By default standings show season totals, but the period selector lets you re-rank by any specific week." },
-    ...(liveDraftTabVisible ? [{ tabId: "live-draft", target: '[data-tab="live-draft"]', title: "Live Draft", body: "Your commissioner can run a live draft to fill rosters from this tab — snake order, a clock per pick." }] : []),
-    { tabId: "lounge", target: '[data-tour="chat-composer"]', title: "Trash talk and polls", body: "Every league has its own chat and polls. Talk smack, run side bets — type here to send a message everyone sees." },
-    ...(rosterTab ? [{ tabId: rosterTab, target: `[data-tab="${rosterTab}"]`, title: "Now set your team", body: "That's the tour. Head back to your roster tab, set your lineup, and customize your team before the episode airs." }] : []),
+    ...(liveDraftTabVisible ? [{ tabId: "live-draft", target: '[data-tab="live-draft"]', placement: "top", title: "Live Draft", body: "Your commissioner can run a live draft to fill rosters from this tab — snake order, a clock per pick." }] : []),
+    { tabId: "lounge", target: '[data-tab="lounge"]', placement: "top", title: "The Lounge", body: "Your league chat and polls are located in The Lounge. Trash talk during the episode is encouraged — drop a message and everyone in the league sees it." },
+    ...(rosterTab ? [{ tabId: rosterTab, target: `[data-tab="${rosterTab}"]`, placement: "top", title: "Now set your team", body: "That's the tour. Head back to your roster tab, set your lineup, and customize your team before the episode airs." }] : []),
   ].filter(Boolean);
 }
 
@@ -13038,6 +13043,13 @@ function LeagueTour({ steps, onClose, onSwitchTab }) {
   // once at 350ms before giving up and rendering the centered fallback.
   useEffect(() => {
     if (!current?.target) { setTargetRect(null); return; }
+    // v2.6.27.19: clear the previous step's rect immediately so the
+    // spotlight ring doesn't render at the old position while
+    // `locate` is in its 150ms delay. Without this, switching tabs
+    // could briefly paint the spotlight over whatever happens to
+    // sit at the prior step's coords on the new tab (e.g., a chat
+    // message at the standings-period coords).
+    setTargetRect(null);
     let cancelled = false;
     let retryTimer = null;
     // v2.6.27.16: card height estimate used for centering math.
@@ -13048,16 +13060,16 @@ function LeagueTour({ steps, onClose, onSwitchTab }) {
     const CARD_H_EST = 320;
     const PAD = 12;
     const GAP = 12;
+    // v2.6.27.19: per-step placement. "top" pins the spotlight a
+    // few pads from viewport top; "center" (default) centers the
+    // combined block. Tab-chip steps use "top" so the chip stays
+    // at its natural top-of-page position instead of floating in
+    // the middle of the viewport.
+    const placement = current.placement === "top" ? "top" : "center";
     const locate = () => {
       if (cancelled) return;
       const el = document.querySelector(current.target);
       if (el) {
-        // Centered-block placement (v2.6.27.18 — reverted from
-        // v2.6.27.17's minimal-scroll attempt). Position the
-        // combined spotlight + gap + card block so its vertical
-        // center matches the viewport center. If the block is
-        // taller than the viewport, pin the spotlight a few pads
-        // from the top.
         if (scrolledForStepRef.current !== step) {
           scrolledForStepRef.current = step;
           try {
@@ -13066,9 +13078,14 @@ function LeagueTour({ steps, onClose, onSwitchTab }) {
             const vh = window.innerHeight;
             const SH = rect0.height;
             const blockH = SH + GAP + CARD_H_EST;
-            const desiredSpotlightTop = blockH + 2 * PAD <= vh
-              ? Math.floor((vh - blockH) / 2)
-              : PAD * 4;
+            let desiredSpotlightTop;
+            if (placement === "top") {
+              desiredSpotlightTop = PAD * 4;
+            } else {
+              desiredSpotlightTop = blockH + 2 * PAD <= vh
+                ? Math.floor((vh - blockH) / 2)
+                : PAD * 4;
+            }
             const delta = rect0.top - desiredSpotlightTop;
             if (Math.abs(delta) > 4) window.scrollBy({ top: delta, behavior: "smooth" });
           } catch {}
