@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.5
+**Current Production Version:** v2.6.27.6
 **Last Deploy Date:** 2026-06-04
-**App.jsx Line Count:** ~11,330
+**App.jsx Line Count:** ~11,340
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,14 @@
 ---
 
 ## Version Log
+
+### v2.6.27.6 — 2026-06-04
+**Spotlight tour polish: punch-through scrim + no slide.** Two reported bugs in the v2.6.27.5 spotlight tour, both fixed.
+- **"Highlighted element looks greyed out."** Was using a full-viewport scrim div *plus* a separate spotlight ring outline div — both sat above the page, so the spotlighted UI underneath looked dimmed. Replaced with a single **punch-through** div: positioned at the target rect, transparent, with a chained `box-shadow` that uses a 9999px spread for the dim scrim color and a 2px solid pink outline + 24px glow for the ring. The element underneath the cutout shows through at full brightness because the cutout div itself is transparent. Classic Joyride-style approach without the dep.
+- **"Highlighting slides around between steps."** Two causes. (1) The spotlight div had a `transition: all 0.25s ease`, so every state update animated the ring between positions. With the scroll listener firing locate-and-set-rect frequently during scroll, the ring slid between intermediate positions for hundreds of ms after each step change. Removed the transition entirely. (2) `scrollIntoView` was called with `behavior: "smooth"` on every locate call (including ones triggered by scroll events the scroll itself caused), producing an endless chase animation. Now: `behavior: "auto"` (synchronous, instant) + a `scrolledForStepRef` guard so each step's `scrollIntoView` fires exactly once. Also rounding rect to integers and bailing out of `setTargetRect` if values didn't actually change — kills sub-pixel jitter.
+- **No tour content changes.** All 12 Heroes steps + non-Heroes 5-step fallback are unchanged.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.90s).
+- **Commit:** `_pending_`
 
 ### v2.6.27.5 — 2026-06-04
 **Spotlight in-league walkthrough.** Upgrade to v2.6.27.3 — instead of a centered modal that just switches the underlying tab, the tour now spotlights specific UI elements within each tab (Hero slot, Side-Kick slot, Vigilantes section, swap tracker, standings row, period selector, chat composer). Tooltip card positions adjacent to the spotlight; click-outside / ESC / Exit all dismiss; step indicator dots are clickable for jump-to-step. For Heroes/Captains the tour is 12 steps; other formats degrade to a 5-step centered tour without per-slot spotlights since they don't have multi-role roster mechanics.

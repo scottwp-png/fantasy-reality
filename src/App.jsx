@@ -12169,6 +12169,13 @@ function buildLeagueTourSteps(league) {
 function LeagueTour({ steps, onClose, onSwitchTab }) {
   const [step, setStep] = useState(0);
   const [targetRect, setTargetRect] = useState(null);
+  // v2.6.27.6: scroll-into-view only once per step. Without this guard
+  // the scroll listener kept re-calling scrollIntoView every time the
+  // rect moved, and with `behavior: "smooth"` that produced an endless
+  // chase animation where the spotlight slid between intermediate
+  // positions. Now: scroll exactly once per step (using `auto` for
+  // instant placement), then just track the element if it moves.
+  const scrolledForStepRef = useRef(-1);
   const isFirst = step === 0;
   const isLast = step === steps.length - 1;
   const current = steps[step];
@@ -12180,9 +12187,10 @@ function LeagueTour({ steps, onClose, onSwitchTab }) {
 
   // Locate the spotlight target after the tab switch + DOM update.
   // Re-locates on scroll/resize so the spotlight tracks the element
-  // even if the user scrolls inside a tab. 150ms delay covers the
-  // tab-switch render; if the element appears later (e.g. lazy
-  // data load), we retry once at 500ms before giving up.
+  // if it scrolls within the tab — but only scrollIntoView once per
+  // step (see scrolledForStepRef above). 150ms delay covers the tab-
+  // switch render; if the element appears later (lazy load), we retry
+  // once at 350ms before giving up and rendering the centered fallback.
   useEffect(() => {
     if (!current?.target) { setTargetRect(null); return; }
     let cancelled = false;
@@ -12191,11 +12199,23 @@ function LeagueTour({ steps, onClose, onSwitchTab }) {
       if (cancelled) return;
       const el = document.querySelector(current.target);
       if (el) {
-        // Scroll into view if offscreen, then measure.
-        try { el.scrollIntoView({ behavior: "smooth", block: "center" }); } catch {}
+        if (scrolledForStepRef.current !== step) {
+          scrolledForStepRef.current = step;
+          // `behavior: "auto"` is synchronous — page snaps to the
+          // final position, then we measure. Avoids the smooth-scroll
+          // chase that produced the v2.6.27.5 sliding bug.
+          try { el.scrollIntoView({ behavior: "auto", block: "center" }); } catch {}
+        }
         const rect = el.getBoundingClientRect();
-        if (rect.width > 0 && rect.height > 0) setTargetRect(rect);
-        else setTargetRect(null);
+        if (rect.width > 0 && rect.height > 0) {
+          // Round to integers — sub-pixel deltas across scroll events
+          // produced visible 1px jitter on the spotlight outline.
+          const intRect = { top: Math.round(rect.top), left: Math.round(rect.left), width: Math.round(rect.width), height: Math.round(rect.height) };
+          setTargetRect(prev => {
+            if (prev && prev.top === intRect.top && prev.left === intRect.left && prev.width === intRect.width && prev.height === intRect.height) return prev;
+            return intRect;
+          });
+        } else setTargetRect(null);
       } else {
         setTargetRect(null);
         if (!retryTimer) retryTimer = setTimeout(locate, 350);
@@ -12250,25 +12270,30 @@ function LeagueTour({ steps, onClose, onSwitchTab }) {
 
   return (
     <div role="dialog" aria-modal="true" style={{ position:"fixed",inset:0,zIndex:9999,pointerEvents:"none" }}>
-      {/* Backdrop. Click-through is enabled for the spotlight cutout
-          area so users can see (but not interact with) the highlighted
-          element while reading. The tooltip card itself captures
-          pointer events. Click on the scrim dismisses the tour. */}
-      <div onClick={onClose}
-        style={{ position:"fixed",inset:0,background: hasSpotlight ? "rgba(8,8,18,0.7)" : "rgba(8,8,18,0.85)",pointerEvents:"auto" }} />
-      {/* Spotlight ring. Sits above the scrim, below the tooltip. Sized
-          to the target rect with a generous outline so the highlight
-          reads even when the target is dark-on-dark. */}
-      {hasSpotlight && (
-        <div style={{
-          position:"fixed",
-          top: targetRect.top - 6, left: targetRect.left - 6,
-          width: targetRect.width + 12, height: targetRect.height + 12,
-          borderRadius: 10,
-          boxShadow: "0 0 0 3px #e94560, 0 0 0 8px rgba(233,69,96,0.35), 0 0 40px 8px rgba(233,69,96,0.2)",
-          pointerEvents: "none",
-          transition: "all 0.25s ease",
-        }} />
+      {/* v2.6.27.6: punch-through scrim. One transparent div sized to
+          the target rect with a massive box-shadow spread fills the
+          viewport with the dim scrim color *around* the element but
+          leaves the element itself uncovered — so the highlighted
+          UI shows through at full brightness instead of looking
+          greyed-out behind the overlay. The chain on box-shadow is:
+          (1) 9999px spread scrim covers everything outside the rect,
+          (2) 2px solid pink outline rings the spotlight, (3) soft
+          outer glow softens the edge. No CSS transition — sliding
+          between step positions was the v2.6.27.5 visual bug. */}
+      {hasSpotlight ? (
+        <div onClick={onClose}
+          style={{
+            position:"fixed",
+            top: targetRect.top - 6,
+            left: targetRect.left - 6,
+            width: targetRect.width + 12,
+            height: targetRect.height + 12,
+            borderRadius: 10,
+            boxShadow: "0 0 0 9999px rgba(8,8,18,0.78), 0 0 0 2px #e94560, 0 0 24px 6px rgba(233,69,96,0.4)",
+            pointerEvents: "auto",
+          }} />
+      ) : (
+        <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(8,8,18,0.85)",pointerEvents:"auto" }} />
       )}
       {/* Tooltip card. */}
       <div onClick={e => e.stopPropagation()}
