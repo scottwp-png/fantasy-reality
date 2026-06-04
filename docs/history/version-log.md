@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.4
+**Current Production Version:** v2.6.27.5
 **Last Deploy Date:** 2026-06-04
-**App.jsx Line Count:** ~11,260
+**App.jsx Line Count:** ~11,330
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,25 @@
 ---
 
 ## Version Log
+
+### v2.6.27.5 — 2026-06-04
+**Spotlight in-league walkthrough.** Upgrade to v2.6.27.3 — instead of a centered modal that just switches the underlying tab, the tour now spotlights specific UI elements within each tab (Hero slot, Side-Kick slot, Vigilantes section, swap tracker, standings row, period selector, chat composer). Tooltip card positions adjacent to the spotlight; click-outside / ESC / Exit all dismiss; step indicator dots are clickable for jump-to-step. For Heroes/Captains the tour is 12 steps; other formats degrade to a 5-step centered tour without per-slot spotlights since they don't have multi-role roster mechanics.
+- **Graceful fallback.** Each step's `target` is a CSS selector resolved via `document.querySelector` after the tab switches. If the selector doesn't resolve (a refactor moved the element, a lazy section hasn't rendered yet) the step silently falls back to centered-modal layout. Tour can never break, only degrade — `data-tour` attributes are opportunistic anchors, not load-bearing contracts.
+- **`LeagueTour` rewrite** at `App.jsx:12099-12222`. State: `step` + `targetRect`. Effects: tab-switch on step change (existing), target lookup + scroll-into-view on step/target change (new), ESC keydown handler (new). Window scroll/resize listeners re-locate the spotlight so it tracks the element if the user scrolls inside the tab. 150ms initial delay + one 350ms retry covers the tab-switch render gap and lazy data loads.
+- **Spotlight rendering.** Two layered fixed-position divs above the page: a semi-transparent scrim (`rgba(8,8,18,0.7)` when spotlighting, `0.85` when centered — slightly lighter when spotlighting so the highlighted area reads), plus a "ring" sized to the target rect with a 3px solid pink outline and a soft outer glow (boxShadow at 0.35 + 0.2 alpha). Both are `pointerEvents: none` except for the scrim (click-to-dismiss); the tooltip card itself sits above both with `pointerEvents: auto`.
+- **Tooltip placement math** at `App.jsx:12176-12193`. Vertical: prefer below the target if there's room (`rect.bottom + tooltipH + pad < vh`), else above, else center. Horizontal: center on target, then clamp to viewport edges with a 16px pad. Tooltip width is `min(420, viewportWidth - 40)` so it never overflows on narrow screens. Centered fallback (no target) renders via CSS transform.
+- **Per-format step config** at `App.jsx:12056-12095`. Heroes/Captains gets the full 12-step expansion: 5 roster steps (intro + Hero + Side-Kick + Vigilantes + swap tracker), 2 scoring steps, 3 standings steps, 2 lounge steps. Non-Heroes formats get a 5-step centered tour — roster intro + scoring + 2 standings + 1 lounge, no per-slot spotlights since they don't have multi-role mechanics.
+- **`data-tour` attributes added** at:
+  - `App.jsx:5653` — `RosterRow` accepts a `dataTour` prop and forwards onto its outer container; called with `hero-slot` / `sidekick-slot`
+  - `App.jsx:6049-6053` — Vigilantes group now wrapped in a `<div data-tour="vigilantes">`
+  - `App.jsx:5953` — swap tracker outer div gets `data-tour="swap-tracker"`
+  - `App.jsx:2162` — standings period selector wrapper gets `data-tour="standings-period"`
+  - `App.jsx:2185` — first standings row (when `i === 0`) gets `data-tour="standings-row"`
+  - `App.jsx:4678` — chat composer wrapper gets `data-tour="chat-composer"`
+- **UI conveniences.** Step indicator dots are now clickable buttons so users can jump to any step (useful for re-reviewing the Hero/Side-Kick distinction). The skip button is renamed to "Exit" since it now lives in the corner of every spotlight and the original "Skip" label felt mid-task; "Exit" makes the dismissal intent clearer. ESC closes the tour.
+- **What this commit does NOT touch.** Scoring tab gets no `data-tour` attributes — its rule-row structure varies by view mode (events / assign / summary / rules) and the right spotlight target depends on which view is active. Adding view-aware spotlight selectors is a follow-up if the tour reads well enough without it. Also: I considered programmatically scrolling the highlighted element to viewport center, which the code does via `scrollIntoView({ block: "center" })`, but on very small viewports the tooltip card itself can still cover the spotlight — acceptable since the copy describes what's behind the card.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.74s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.27.4 — 2026-06-04
 **PWA manifest hardening for Play Store / TWA readiness.** Pre-launch prep for the TWA submission flow on the v2.6.27.0 Play Store backlog — Bubblewrap pulls fields directly from `public/manifest.json` to generate the Android app shell, so any gap in the manifest is a gap in the store listing.

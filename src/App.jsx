@@ -2158,7 +2158,7 @@ function StandingsTab({ league, standings, onUpdate, isCommissioner, myTeamId })
         );
       })()}
       {standings.length > 0 && (
-        <div style={{ marginBottom:12 }}>
+        <div data-tour="standings-period" style={{ marginBottom:12 }}>
           <Select label="Roster Breakdown Period" value={viewWeek} onChange={e=>setViewWeek(e.target.value)} options={weekOpts} />
         </div>
       )}
@@ -2181,7 +2181,7 @@ function StandingsTab({ league, standings, onUpdate, isCommissioner, myTeamId })
             const tied = !!team.tied;
             const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : null;
             return (
-              <div key={team.id} style={{
+              <div key={team.id} data-tour={i === 0 ? "standings-row" : undefined} style={{
                 overflow:"hidden",borderRadius:12,
                 background:rank===1?"linear-gradient(135deg,rgba(255,77,106,0.1),rgba(255,210,61,0.05))":rank===2?"linear-gradient(135deg,rgba(200,200,220,0.06),transparent)":rank===3?"linear-gradient(135deg,rgba(205,127,50,0.06),transparent)":"#12121f",
                 border:rank===1?"1px solid rgba(255,77,106,0.25)":rank<=3?"1px solid rgba(200,200,220,0.1)":"1px solid #1e1e38",
@@ -4674,7 +4674,7 @@ function ChatTab({ league, authUser, userProfile, isCommissioner, messages = [] 
           );
         })}
       </div>
-      <div style={{ display:"flex",gap:8,paddingTop:8,borderTop:"1px solid #1e1e38" }}>
+      <div data-tour="chat-composer" style={{ display:"flex",gap:8,paddingTop:8,borderTop:"1px solid #1e1e38" }}>
         <textarea
           ref={inputRef}
           value={draft}
@@ -5650,7 +5650,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
     return { ...c, ranking, lastWkPts: Math.round(lastWkPts*100)/100, tribeColor, bestWeek, bestPts: Math.round(bestPts*100)/100, isMerged };
   }
 
-  function RosterRow({ label, slot, currentId, multiplierLabel, multiplierNum, color }) {
+  function RosterRow({ label, slot, currentId, multiplierLabel, multiplierNum, color, dataTour }) {
     // Available: all active contestants that pass swap rules (no duplicate filtering — swaps handle it)
     const isSwapped = isNewPlayer(currentId);
     const available = activeContestants.filter(c => canSelectPlayer(c.id, currentId, isSwapped));
@@ -5664,7 +5664,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
     const onRosterSlot = (cid) => findSlotForPlayer(localChart, cid);
 
     return (
-      <div style={{ padding:"12px 14px",borderBottom:"1px solid #1a1a30" }}>
+      <div data-tour={dataTour} style={{ padding:"12px 14px",borderBottom:"1px solid #1a1a30" }}>
         <div style={{ display:"flex",alignItems:"center",gap:10 }}>
           {/* Role badge */}
           <div style={{ width:38,height:38,borderRadius:8,background:`${color}18`,border:`1px solid ${color}33`,
@@ -5947,7 +5947,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
 
       {/* Swap tracker */}
       {currentWeek > 1 && lastWeekRosterIds.size > 0 && !lockInOpenForTeam && !teamLocked && (
-        <div style={{
+        <div data-tour="swap-tracker" style={{
           padding:"10px 14px",borderRadius:8,marginBottom:14,
           background: swapLimitReached ? "#e9456011" : "#4ecdc411",
           border: swapLimitReached ? "1px solid #e9456033" : "1px solid #4ecdc433",
@@ -6041,11 +6041,13 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
           <div style={{ flex:1,fontSize:10,fontWeight:600,color:"#4a4a6a",paddingLeft:10 }}>Player</div>
           <div style={{ width:46,fontSize:10,fontWeight:600,color:"#4a4a6a",textAlign:"right" }}>{cadenceShort(league)} {effectiveWeek}</div>
         </div>
-        <RosterRow label="H" slot="captain" currentId={localChart.captain} multiplierLabel="2×" multiplierNum={2} color="#f5a623" />
-        <RosterRow label="SK" slot="coCaptain" currentId={localChart.coCaptain} multiplierLabel="1.5×" multiplierNum={1.5} color="#4ecdc4" />
-        {Array.from({length:regularSlots}).map((_,i) => (
-          <RosterRow key={i} label={`V${i+1}`} slot={`regular_${i}`} currentId={(localChart.regulars||[])[i]} multiplierLabel="1×" multiplierNum={1} color="#8888aa" />
-        ))}
+        <RosterRow label="H" slot="captain" currentId={localChart.captain} multiplierLabel="2×" multiplierNum={2} color="#f5a623" dataTour="hero-slot" />
+        <RosterRow label="SK" slot="coCaptain" currentId={localChart.coCaptain} multiplierLabel="1.5×" multiplierNum={1.5} color="#4ecdc4" dataTour="sidekick-slot" />
+        <div data-tour="vigilantes">
+          {Array.from({length:regularSlots}).map((_,i) => (
+            <RosterRow key={i} label={`V${i+1}`} slot={`regular_${i}`} currentId={(localChart.regulars||[])[i]} multiplierLabel="1×" multiplierNum={1} color="#8888aa" />
+          ))}
+        </div>
       </div>
 
       {/* ─── Final Lock-In confirm (Heroes only, when lock-in is open on your team) ─── */}
@@ -12120,50 +12122,173 @@ const LEAGUE_ROSTER_TAB_BY_FORMAT = {
 
 function buildLeagueTourSteps(league) {
   const rosterTab = LEAGUE_ROSTER_TAB_BY_FORMAT[league?.format];
+  // Heroes/Captains is the format with the most mechanics worth
+  // anchoring on (multipliers, swap budget). Other formats degrade
+  // to a single roster-intro step + the rest of the tour.
+  if (league?.format === "captains") {
+    return [
+      { tabId: rosterTab, target: null, title: "Your weekly lineup lives here", body: "This tab is your team. Each week you pick which contestants fill each slot, and the lineup locks when the episode airs." },
+      { tabId: rosterTab, target: '[data-tour="hero-slot"]', title: "Hero — scores 2×", body: "Your Hero is your strongest pick. Every point they earn in the episode is doubled, so pick someone you really believe in." },
+      { tabId: rosterTab, target: '[data-tour="sidekick-slot"]', title: "Side-Kick — scores 1.5×", body: "Your Side-Kick is your second-best pick. Their points get a 50% boost. Good slot for a strong supporting character who scores reliably but isn't quite Hero material." },
+      { tabId: rosterTab, target: '[data-tour="vigilantes"]', title: "Vigilantes — score 1×", body: "Vigilantes fill out the rest of your lineup. They score at face value — no multiplier — but they're still earning points, and a great Vigilante week can carry a quiet Hero." },
+      { tabId: rosterTab, target: '[data-tour="swap-tracker"]', title: "Swaps are limited", body: "Each week you get a fixed number of swaps to move contestants in and out of your roster. Reordering slots is always free, but swapping a new contestant in costs a swap. If your commissioner has banking turned on, unused swaps from prior weeks roll forward." },
+      { tabId: "scoring", target: null, title: "Every scoring rule, every point value", body: "This is the Scoring tab. Every event that earns or loses points lives here with its point value, so you always know what you're playing for." },
+      { tabId: "scoring", target: null, title: "Commissioners tune the rules", body: "Your commissioner can tweak rules, add new ones, and turn rules on or off per-league. Two Love Island leagues can play very differently — one might reward kisses, another might punish villa drama." },
+      { tabId: "standings", target: null, title: "Where everyone stands", body: "Standings refresh after each episode. Your rank, your total, and league-wide records all live on this tab." },
+      { tabId: "standings", target: '[data-tour="standings-row"]', title: "Tap any team to drill in", body: "Tapping a team — yours or a rival's — opens their roster breakdown for the selected week. Great for finding out exactly why someone jumped ahead of you." },
+      { tabId: "standings", target: '[data-tour="standings-period"]', title: "Re-rank by any week", body: "By default standings show season totals, but the period selector lets you re-rank by any specific week. Useful for arguing whose roster peaked when." },
+      { tabId: "lounge", target: null, title: "Chat and polls live here", body: "The Lounge has your league chat, polls, and announcements. Trash talk is encouraged. Polls are great for season-long bets (who wins, who gets sent home first, etc)." },
+      { tabId: "lounge", target: '[data-tour="chat-composer"]', title: "Drop a message", body: "Type here to send a message to everyone in the league. Sent during the episode? Even better. Replays of someone's reactions to a blindside are league legend." },
+    ];
+  }
+  // Non-Heroes formats: shorter tour, no per-slot anchors.
   const rosterStep = rosterTab && {
     tabId: rosterTab,
+    target: null,
     title: "Your team lives here",
     body: "Set your starting lineup before each episode airs. Rosters lock when the episode begins, so don't leave it for the last minute.",
   };
   return [
     rosterStep,
-    { tabId: "scoring", title: "Every scoring rule", body: "Every event that earns or loses points is listed here, with its value. Your commissioner can tweak the rules per league, so the same show can play very differently across leagues." },
-    { tabId: "standings", title: "Where you stand", body: "Rankings refresh after each episode. Tap any team — yours or a rival's — to drill into how their roster scored that week." },
-    { tabId: "lounge", title: "Trash talk and polls", body: "Every league has its own chat and polls. Talk smack, run side bets, and remember whose pick you mocked the night they won the whole thing." },
+    { tabId: "scoring", target: null, title: "Every scoring rule", body: "Every event that earns or loses points is listed here, with its value. Your commissioner can tweak the rules per league, so the same show can play very differently across leagues." },
+    { tabId: "standings", target: '[data-tour="standings-row"]', title: "Where you stand", body: "Rankings refresh after each episode. Tap any team — yours or a rival's — to drill into how their roster scored that week." },
+    { tabId: "standings", target: '[data-tour="standings-period"]', title: "Re-rank by any week", body: "By default standings show season totals, but the period selector lets you re-rank by any specific week." },
+    { tabId: "lounge", target: '[data-tour="chat-composer"]', title: "Trash talk and polls", body: "Every league has its own chat and polls. Talk smack, run side bets, and remember whose pick you mocked the night they won the whole thing." },
   ].filter(Boolean);
 }
 
+// v2.6.27.5: spotlight LeagueTour. Each step optionally carries a CSS
+// selector via step.target — when present, the tour locates the
+// element, scrolls it into view, paints an outlined "spotlight" box
+// around its bounding rect, and positions the tooltip card adjacent
+// (above or below depending on viewport space). When the target is
+// null or can't be found, the tooltip falls back to the centered-
+// modal layout used in v2.6.27.3. This degradation is intentional —
+// if a future refactor moves a data-tour element, the tour silently
+// reverts to centered for that step instead of breaking.
 function LeagueTour({ steps, onClose, onSwitchTab }) {
   const [step, setStep] = useState(0);
+  const [targetRect, setTargetRect] = useState(null);
   const isFirst = step === 0;
   const isLast = step === steps.length - 1;
   const current = steps[step];
-  // Snap the underlying tab to match the current step. Fires on mount
-  // (so step 0's tab is active even before the user clicks Next) and
-  // on every step change.
+
+  // Snap the underlying tab to match the current step.
   useEffect(() => {
     if (onSwitchTab && current?.tabId) onSwitchTab(current.tabId);
   }, [step]);
+
+  // Locate the spotlight target after the tab switch + DOM update.
+  // Re-locates on scroll/resize so the spotlight tracks the element
+  // even if the user scrolls inside a tab. 150ms delay covers the
+  // tab-switch render; if the element appears later (e.g. lazy
+  // data load), we retry once at 500ms before giving up.
+  useEffect(() => {
+    if (!current?.target) { setTargetRect(null); return; }
+    let cancelled = false;
+    let retryTimer = null;
+    const locate = () => {
+      if (cancelled) return;
+      const el = document.querySelector(current.target);
+      if (el) {
+        // Scroll into view if offscreen, then measure.
+        try { el.scrollIntoView({ behavior: "smooth", block: "center" }); } catch {}
+        const rect = el.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) setTargetRect(rect);
+        else setTargetRect(null);
+      } else {
+        setTargetRect(null);
+        if (!retryTimer) retryTimer = setTimeout(locate, 350);
+      }
+    };
+    const t = setTimeout(locate, 150);
+    window.addEventListener("scroll", locate, true);
+    window.addEventListener("resize", locate);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+      if (retryTimer) clearTimeout(retryTimer);
+      window.removeEventListener("scroll", locate, true);
+      window.removeEventListener("resize", locate);
+    };
+  }, [step, current?.target]);
+
+  // ESC key dismisses the tour.
+  useEffect(() => {
+    const handler = e => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  const hasSpotlight = !!targetRect;
+  // Tooltip dimensions used for placement math. Card itself is max-440 wide
+  // but actual rendered width depends on viewport — we clamp for safety.
+  const TOOLTIP_W = Math.min(420, (typeof window !== "undefined" ? window.innerWidth : 420) - 40);
+  const TOOLTIP_H_EST = 220;
+  // Vertical placement: prefer below the target if there's room, else above.
+  // Horizontal: center on target, clamped to viewport edges.
+  let tooltipStyle;
+  if (hasSpotlight) {
+    const vh = window.innerHeight;
+    const vw = window.innerWidth;
+    const pad = 16;
+    const r = targetRect;
+    let top, transform;
+    if (r.bottom + TOOLTIP_H_EST + pad < vh) {
+      top = r.bottom + pad;
+    } else if (r.top - TOOLTIP_H_EST - pad > 0) {
+      top = r.top - TOOLTIP_H_EST - pad;
+    } else {
+      top = Math.max(pad, (vh - TOOLTIP_H_EST) / 2);
+    }
+    let left = r.left + r.width / 2 - TOOLTIP_W / 2;
+    left = Math.max(pad, Math.min(left, vw - TOOLTIP_W - pad));
+    tooltipStyle = { position:"fixed", top, left, width: TOOLTIP_W };
+  } else {
+    tooltipStyle = { position:"fixed", top:"50%", left:"50%", transform:"translate(-50%, -50%)", width: TOOLTIP_W };
+  }
+
   return (
-    <div onClick={onClose} role="dialog" aria-modal="true"
-      style={{ position:"fixed",inset:0,background:"rgba(8,8,18,0.85)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20 }}>
+    <div role="dialog" aria-modal="true" style={{ position:"fixed",inset:0,zIndex:9999,pointerEvents:"none" }}>
+      {/* Backdrop. Click-through is enabled for the spotlight cutout
+          area so users can see (but not interact with) the highlighted
+          element while reading. The tooltip card itself captures
+          pointer events. Click on the scrim dismisses the tour. */}
+      <div onClick={onClose}
+        style={{ position:"fixed",inset:0,background: hasSpotlight ? "rgba(8,8,18,0.7)" : "rgba(8,8,18,0.85)",pointerEvents:"auto" }} />
+      {/* Spotlight ring. Sits above the scrim, below the tooltip. Sized
+          to the target rect with a generous outline so the highlight
+          reads even when the target is dark-on-dark. */}
+      {hasSpotlight && (
+        <div style={{
+          position:"fixed",
+          top: targetRect.top - 6, left: targetRect.left - 6,
+          width: targetRect.width + 12, height: targetRect.height + 12,
+          borderRadius: 10,
+          boxShadow: "0 0 0 3px #e94560, 0 0 0 8px rgba(233,69,96,0.35), 0 0 40px 8px rgba(233,69,96,0.2)",
+          pointerEvents: "none",
+          transition: "all 0.25s ease",
+        }} />
+      )}
+      {/* Tooltip card. */}
       <div onClick={e => e.stopPropagation()}
-        style={{ background:"#15152a",border:"1px solid #2a2a4a",borderRadius:14,padding:24,maxWidth:440,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.5)" }}>
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
+        style={{ ...tooltipStyle, background:"#15152a",border:"1px solid #2a2a4a",borderRadius:14,padding:22,boxShadow:"0 20px 60px rgba(0,0,0,0.5)",pointerEvents:"auto",maxWidth:"calc(100vw - 32px)" }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
           <div style={{ fontSize:11,color:"#6a6a8a",fontFamily:"'Outfit',sans-serif",fontWeight:600,letterSpacing:"0.08em",textTransform:"uppercase" }}>
-            League tour · Step {step + 1} of {steps.length}
+            League tour · {step + 1} of {steps.length}
           </div>
-          <button onClick={onClose} style={{ background:"none",border:"none",color:"#6a6a8a",fontSize:13,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>Skip</button>
+          <button onClick={onClose} style={{ background:"none",border:"none",color:"#6a6a8a",fontSize:13,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>Exit</button>
         </div>
-        <div style={{ fontSize:20,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:"#e8e8f0",marginBottom:10,lineHeight:1.25 }}>
+        <div style={{ fontSize:19,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:"#e8e8f0",marginBottom:10,lineHeight:1.25 }}>
           {current.title}
         </div>
-        <div style={{ fontSize:14,color:"#aaaabf",lineHeight:1.6,marginBottom:20 }}>
+        <div style={{ fontSize:14,color:"#aaaabf",lineHeight:1.6,marginBottom:18 }}>
           {current.body}
         </div>
-        <div style={{ display:"flex",gap:6,marginBottom:18,justifyContent:"center" }}>
+        <div style={{ display:"flex",gap:4,marginBottom:16,justifyContent:"center",flexWrap:"wrap" }}>
           {steps.map((_, i) => (
-            <div key={i} style={{ width:6,height:6,borderRadius:"50%",background: i === step ? "#e94560" : "#2a2a4a" }} />
+            <button key={i} onClick={() => setStep(i)} aria-label={`Step ${i+1}`}
+              style={{ width:6,height:6,borderRadius:"50%",background: i === step ? "#e94560" : "#2a2a4a",border:"none",padding:0,cursor:"pointer" }} />
           ))}
         </div>
         <div style={{ display:"flex",justifyContent:"space-between",gap:8 }}>
