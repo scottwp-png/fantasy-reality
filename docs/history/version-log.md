@@ -32,7 +32,7 @@
 - **New profiles** get both `walkthroughPending: true` AND `inLeagueTourPending: true` at signup (`App.jsx:8910`). Order of fire: welcome on first home-screen load → in-league on first league entry with a team. Each is dismissed independently. Legacy users have neither flag and don't get auto-opened; they can launch either tour from the respective `?` icons.
 - **What's deferred.** No tour for purely-spectator users (browsing a public league without joining a team) — `loggedInTeamId` gate suppresses auto-open in that case. They can still launch manually via the `?` icon. Also: no programmatic anchoring to specific UI elements within a tab — the tour delivers narrative paired with real tab content, not Joyride-style spotlight tooltips on individual buttons. Adding that would multiply maintenance cost on every layout shift; the current narrative-with-tab-context pattern hits the explanation gap without that fragility.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.84s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `144a525`
 
 ### v2.6.27.2 — 2026-06-04
 **Survivor Pool standings: asymmetric-comparator + isAlive-null + "survived all weeks" trio fixed.** Three correctness bugs at the same site in `calcStandings` — flagged in the regression-harness `_note` since the v2.6.0.x era and parked in Later until the Play Store re-prioritization promoted it to Now.
