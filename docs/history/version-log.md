@@ -36,7 +36,7 @@
 - **What this commit does NOT do.** No send-side. No notification triggers on live-draft state changes. No FCM topic subscriptions (the natural shape for league-wide notifications). No multi-device. No notification preferences (per-league mute, per-type opt-in). All deferred until the send-side design conversation happens.
 - **How to test the receive side without a send-side.** Flip `feature_flags.push_enabled` in admin, replace `VAPID_KEY` placeholder, click Enable in Account Settings, grant permission, copy the FCM token from RTDB at `frtv_users/<your uid>/pushToken`, paste it into Firebase Console → Cloud Messaging → Send test message. Test notification should appear.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.75s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `1b445ec`
 
 ### v2.6.27.10 — 2026-06-04
 **Live draft polish.** Real-use feedback round on v2.6.27.9 — undo, pause/resume, and attention-grabbers for the manager on the clock.
