@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.25.9
+**Current Production Version:** v2.6.26.0
 **Last Deploy Date:** 2026-06-04
-**App.jsx Line Count:** ~10,860
+**App.jsx Line Count:** ~10,975
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,17 @@
 ---
 
 ## Version Log
+
+### v2.6.26.0 — 2026-06-04
+**Commissioner team setup upgrade: Pending-claim indicator + Invite-URL pre-fill + Bulk add teams.** Three coordinated additions that build on the v2.6.25.9 email-assignment model into a real onboarding pipeline.
+- **Pending-claim chip** at `App.jsx:3316-3319`. When a team has `assignedEmail` set but no `team.uid` (= user hasn't claimed yet), the team-card actions row shows an amber `⏳ Awaiting <email>` badge so the commissioner can see at a glance who still needs to log in. Disappears the moment the team is registered.
+- **`?email=<addr>` URL param** at `App.jsx:8605-8616` parsed into a new `pendingEmail` state, threaded to `AuthScreen` at `App.jsx:9120`, used to prefill the email field on the signup form (`App.jsx:11329-11337`). Stripped from the URL on read so a stale value doesn't persist across navigation. Defaults the mode to "signup" when present, since the recipient almost certainly doesn't have an account.
+- **"Copy Invite URL" button** at `App.jsx:3397-3409` next to the assignedEmail input. Constructs `https://app.fantasyrealitytv.com/?join=<code>&email=<email>` — one click puts the URL on the clipboard. Recipient clicks → lands on signup with their email + the league's invite code pre-filled → creates account → joins league → sees the Claim banner for their assigned team.
+- **`BulkAddTeamsModal`** at `App.jsx:8557-8625`. Paste 1–N teams as TSV / CSV (one team per line, three columns: name / owner / email — owner defaults to team name if omitted, email is optional). Auto-detects separator per line (tab vs comma) — same approach as `BulkAddRulesModal`. Live preview shows each parsed row with name / owner / email; rows missing a name are silently skipped. Saves all teams in one `setTeams` write; the new teams inherit the email assignment immediately so the Pending chip + the URL flow Just Work.
+- **"Bulk Add" button** at `App.jsx:8221-8226` next to the existing "+ Add Team" so the commissioner doesn't have to scroll to find it.
+- **What this commit does NOT do.** No CSV/XLSX file upload (paste only). No "Send invite URLs to all pending teams" bulk action — commissioner copies them per-team. No "Resend" affordance for teams that have been pending too long. No template export ("download a starter CSV"). No prevention of duplicate team names or emails.
+- `node _snapshots/diff-against-baseline.mjs` deferred — UI-only. `npm run build` clean (2.94s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.25.9 — 2026-06-04
 **Claim banner: explicit commissioner assignment by email (replaces v2.6.25.8 name-match auto-detect).** Reported — the name-match self-serve was too prone to abuse / collisions. Any user named "Steve" could claim any unstamped team whose owner was "Steve" in any league.

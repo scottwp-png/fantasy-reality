@@ -2009,6 +2009,8 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
             league={league} onUpdate={onUpdate} editing={editingItem} />
           <AddTeamModal open={modal==="add-team"} onClose={()=>{setModal(null);setEditingItem(null)}}
             league={league} onUpdate={onUpdate} editing={editingItem} />
+          <BulkAddTeamsModal open={modal==="bulk-add-teams"} onClose={()=>setModal(null)}
+            league={league} onUpdate={onUpdate} />
         </>
       )}
     </div>
@@ -3313,6 +3315,12 @@ function TeamCardActions({ team, league, onUpdate, setEditing, setModal, authUse
       <div style={{ display:"flex",gap:6,alignItems:"center",flexWrap:"wrap" }}>
         <Btn small variant="ghost" onClick={()=>{setEditing(team);setModal("add-team")}}><Icon name="edit" size={12}/> Edit</Btn>
         <Btn small variant="danger" onClick={()=>{ if(confirm("Delete team?")) onUpdate({...league,teams:league.teams.filter(t=>t.id!==team.id)}); }}><Icon name="trash" size={12}/> Delete</Btn>
+        {/* v2.6.26.0: pending-claim chip. When a team has assignedEmail set
+            but isn't registered yet, surface that to the commissioner so
+            they can see at a glance who still needs to log in and claim. */}
+        {!hasRegistration && team.assignedEmail && (
+          <Badge color="#f5a623">⏳ Awaiting {team.assignedEmail}</Badge>
+        )}
         {checkingReg ? (
           <Badge color="#6a6a8a">Checking...</Badge>
         ) : hasRegistration ? (
@@ -3374,27 +3382,40 @@ function TeamCardActions({ team, league, onUpdate, setEditing, setModal, authUse
           </>
         )}
       </div>
-      {/* v2.6.25.9: assigned-email input. When set, any signed-in user
-          whose Firebase Auth email matches sees a Claim banner at the top
-          of the league dashboard. Lets the commissioner pre-approve a
-          specific user for a team without juggling invite codes. */}
+      {/* v2.6.25.9 / .26.0: assigned-email input + invite URL. When email
+          is set, any signed-in user whose Firebase Auth email matches sees
+          a Claim banner at the top of the league dashboard. The "Copy
+          invite URL" button builds a link that pre-fills both the league
+          code (lands them in the league directly after signup) and the
+          email field (so their account email matches the assignment). */}
       {!hasRegistration && (
         <div style={{ marginTop:8,padding:"10px 12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38" }}>
           <div style={{ fontSize:11,fontWeight:600,color:"#8888aa",marginBottom:4 }}>Assign to email <span style={{ fontSize:10,color:"#6a6a8a",fontWeight:500 }}>(optional)</span></div>
           <div style={{ fontSize:10,color:"#6a6a8a",marginBottom:6,lineHeight:1.4 }}>When this team owner signs in with this email, a Claim banner appears for them. Skip if you'd rather send an invite code below.</div>
-          <input
-            type="email"
-            value={team.assignedEmail || ""}
-            onChange={e => {
-              const next = e.target.value.toLowerCase().trim();
-              onUpdate({ ...league, teams: (league.teams || []).map(t => t.id === team.id ? { ...t, assignedEmail: next || null } : t) });
-            }}
-            placeholder="owner@example.com"
-            style={{
-              width:"100%",padding:"7px 10px",background:"#12121f",border:"1px solid #2a2a4a",
-              borderRadius:6,color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",boxSizing:"border-box",
-            }}
-          />
+          <div style={{ display:"flex",gap:6 }}>
+            <input
+              type="email"
+              value={team.assignedEmail || ""}
+              onChange={e => {
+                const next = e.target.value.toLowerCase().trim();
+                onUpdate({ ...league, teams: (league.teams || []).map(t => t.id === team.id ? { ...t, assignedEmail: next || null } : t) });
+              }}
+              placeholder="owner@example.com"
+              style={{
+                flex:1,padding:"7px 10px",background:"#12121f",border:"1px solid #2a2a4a",
+                borderRadius:6,color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",boxSizing:"border-box",
+              }}
+            />
+            {team.assignedEmail && league.leagueInviteCode && (
+              <Btn small variant="ghost" onClick={()=>{
+                const url = `https://app.fantasyrealitytv.com/?join=${league.leagueInviteCode}&email=${encodeURIComponent(team.assignedEmail)}`;
+                navigator.clipboard?.writeText(url).then(() => {
+                  setCopiedCode("invite-url-" + team.id);
+                  setTimeout(() => setCopiedCode(null), 2000);
+                });
+              }}>{copiedCode === "invite-url-" + team.id ? "✓ Copied" : "Copy Invite URL"}</Btn>
+            )}
+          </div>
         </div>
       )}
 
@@ -8196,7 +8217,12 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
               Add a team, edit names, send per-team invite codes, or remove a team. Standings and rosters live on the Standings tab — open a row there to see a team's depth chart.
             </div>
           </div>
-          <Btn small onClick={()=>{setEditing(null);setModal("add-team")}}><Icon name="plus" size={14}/> Add Team</Btn>
+          <div style={{ display:"flex",gap:6,flexShrink:0 }}>
+            {/* v2.6.26.0: bulk add. Commissioner pastes a list of teams +
+                emails; we create + email-assign them all at once. */}
+            <Btn small variant="ghost" onClick={()=>setModal("bulk-add-teams")}>Bulk Add</Btn>
+            <Btn small onClick={()=>{setEditing(null);setModal("add-team")}}><Icon name="plus" size={14}/> Add Team</Btn>
+          </div>
         </div>
         {(league.teams||[]).length === 0 ? (
           <div style={{ padding:"20px",textAlign:"center",color:"#6a6a8a",fontSize:13,background:"#0d0d18",borderRadius:8,border:"1px dashed #2a2a4a" }}>
@@ -8528,6 +8554,95 @@ function AddTeamModal({ open, onClose, league, onUpdate, editing }) {
   );
 }
 
+// v2.6.26.0: BulkAddTeamsModal — paste a list of teams + emails, create +
+// pre-assign them all at once. Format: tab- OR comma-separated, one team
+// per line. Columns: team name (required), owner (optional, defaults to
+// team name), email (optional). Empty-name rows are silently skipped.
+function BulkAddTeamsModal({ open, onClose, league, onUpdate }) {
+  const [text, setText] = useState("");
+
+  const parsed = useMemo(() => {
+    if (!text.trim()) return [];
+    const rows = [];
+    const lines = text.split(/\r?\n/);
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) continue;
+      const sep = line.includes("\t") ? "\t" : ",";
+      const cells = line.split(sep).map(c => c.trim());
+      const name = cells[0];
+      if (!name) continue;
+      const owner = (cells[1] || "").trim();
+      const email = (cells[2] || "").toLowerCase().trim();
+      rows.push({ name, owner: owner || name, email: email || null });
+    }
+    return rows;
+  }, [text]);
+
+  function commit() {
+    if (parsed.length === 0) return;
+    const newTeams = parsed.map(r => ({
+      id: generateId(),
+      name: r.name,
+      owner: r.owner,
+      ...(r.email ? { assignedEmail: r.email } : {}),
+      depthChart: { captain: null, coCaptain: null, regulars: [] },
+      weeklyRosters: {},
+      weeklyDepthCharts: {},
+    }));
+    onUpdate({ ...league, teams: [...(league.teams || []), ...newTeams] });
+    setText("");
+    onClose();
+  }
+
+  if (!open) return null;
+  return (
+    <Modal open title="Bulk Add Teams" onClose={onClose}>
+      <div style={{ fontSize:12,color:"#8888aa",marginBottom:10,lineHeight:1.5 }}>
+        Paste rows from a spreadsheet (tab-separated) or type them by hand (comma-separated). One team per line. Columns: <b>team name</b>, <b>owner</b> (optional, defaults to team name), <b>email</b> (optional).
+        <div style={{ marginTop:6,padding:"8px 10px",background:"#0d0d18",borderRadius:6,border:"1px solid #1e1e38",fontFamily:"monospace",fontSize:11,color:"#aaaabf",whiteSpace:"pre" }}>
+          {"name\towner\temail\nSnake Eyes\tAlex\talex@example.com\nTribe Royale\tSam\tsam@example.com"}
+        </div>
+      </div>
+
+      <textarea
+        value={text}
+        onChange={e=>setText(e.target.value)}
+        autoFocus
+        rows={10}
+        placeholder={"Snake Eyes\tAlex\talex@example.com\nTribe Royale\tSam\tsam@example.com"}
+        style={{
+          width:"100%",padding:"10px 14px",background:"#12121f",border:"1px solid #2a2a4a",
+          borderRadius:8,color:"#e8e8f0",fontSize:13,fontFamily:"monospace",resize:"vertical",
+          boxSizing:"border-box",outline:"none",lineHeight:1.5,whiteSpace:"pre",marginBottom:10,
+        }}
+      />
+
+      {parsed.length > 0 && (
+        <div style={{ marginBottom:10,padding:"10px 12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38" }}>
+          <div style={{ fontSize:11,fontWeight:700,color:"#4ecdc4",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em" }}>Preview · {parsed.length} team{parsed.length===1?"":"s"}</div>
+          <div style={{ maxHeight:160,overflowY:"auto",display:"flex",flexDirection:"column",gap:3 }}>
+            {parsed.slice(0, 50).map((r, i) => (
+              <div key={i} style={{ display:"flex",gap:8,fontSize:12,color:"#aaaabf" }}>
+                <div style={{ flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:"#e8e8f0" }}>{r.name}</div>
+                <div style={{ color:"#6a6a8a" }}>{r.owner}</div>
+                <div style={{ color:r.email?"#4ecdc4":"#4a4a6a",fontSize:10 }}>{r.email || "no email"}</div>
+              </div>
+            ))}
+            {parsed.length > 50 && <div style={{ fontSize:10,color:"#6a6a8a",fontStyle:"italic",marginTop:4 }}>…+ {parsed.length - 50} more</div>}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display:"flex",gap:8 }}>
+        <div style={{ flex:1 }}/>
+        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+        <Btn onClick={commit} disabled={parsed.length === 0}>Add {parsed.length || ""} Team{parsed.length===1?"":"s"}</Btn>
+      </div>
+    </Modal>
+  );
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // MAIN APP
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -8595,6 +8710,18 @@ export default function FantasyRealityTV() {
     const joinCode = params.get("join");
     if (joinCode) window.history.replaceState({}, "", window.location.pathname);
     return joinCode ? joinCode.toUpperCase() : "";
+  });
+  // v2.6.26.0: invite URL can also carry ?email=<address> to pre-fill the
+  // signup form. Commissioner generates this link in Settings > Invite &
+  // Teams after assigning a team to that email — the recipient clicks,
+  // creates an account with the matching email, and the Claim banner
+  // surfaces their team automatically. Read once at mount + strip from
+  // the URL so a stale value doesn't persist across navigation.
+  const [pendingEmail] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const email = params.get("email");
+    if (email) window.history.replaceState({}, "", window.location.pathname);
+    return email ? decodeURIComponent(email).toLowerCase().trim() : "";
   });
   const [featureFlags, setFeatureFlags] = useState({ new_formats: true, h2h: true, best_ball: true, roto: true });
   const [pendingJoin, setPendingJoin] = useState(null); // { league, code, type: "league"|"team", teamId? }
@@ -9111,7 +9238,7 @@ export default function FantasyRealityTV() {
           .app-root { max-width: 900px; }
         }
       `}</style>
-      {view==="login" && <AuthScreen onJoinViaCode={handleJoinViaCode} pendingJoinCode={pendingJoinCode} />}
+      {view==="login" && <AuthScreen onJoinViaCode={handleJoinViaCode} pendingJoinCode={pendingJoinCode} pendingEmail={pendingEmail} />}
       {view==="settings" && authUser && <UserSettingsScreen user={authUser} onBack={()=>setView("home")} onLogout={handleLogout} userProfile={userProfile} onUpdateProfile={async (updated) => { await saveUserProfile(authUser.uid, updated); setUserProfile(updated); }} />}
       {view==="faq" && <FAQPage onBack={()=>setView(authUser?"home":"login")} />}
       {view==="admin" && isAdmin && <AdminPanel leagues={leagues} onBack={()=>setView("home")} onUpdate={persist} featureFlags={featureFlags} setFeatureFlags={setFeatureFlags} />}
@@ -11315,12 +11442,15 @@ function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // AUTH SCREEN (Login / Sign Up / Join via Code)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function AuthScreen({ onJoinViaCode, pendingJoinCode }) {
-  // If the user arrived via an invite link (?join=CODE), default to Sign Up —
-  // most invitees won't have an account yet, and skipping the extra tab tap
-  // smooths the onboarding flow.
-  const [mode, setMode] = useState(pendingJoinCode ? "signup" : "login");
-  const [email, setEmail] = useState("");
+function AuthScreen({ onJoinViaCode, pendingJoinCode, pendingEmail }) {
+  // If the user arrived via an invite link (?join=CODE) OR an email-prefill
+  // link (?email=...), default to Sign Up — most invitees won't have an
+  // account yet, and skipping the extra tab tap smooths the onboarding flow.
+  const [mode, setMode] = useState((pendingJoinCode || pendingEmail) ? "signup" : "login");
+  // v2.6.26.0: prefill the email field from the URL param so the
+  // commissioner can send a one-click invite link that ties the new account
+  // to the assigned team via matching email.
+  const [email, setEmail] = useState(pendingEmail || "");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState("");
