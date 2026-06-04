@@ -1940,13 +1940,18 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
           Banner spans across tabs so it's visible from anywhere in the
           league dashboard until the user claims. */}
       {(() => {
+        // v2.6.25.9: explicit commissioner assignment. Was name-match in
+        // v2.6.25.8 — too prone to surprises (any user named "Steve" could
+        // claim any unstamped team owned by "Steve"). Now the banner only
+        // shows when the commissioner has explicitly set `team.assignedEmail`
+        // to the current user's email. Set via Settings > Invite & Teams.
         if (!authUser || !userProfile) return null;
         const alreadyActivated = !!userProfile?.activations?.[league.id];
         if (alreadyActivated) return null;
         const norm = (s) => (s || "").toLowerCase().trim();
-        const myName = norm(userProfile.displayName);
-        if (!myName) return null;
-        const claimable = (league.teams || []).filter(t => !t.uid && norm(t.owner) === myName);
+        const myEmail = norm(authUser.email);
+        if (!myEmail) return null;
+        const claimable = (league.teams || []).filter(t => !t.uid && t.assignedEmail && norm(t.assignedEmail) === myEmail);
         if (claimable.length === 0) return null;
         async function claim(team) {
           if (!confirm(`Claim "${team.name}"? You'll be registered as this team's manager. Chat will use your team name, and standings will surface your rank.`)) return;
@@ -1962,10 +1967,10 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
         return (
           <div style={{ margin:"16px 20px 0",padding:"14px 16px",background:"#4ecdc411",border:"1px solid #4ecdc433",borderRadius:10 }}>
             <div style={{ fontSize:13,fontWeight:700,color:"#4ecdc4",marginBottom:4 }}>
-              {claimable.length === 1 ? "Is this your team?" : "Are any of these your team?"}
+              {claimable.length === 1 ? "A team is waiting for you" : `${claimable.length} teams are waiting for you`}
             </div>
             <div style={{ fontSize:11,color:"#aaaabf",marginBottom:10,lineHeight:1.5 }}>
-              The commissioner set up {claimable.length === 1 ? "a team" : `${claimable.length} teams`} with your name. Claim to link your account — chat will use your team name and standings will track you.
+              The commissioner assigned {claimable.length === 1 ? "this team" : "these teams"} to your email. Claim to link your account — chat will use your team name and standings will track you.
             </div>
             <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
               {claimable.map(team => (
@@ -3369,6 +3374,30 @@ function TeamCardActions({ team, league, onUpdate, setEditing, setModal, authUse
           </>
         )}
       </div>
+      {/* v2.6.25.9: assigned-email input. When set, any signed-in user
+          whose Firebase Auth email matches sees a Claim banner at the top
+          of the league dashboard. Lets the commissioner pre-approve a
+          specific user for a team without juggling invite codes. */}
+      {!hasRegistration && (
+        <div style={{ marginTop:8,padding:"10px 12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38" }}>
+          <div style={{ fontSize:11,fontWeight:600,color:"#8888aa",marginBottom:4 }}>Assign to email <span style={{ fontSize:10,color:"#6a6a8a",fontWeight:500 }}>(optional)</span></div>
+          <div style={{ fontSize:10,color:"#6a6a8a",marginBottom:6,lineHeight:1.4 }}>When this team owner signs in with this email, a Claim banner appears for them. Skip if you'd rather send an invite code below.</div>
+          <input
+            type="email"
+            value={team.assignedEmail || ""}
+            onChange={e => {
+              const next = e.target.value.toLowerCase().trim();
+              onUpdate({ ...league, teams: (league.teams || []).map(t => t.id === team.id ? { ...t, assignedEmail: next || null } : t) });
+            }}
+            placeholder="owner@example.com"
+            style={{
+              width:"100%",padding:"7px 10px",background:"#12121f",border:"1px solid #2a2a4a",
+              borderRadius:6,color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",boxSizing:"border-box",
+            }}
+          />
+        </div>
+      )}
+
       {!hasRegistration && code && (
         <div style={{ marginTop:8 }}>
           <div style={{ display:"flex",alignItems:"center",gap:6 }}>

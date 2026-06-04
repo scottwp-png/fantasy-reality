@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.25.8
+**Current Production Version:** v2.6.25.9
 **Last Deploy Date:** 2026-06-04
-**App.jsx Line Count:** ~10,840
+**App.jsx Line Count:** ~10,860
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,19 @@
 ---
 
 ## Version Log
+
+### v2.6.25.9 — 2026-06-04
+**Claim banner: explicit commissioner assignment by email (replaces v2.6.25.8 name-match auto-detect).** Reported — the name-match self-serve was too prone to abuse / collisions. Any user named "Steve" could claim any unstamped team whose owner was "Steve" in any league.
+- **`team.assignedEmail` field.** Commissioner sets it per-team in Settings > Invite & Teams via a new input below the action buttons. Stored on the team object; normalized to lowercase + trimmed on save. `null` = no assignment, banner won't surface that team to anyone.
+- **Claim banner filter changed** at `App.jsx:1933-1948` from `norm(t.owner) === norm(userProfile.displayName)` to `t.assignedEmail && norm(t.assignedEmail) === norm(authUser.email)`. Three follow-on edits:
+  - Email gate replaces displayName gate — no name match anywhere now.
+  - Banner copy switches from "Is this your team?" to "A team is waiting for you" / "N teams are waiting for you" — more confident, since the commissioner explicitly approved.
+  - Sub-line reads "The commissioner assigned this team to your email" — explains the new mental model.
+- **Commissioner UI** at `App.jsx:3377-3399` in the TeamCardActions panel. Renders only when team isn't registered yet. Input is an email field with placeholder + 1-line hint: "Skip if you'd rather send an invite code below." Lets the commissioner choose: assign by email (new) OR generate invite code (existing).
+- **Coexists with invite code flow.** Commissioner can set both an assigned email AND generate a code on the same team. User can claim via either path. Once claimed, both are moot (team becomes registered).
+- **What this commit does NOT do.** No batch assign (paste a list of emails → auto-create + assign N teams). No "request to claim" workflow for users whose email doesn't match. No re-assignment after a claim — once claimed, you go through Reassign in the existing flow.
+- UI / state only — `src/scoring.js` untouched. `npm run build` clean (2.90s).
+- **Commit:** `_pending_`
 
 ### v2.6.25.8 — 2026-06-04
 **Self-service "Claim My Team" banner + backlog refresh.** Followed up the v2.6.25.6 commissioner-only Claim button with a banner any signed-in user sees when an unclaimed team in their league has their display name in its `owner` field.
