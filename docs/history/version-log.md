@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.14
+**Current Production Version:** v2.6.27.15
 **Last Deploy Date:** 2026-06-04
-**App.jsx Line Count:** ~11,910
+**App.jsx Line Count:** ~11,900
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,16 @@
 ---
 
 ## Version Log
+
+### v2.6.27.15 — 2026-06-04
+**Tour: scroll spotlight to top + always-below card placement.** v2.6.27.14's "edge-pinning when neither side fits" fallback still produced overlap on small viewports — when the card was tall enough relative to the viewport, pinning it to one edge while the spotlight sat near the middle meant the card and spotlight regions could collide. Switched to a stricter pattern that makes overlap impossible.
+- **Scroll spotlight to the top of the viewport** (was: center). The `locate` effect now uses `scrollIntoView({ block: "start", inline: "center" })` followed by a 16px upward `scrollBy` for breathing room. The spotlight ends up ~16px below the viewport top with maximum room below.
+- **Card always placed below the spotlight.** No more "fit above / fit below / pin to edge" branching. `top = spotlight.bottom + pad`, full stop. The card position is now deterministic per spotlight position.
+- **`maxHeight` clamped to remaining viewport** (`vh - top - pad`, floored at 160px so the card is never useless). Body content scrolls internally when the step has long copy. Combined with the always-below placement, this means the card cannot overlap the spotlight or overflow the viewport edges.
+- **Removed measured-card-height ref.** No longer needed — placement doesn't depend on knowing the card's height because we always position below and let `maxHeight` constrain it.
+- One-paragraph trade-off: with the always-below pattern, the spotlight is always at the top of the visible page during a tour step, which means anything above the spotlight on the page is scrolled out of view. For tab-chip intro steps this means the page-level header (back button, league name) scrolls out. Acceptable — the user is in tour mode and the spotlight is what they should be focused on.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.83s).
+- **Commit:** `_pending_`
 
 ### v2.6.27.14 — 2026-06-04
 **Mobile fixes for both walkthroughs.** Reported in prod: card overflows or gets cut off, buttons are too small to tap, and the spotlight gets covered by the tooltip card on small viewports. Both `WelcomeTour` and `LeagueTour` updated.

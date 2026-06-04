@@ -13023,10 +13023,17 @@ function LeagueTour({ steps, onClose, onSwitchTab }) {
       if (el) {
         if (scrolledForStepRef.current !== step) {
           scrolledForStepRef.current = step;
-          // `behavior: "auto"` is synchronous — page snaps to the
-          // final position, then we measure. Avoids the smooth-scroll
-          // chase that produced the v2.6.27.5 sliding bug.
-          try { el.scrollIntoView({ behavior: "auto", block: "center" }); } catch {}
+          // v2.6.27.15: scroll the spotlight to the *top* of the
+          // viewport, not the center. Combined with the below-only
+          // card placement, this guarantees the card never covers
+          // the spotlight. A small offset (16px) above gives the
+          // spotlight some breathing room from the very top edge.
+          // `behavior: "auto"` is synchronous so we can measure on
+          // the next line.
+          try {
+            el.scrollIntoView({ behavior: "auto", block: "start", inline: "center" });
+            window.scrollBy(0, -16);
+          } catch {}
         }
         const rect = el.getBoundingClientRect();
         if (rect.width > 0 && rect.height > 0) {
@@ -13063,44 +13070,22 @@ function LeagueTour({ steps, onClose, onSwitchTab }) {
   }, [onClose]);
 
   const hasSpotlight = !!targetRect;
-  // v2.6.27.14: mobile-first sizing + measured-height placement.
-  // The old code used a fixed 220px height estimate which was too
-  // small for many steps (especially Heroes ones with long body
-  // copy and 12 dots), so on mobile the card overflowed the
-  // spotlight rect and read as "covering" the highlighted UI.
-  // Now we measure the rendered card height via a ref and reflow
-  // the position on the next paint. There's a brief flash where
-  // the card uses the estimate on first paint and snaps to the
-  // measured position on second — acceptable, sub-frame.
+  // v2.6.27.15: always-below placement. The spotlight is scrolled to
+  // the top of the viewport (see the locate effect above), so room
+  // below is maximized. Card top = spotlight.bottom + pad; card
+  // max-height clamped to the remaining viewport so it never
+  // overflows AND never overlaps the spotlight. Body scrolls
+  // internally when content is longer than the available space.
   const TOOLTIP_W = Math.min(420, (typeof window !== "undefined" ? window.innerWidth : 420) - 24);
-  const cardRef = useRef(null);
-  const [cardH, setCardH] = useState(280);
-  useEffect(() => {
-    if (cardRef.current) setCardH(cardRef.current.offsetHeight);
-  }, [step, current?.title, current?.body, hasSpotlight]);
   let tooltipStyle;
+  let cardMaxH = null;
   if (hasSpotlight) {
     const vh = window.innerHeight;
     const vw = window.innerWidth;
     const pad = 12;
     const r = targetRect;
-    // Placement algorithm:
-    // - If card fits below spotlight, place below.
-    // - Else if card fits above, place above.
-    // - Else pin to the viewport edge with more room (so the card
-    //   never overlaps the spotlight on small viewports).
-    const roomBelow = vh - r.bottom;
-    const roomAbove = r.top;
-    let top;
-    if (roomBelow >= cardH + pad) {
-      top = r.bottom + pad;
-    } else if (roomAbove >= cardH + pad) {
-      top = r.top - cardH - pad;
-    } else if (roomBelow > roomAbove) {
-      top = Math.max(pad, vh - cardH - pad);
-    } else {
-      top = pad;
-    }
+    const top = r.bottom + pad;
+    cardMaxH = Math.max(160, vh - top - pad);
     let left = r.left + r.width / 2 - TOOLTIP_W / 2;
     left = Math.max(pad, Math.min(left, vw - TOOLTIP_W - pad));
     tooltipStyle = { position:"fixed", top, left, width: TOOLTIP_W };
@@ -13135,12 +13120,13 @@ function LeagueTour({ steps, onClose, onSwitchTab }) {
       ) : (
         <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(8,8,18,0.85)",pointerEvents:"auto" }} />
       )}
-      {/* Tooltip card. Bigger tap targets (min ~44px for Back/Next/
-          Exit), max-height with internal scroll so the card itself
-          can never overflow the viewport — body content scrolls
-          rather than the card running off-screen. */}
-      <div ref={cardRef} onClick={e => e.stopPropagation()}
-        style={{ ...tooltipStyle, background:"#15152a",border:"1px solid #2a2a4a",borderRadius:14,padding:18,boxShadow:"0 20px 60px rgba(0,0,0,0.5)",pointerEvents:"auto",maxWidth:"calc(100vw - 24px)",maxHeight:"calc(100vh - 24px)",display:"flex",flexDirection:"column",boxSizing:"border-box" }}>
+      {/* Tooltip card. Always positioned below the spotlight (which
+          is scrolled to the top of the viewport at step change).
+          Max-height is the remaining viewport space so the card
+          can never overlap the spotlight or overflow the bottom
+          edge — body content scrolls internally when too long. */}
+      <div onClick={e => e.stopPropagation()}
+        style={{ ...tooltipStyle, background:"#15152a",border:"1px solid #2a2a4a",borderRadius:14,padding:18,boxShadow:"0 20px 60px rgba(0,0,0,0.5)",pointerEvents:"auto",maxWidth:"calc(100vw - 24px)",maxHeight: cardMaxH ? `${cardMaxH}px` : "calc(100vh - 24px)",display:"flex",flexDirection:"column",boxSizing:"border-box" }}>
         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexShrink:0 }}>
           <div style={{ fontSize:11,color:"#6a6a8a",fontFamily:"'Outfit',sans-serif",fontWeight:600,letterSpacing:"0.08em",textTransform:"uppercase" }}>
             Tour · {step + 1} of {steps.length}
