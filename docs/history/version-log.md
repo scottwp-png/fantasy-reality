@@ -36,7 +36,7 @@
 - **What this commit does NOT touch.** `public/sw.js` has a cosmetic `CACHE_NAME = 'fantasy-reality-v2.0.0'` that hasn't bumped since v2.0.0. Network-first means the stale cache name doesn't cause stale-asset bugs in practice (fresh fetches always succeed; cache is fallback only), so it's not a Play Store blocker. Could be addressed when the SW gets push-notification handlers wired in for the FCM work on the Now list.
 - **Manual deploy reminder.** The landing page (`landing_page/`) is unaffected by this commit but the landing site is a separate Netlify deploy from `app.fantasyrealitytv.com`. The manifest changes ship to `app.fantasyrealitytv.com` only.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.81s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `0eb9889`
 
 ### v2.6.27.3 — 2026-06-04
 **In-league walkthrough.** Follow-up to v2.6.27.0's welcome tour — that one teaches the concept (what is fantasy reality TV), this one teaches the league UI (which tab does what). Was parked in Later post-v2.6.27.0; promoted because it's a coherent polish bundle to ship with v2.6.27.1 (social meta tags) and v2.6.27.2 (survivor_pool fix) in the next push.
