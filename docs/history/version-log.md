@@ -34,7 +34,7 @@
 - **Full draft board view.** New `DraftPicksFeed` component. Defaults to the last-6 pick rows; a "Show full board" toggle expands to a per-team grid (rows = teams in draft order, columns = round number, cells = the contestant picked at that snake-order pick number). Useful for taking stock mid-draft or as a clean post-done recap. The snake math is duplicated here from `pickerForPick` because the table needs to invert the relationship (given team idx + round, what's the pick number?) rather than the forward direction.
 - **Live + paused both render the on-the-clock panel.** Previously `currentPickerId` only computed for `state === "live"`, so paused state showed "—" for the team on the clock. Now both states resolve the picker correctly.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.94s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `a39817f`
 
 ### v2.6.27.11 — 2026-06-04
 **Push notifications: receive-side scaffolding (dormant behind a flag).** Pre-launch prep for the app-store rollout. The receive plumbing — Firebase Messaging SDK integration, `getToken()` for a per-device FCM token, foreground/background message handlers, opt-in UI — is in place but inert until two things happen: (1) admin flips `feature_flags.push_enabled` from `false` to `true`, and (2) a send-side starts pushing (Cloud Functions or similar, parked behind a design discussion per CLAUDE.md no-go zone).
