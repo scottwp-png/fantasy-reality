@@ -5320,6 +5320,43 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
   // per week but the code fired the limit six times per week.
   const swapsPerPeriod = Number(league?.captainsConfig?.swapsPerPeriod ?? 1) || 1;
   const swapPeriod = league?.captainsConfig?.swapPeriod === "episode" ? "episode" : "week";
+  // v2.6.26.3: swap banking. Unused swaps from prior periods accumulate into
+  // a per-team bank, optionally capped. Compute-on-the-fly so no new
+  // persistent state is needed — walk through prior periods comparing
+  // baseline charts, sum unused allowance into bank, clamp to cap.
+  const swapBanking = !!league?.captainsConfig?.swapBanking;
+  const swapBankMax = Number(league?.captainsConfig?.swapBankMax ?? 0) || 0; // 0 = unlimited
+  const bankAvailable = useMemo(() => {
+    if (!swapBanking || !team || currentWeek <= 1) return 0;
+    const epw = effectiveEpisodesPerWeek(league);
+    const isWeekly = swapPeriod === "week";
+    const currentPeriodIdx = isWeekly && epw > 1 ? Math.ceil(currentWeek / epw) : currentWeek;
+    if (currentPeriodIdx < 2) return 0;
+    const idsOf = (chart) => {
+      const s = new Set();
+      if (chart?.captain) s.add(chart.captain);
+      if (chart?.coCaptain) s.add(chart.coCaptain);
+      (chart?.regulars || []).forEach(id => s.add(id));
+      return s;
+    };
+    const cap = swapBankMax > 0 ? swapBankMax : Infinity;
+    let bank = 0;
+    for (let p = 2; p < currentPeriodIdx; p++) {
+      const baselineEp = isWeekly && epw > 1 ? (p - 1) * epw + 1 : p;
+      const priorEp = isWeekly && epw > 1 ? (p - 2) * epw + 1 : p - 1;
+      const baseline = team.weeklyDepthCharts?.[String(baselineEp)];
+      const prior = team.weeklyDepthCharts?.[String(priorEp)];
+      if (!baseline || !prior) continue;
+      const baselineIds = idsOf(baseline);
+      const priorIds = idsOf(prior);
+      let used = 0;
+      baselineIds.forEach(id => { if (!priorIds.has(id)) used++; });
+      const unused = Math.max(0, swapsPerPeriod - used);
+      bank = Math.min(cap, bank + unused);
+    }
+    return bank;
+  }, [team, currentWeek, swapBanking, swapsPerPeriod, swapBankMax, swapPeriod, league]);
+  const effectiveAllowance = swapsPerPeriod + bankAvailable;
   // Last period's chart for swap detection
   const lastWeekChart = useMemo(() => {
     if (!team || currentWeek <= 1) return null;
@@ -5406,7 +5443,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
     isLockInEligible(league) &&
     getLockInStatus(league) === "open" &&
     team && !(team.lockedRoster && team.lockedRoster.length > 0);
-  const swapLimitReached = currentWeek > 1 && swapsMade >= swapsPerPeriod && !lockInOpenForTeam;
+  const swapLimitReached = currentWeek > 1 && swapsMade >= effectiveAllowance && !lockInOpenForTeam;
 
   useEffect(() => {
     if (team) {
@@ -5888,14 +5925,19 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
         }}>
           <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
             <div style={{ fontSize:12,fontWeight:600,color:swapLimitReached?"#e94560":"#4ecdc4" }}>
-              {swapPeriod === "episode" ? "Episode" : "Week"} Swap: {swapsMade} / {swapsPerPeriod} used
+              {swapPeriod === "episode" ? "Episode" : "Week"} Swap: {swapsMade} / {effectiveAllowance} used
+              {bankAvailable > 0 && (
+                <span style={{ fontSize:10,color:"#aaaabf",fontWeight:500,marginLeft:6 }}>
+                  ({swapsPerPeriod} base + {bankAvailable} banked)
+                </span>
+              )}
             </div>
             {swapLimitReached && <span style={{ fontSize:10,color:"#e94560" }}>Swap limit reached</span>}
           </div>
           <div style={{ fontSize:11,color:"#6a6a8a",marginTop:4 }}>
             {swapLimitReached
-              ? `You've used your ${swapsPerPeriod === 1 ? "swap" : "swaps"} this ${swapPeriod}. You can still reorganize positions freely.`
-              : `You may swap ${swapsPerPeriod === 1 ? "1 contestant" : `up to ${swapsPerPeriod} contestants`} this ${swapPeriod} and reorganize freely.`}
+              ? `You've used all your swaps this ${swapPeriod}. You can still reorganize positions freely.`
+              : `You may swap up to ${effectiveAllowance} contestant${effectiveAllowance===1?"":"s"} this ${swapPeriod} and reorganize freely.${bankAvailable > 0 ? ` (${bankAvailable} banked from prior ${swapPeriod}s.)` : ""}`}
           </div>
         </div>
       )}
@@ -8095,6 +8137,8 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
         const cfg = league.captainsConfig || {};
         const swapsPerPeriod = Number(cfg.swapsPerPeriod ?? 1) || 1;
         const swapPeriod = cfg.swapPeriod === "episode" ? "episode" : "week";
+        const swapBanking = !!cfg.swapBanking;
+        const swapBankMax = Number(cfg.swapBankMax ?? 0) || 0;
         const isMultiEp = effectiveEpisodesPerWeek(league) > 1;
         function update(patch) {
           onUpdate({ ...league, captainsConfig: { ...cfg, ...patch } });
@@ -8131,7 +8175,29 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
               )}
             </div>
             <div style={{ marginTop:8,fontSize:10,color:"#6a6a8a",fontStyle:"italic",lineHeight:1.5 }}>
-              Current rule: <span style={{ color:"#aaaabf",fontWeight:600 }}>up to {swapsPerPeriod} {swapsPerPeriod === 1 ? "swap" : "swaps"} per {swapPeriod}{isMultiEp && swapPeriod === "week" ? ` (across all ${effectiveEpisodesPerWeek(league)} episodes)` : ""}</span>.
+              Current rule: <span style={{ color:"#aaaabf",fontWeight:600 }}>up to {swapsPerPeriod} {swapsPerPeriod === 1 ? "swap" : "swaps"} per {swapPeriod}{isMultiEp && swapPeriod === "week" ? ` (across all ${effectiveEpisodesPerWeek(league)} episodes)` : ""}{swapBanking ? `, with unused swaps banked${swapBankMax > 0 ? ` (max ${swapBankMax})` : ""}` : ""}</span>.
+            </div>
+
+            {/* v2.6.26.3: swap banking. When on, unused swaps roll over
+                into a per-team bank. Optional cap on how many can be
+                banked at once. */}
+            <div style={{ marginTop:14,paddingTop:14,borderTop:"1px solid #1e1e38" }}>
+              <label style={{ display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer" }}>
+                <input type="checkbox" checked={swapBanking} onChange={e => update({ swapBanking: e.target.checked })} style={{ accentColor:"#e94560",width:18,height:18,marginTop:2,flexShrink:0 }} />
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:13,color:"#e8e8f0",fontWeight:600 }}>Swap banking</div>
+                  <div style={{ fontSize:11,color:"#8888aa",marginTop:2,lineHeight:1.5 }}>
+                    Unused swaps roll forward — if you didn't swap last {swapPeriod}, you can swap an extra contestant this {swapPeriod}. Encourages strategic saving.
+                  </div>
+                </div>
+              </label>
+              {swapBanking && (
+                <div style={{ marginTop:10,paddingLeft:28 }}>
+                  <label style={{ display:"block",fontSize:11,fontWeight:600,color:"#8888aa",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.05em" }}>Bank max <span style={{ fontSize:9,color:"#6a6a8a",fontWeight:500 }}>(0 = unlimited)</span></label>
+                  <input type="number" min="0" max="20" value={swapBankMax} onChange={e => update({ swapBankMax: Math.max(0, Math.min(20, Number(e.target.value) || 0)) })}
+                    style={{ width:120,padding:"7px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none" }} />
+                </div>
+              )}
             </div>
           </div>
         );

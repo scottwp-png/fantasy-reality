@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.26.2
+**Current Production Version:** v2.6.26.3
 **Last Deploy Date:** 2026-06-04
-**App.jsx Line Count:** ~11,055
+**App.jsx Line Count:** ~11,115
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,17 @@
 ---
 
 ## Version Log
+
+### v2.6.26.3 — 2026-06-04
+**Heroes swap banking.** Optional Heroes-format mechanic: unused swaps roll forward into a per-team bank, with an optional cap. Encourages strategic saving — if you didn't swap last week, you can swap two contestants this week.
+- **Compute-on-the-fly** at `App.jsx:5354-5388`. Walks every prior period from 2 through `currentPeriod - 1`, looks up the baseline chart at the start of each period vs. the chart at the start of the previous period, counts swaps used (entries in the new baseline not in the old), bank gets `max(0, swapsPerPeriod - used)` added, then clamps to the bank max (or unlimited if cap = 0). No new persistent state — derived purely from `team.weeklyDepthCharts` plus the config fields.
+- **`effectiveAllowance`** at `App.jsx:5389` = `swapsPerPeriod + bankAvailable`. The limit-reached check (`App.jsx:5424`) uses it, so the bank truly extends what a team can do this period.
+- **Tracker copy** at `App.jsx:5944-5950` surfaces both numbers: "Week Swap: 1 / 3 used (1 base + 2 banked)". Helper line below also flags banked count.
+- **Settings UI** at `App.jsx:8135-8155` adds an "Swap banking" checkbox below the existing per-period inputs. When checked, an additional "Bank max" number input appears (0 = unlimited, cap at 20). Inline summary line below updates: "Current rule: up to 1 swap per week (across all 6 episodes), with unused swaps banked (max 3)."
+- **`captainsConfig.swapBanking`** (bool, default false) + **`swapBankMax`** (number, default 0 = unlimited) are the new config fields. Backwards-compatible — leagues without them behave as no-banking.
+- **What this commit does NOT do.** Banking is purely client-side computed — if a manager loaded the page in week 5 with bank = 2 but the commissioner changed `swapsPerPeriod` mid-season, the bank gets recomputed from the new config (retroactive). No "snapshot" or "lock in" of bank state per period. Also no UI for managers to see their bank history (you only see the current available count).
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.03s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.26.2 — 2026-06-04
 **Heroes / Captains swap rule: fix the per-episode bug + configurable period and count.** Reported — the My Roster swap tracker labeled itself "Episode Swap" for multi-episode shows like Love Island, but the FAQ promised "1 per week." Investigation found that wasn't just a label issue — the swap detection compared against the *previous episode's* chart (`weeklyDepthCharts[currentWeek - 1]`), so the limit actually fired six times per week on Love Island instead of once. Six free swaps was hiding under the wrong label.
