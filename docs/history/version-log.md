@@ -1,7 +1,7 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.0
+**Current Production Version:** v2.6.27.1
 **Last Deploy Date:** 2026-06-04
 **App.jsx Line Count:** ~11,180
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
@@ -22,6 +22,15 @@
 ---
 
 ## Version Log
+
+### v2.6.27.1 — 2026-06-04
+**Social sharing meta tags (Open Graph + Twitter Card).** Reddit/Discord/Slack/iMessage link previews now render the app brand instead of a bare URL — first Now item from the Play Store launch backlog. Touches both the app `index.html` and the landing page.
+- **App `index.html`** previously had zero OG/Twitter tags, no `<meta name="description">`, and a stripped-down `<title>` ("Fantasy Reality"). Added the full OG suite (title, description, type, url, site_name, image + dimensions), the Twitter Card set (summary, title, description, image), a real description meta, and aligned the title with the landing page ("Fantasy Reality TV — Primetime meets Gametime"). Also fixed an existing typo in the viewport meta — was `<meta viewport"...">` (missing `name=`), which most browsers tolerated but isn't valid.
+- **Landing page** already had partial OG (title + description + type + url) from earlier; completed the set with `og:site_name`, `og:image`, `og:image:width/height`, and the full Twitter Card block. Also widened the existing `og:description` from the brand-tagline shortform ("Primetime meets Gametime. Fantasy leagues for reality TV.") to match the full meta description for consistency across crawlers that read one or the other.
+- **Image choice.** Used the existing `icon-512.png` (square PWA icon) via the `summary` Twitter Card variant. Image URL points at the app subdomain (`https://app.fantasyrealitytv.com/icon-512.png`) on both sites — keeps one canonical asset instead of duplicating it into `landing_page/`. Cross-subdomain OG images are fine; crawlers fetch server-side.
+- **Deferred.** A proper 1200×630 `summary_large_image` social card with branded artwork is a design task — out of scope for this commit. The current square preview works correctly on every platform, just smaller. Also deferred: per-invite-link OG descriptions (so a shared `?join=ABC123` URL could say "Join Scott's Love Island league" instead of the generic tagline) — would need server-side rendering or a small redirect service, neither of which exists yet.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.68s). `dist/index.html` confirmed to contain 13 OG/Twitter meta tags post-build. `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.27.0 — 2026-06-04
 **First-run walkthrough + landing-page FAQ.** Reddit launch surfaced the gap — people asking "what is this?", "do I need friends?", "how often do I have to do something?", "can I see the rules?". Built a five-step welcome modal that auto-opens once after signup, plus dropped five pre-signup FAQ items at the top of the landing-page FAQ to catch the same questions before someone even creates an account.
