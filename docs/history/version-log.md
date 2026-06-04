@@ -33,7 +33,7 @@
 - **Paused state UI** uses the purple accent (`#9d5dff`) — different enough from live (pink) and offline (greys) to read at a glance. "On the clock" panel border + clock text both shift to purple; clock label changes from "Time left" to "Frozen at."
 - **BACKLOG.md cleanup.** Removed the "Teams tab rework" item — that work was already done via Standings tab consolidation in an earlier session (the Teams tab itself doesn't exist any more). Was misremembered as still pending.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.93s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `d495665`
 
 ### v2.6.27.9 — 2026-06-04
 **Live Draft (Heroes + Standard formats).** First swing at the #1 backlog item — a real-time snake draft so a group can sit down together and run a draft instead of the commissioner manually assigning picks for everyone.
