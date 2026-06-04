@@ -12859,34 +12859,39 @@ function WelcomeTour({ onClose }) {
   const current = WALKTHROUGH_STEPS[step];
   return (
     <div onClick={onClose} role="dialog" aria-modal="true"
-      style={{ position:"fixed",inset:0,background:"rgba(8,8,18,0.85)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20 }}>
+      style={{ position:"fixed",inset:0,background:"rgba(8,8,18,0.85)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:12 }}>
+      {/* v2.6.27.14: mobile fixes — card never exceeds viewport
+          height (body scrolls internally), tap targets bumped to
+          44px minimum, padding tightened on small viewports. */}
       <div onClick={e => e.stopPropagation()}
-        style={{ background:"#15152a",border:"1px solid #2a2a4a",borderRadius:14,padding:24,maxWidth:440,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.5)" }}>
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
+        style={{ background:"#15152a",border:"1px solid #2a2a4a",borderRadius:14,padding:18,maxWidth:440,width:"100%",maxHeight:"calc(100vh - 24px)",boxShadow:"0 20px 60px rgba(0,0,0,0.5)",display:"flex",flexDirection:"column",boxSizing:"border-box" }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexShrink:0 }}>
           <div style={{ fontSize:11,color:"#6a6a8a",fontFamily:"'Outfit',sans-serif",fontWeight:600,letterSpacing:"0.08em",textTransform:"uppercase" }}>
             Step {step + 1} of {WALKTHROUGH_STEPS.length}
           </div>
-          <button onClick={onClose} style={{ background:"none",border:"none",color:"#6a6a8a",fontSize:13,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>Skip</button>
+          <button onClick={onClose} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",color:"#aaaabf",fontSize:12,cursor:"pointer",fontFamily:"'Outfit',sans-serif",fontWeight:600,minHeight:32 }}>Skip</button>
         </div>
-        <div style={{ fontSize:20,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:"#e8e8f0",marginBottom:10,lineHeight:1.25 }}>
-          {current.title}
+        <div style={{ overflowY:"auto",flex:"1 1 auto",minHeight:0 }}>
+          <div style={{ fontSize:19,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:"#e8e8f0",marginBottom:8,lineHeight:1.25 }}>
+            {current.title}
+          </div>
+          <div style={{ fontSize:13.5,color:"#aaaabf",lineHeight:1.55,marginBottom:16 }}>
+            {current.body}
+          </div>
         </div>
-        <div style={{ fontSize:14,color:"#aaaabf",lineHeight:1.6,marginBottom:20 }}>
-          {current.body}
-        </div>
-        <div style={{ display:"flex",gap:6,marginBottom:18,justifyContent:"center" }}>
+        <div style={{ display:"flex",gap:6,marginBottom:14,justifyContent:"center",flexShrink:0 }}>
           {WALKTHROUGH_STEPS.map((_, i) => (
             <div key={i} style={{ width:6,height:6,borderRadius:"50%",background: i === step ? "#e94560" : "#2a2a4a" }} />
           ))}
         </div>
-        <div style={{ display:"flex",justifyContent:"space-between",gap:8 }}>
+        <div style={{ display:"flex",justifyContent:"space-between",gap:8,flexShrink:0 }}>
           <button onClick={() => setStep(s => Math.max(0, s - 1))} disabled={isFirst}
-            style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"8px 16px",color: isFirst ? "#3a3a5a" : "#aaaabf",fontSize:13,fontFamily:"'Outfit',sans-serif",fontWeight:600,cursor: isFirst ? "default" : "pointer" }}>
+            style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 18px",color: isFirst ? "#3a3a5a" : "#aaaabf",fontSize:14,fontFamily:"'Outfit',sans-serif",fontWeight:600,cursor: isFirst ? "default" : "pointer",minHeight:44 }}>
             Back
           </button>
           <button onClick={() => isLast ? onClose() : setStep(s => s + 1)}
-            style={{ background:"#e94560",border:"none",borderRadius:6,padding:"8px 20px",color:"#fff",fontSize:13,fontFamily:"'Outfit',sans-serif",fontWeight:700,cursor:"pointer" }}>
-            {isLast ? "Got it — let's go" : "Next"}
+            style={{ background:"#e94560",border:"none",borderRadius:8,padding:"10px 22px",color:"#fff",fontSize:14,fontFamily:"'Outfit',sans-serif",fontWeight:700,cursor:"pointer",minHeight:44 }}>
+            {isLast ? "Got it" : "Next"}
           </button>
         </div>
       </div>
@@ -13058,25 +13063,43 @@ function LeagueTour({ steps, onClose, onSwitchTab }) {
   }, [onClose]);
 
   const hasSpotlight = !!targetRect;
-  // Tooltip dimensions used for placement math. Card itself is max-440 wide
-  // but actual rendered width depends on viewport — we clamp for safety.
-  const TOOLTIP_W = Math.min(420, (typeof window !== "undefined" ? window.innerWidth : 420) - 40);
-  const TOOLTIP_H_EST = 220;
-  // Vertical placement: prefer below the target if there's room, else above.
-  // Horizontal: center on target, clamped to viewport edges.
+  // v2.6.27.14: mobile-first sizing + measured-height placement.
+  // The old code used a fixed 220px height estimate which was too
+  // small for many steps (especially Heroes ones with long body
+  // copy and 12 dots), so on mobile the card overflowed the
+  // spotlight rect and read as "covering" the highlighted UI.
+  // Now we measure the rendered card height via a ref and reflow
+  // the position on the next paint. There's a brief flash where
+  // the card uses the estimate on first paint and snaps to the
+  // measured position on second — acceptable, sub-frame.
+  const TOOLTIP_W = Math.min(420, (typeof window !== "undefined" ? window.innerWidth : 420) - 24);
+  const cardRef = useRef(null);
+  const [cardH, setCardH] = useState(280);
+  useEffect(() => {
+    if (cardRef.current) setCardH(cardRef.current.offsetHeight);
+  }, [step, current?.title, current?.body, hasSpotlight]);
   let tooltipStyle;
   if (hasSpotlight) {
     const vh = window.innerHeight;
     const vw = window.innerWidth;
-    const pad = 16;
+    const pad = 12;
     const r = targetRect;
-    let top, transform;
-    if (r.bottom + TOOLTIP_H_EST + pad < vh) {
+    // Placement algorithm:
+    // - If card fits below spotlight, place below.
+    // - Else if card fits above, place above.
+    // - Else pin to the viewport edge with more room (so the card
+    //   never overlaps the spotlight on small viewports).
+    const roomBelow = vh - r.bottom;
+    const roomAbove = r.top;
+    let top;
+    if (roomBelow >= cardH + pad) {
       top = r.bottom + pad;
-    } else if (r.top - TOOLTIP_H_EST - pad > 0) {
-      top = r.top - TOOLTIP_H_EST - pad;
+    } else if (roomAbove >= cardH + pad) {
+      top = r.top - cardH - pad;
+    } else if (roomBelow > roomAbove) {
+      top = Math.max(pad, vh - cardH - pad);
     } else {
-      top = Math.max(pad, (vh - TOOLTIP_H_EST) / 2);
+      top = pad;
     }
     let left = r.left + r.width / 2 - TOOLTIP_W / 2;
     left = Math.max(pad, Math.min(left, vw - TOOLTIP_W - pad));
@@ -13112,34 +13135,39 @@ function LeagueTour({ steps, onClose, onSwitchTab }) {
       ) : (
         <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(8,8,18,0.85)",pointerEvents:"auto" }} />
       )}
-      {/* Tooltip card. */}
-      <div onClick={e => e.stopPropagation()}
-        style={{ ...tooltipStyle, background:"#15152a",border:"1px solid #2a2a4a",borderRadius:14,padding:22,boxShadow:"0 20px 60px rgba(0,0,0,0.5)",pointerEvents:"auto",maxWidth:"calc(100vw - 32px)" }}>
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
+      {/* Tooltip card. Bigger tap targets (min ~44px for Back/Next/
+          Exit), max-height with internal scroll so the card itself
+          can never overflow the viewport — body content scrolls
+          rather than the card running off-screen. */}
+      <div ref={cardRef} onClick={e => e.stopPropagation()}
+        style={{ ...tooltipStyle, background:"#15152a",border:"1px solid #2a2a4a",borderRadius:14,padding:18,boxShadow:"0 20px 60px rgba(0,0,0,0.5)",pointerEvents:"auto",maxWidth:"calc(100vw - 24px)",maxHeight:"calc(100vh - 24px)",display:"flex",flexDirection:"column",boxSizing:"border-box" }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexShrink:0 }}>
           <div style={{ fontSize:11,color:"#6a6a8a",fontFamily:"'Outfit',sans-serif",fontWeight:600,letterSpacing:"0.08em",textTransform:"uppercase" }}>
-            League tour · {step + 1} of {steps.length}
+            Tour · {step + 1} of {steps.length}
           </div>
-          <button onClick={onClose} style={{ background:"none",border:"none",color:"#6a6a8a",fontSize:13,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>Exit</button>
+          <button onClick={onClose} style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 12px",color:"#aaaabf",fontSize:12,cursor:"pointer",fontFamily:"'Outfit',sans-serif",fontWeight:600,minHeight:32 }}>Exit</button>
         </div>
-        <div style={{ fontSize:19,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:"#e8e8f0",marginBottom:10,lineHeight:1.25 }}>
-          {current.title}
+        <div style={{ overflowY:"auto",flex:"1 1 auto",minHeight:0 }}>
+          <div style={{ fontSize:18,fontWeight:800,fontFamily:"'Anybody',sans-serif",color:"#e8e8f0",marginBottom:8,lineHeight:1.25 }}>
+            {current.title}
+          </div>
+          <div style={{ fontSize:13.5,color:"#aaaabf",lineHeight:1.55,marginBottom:14 }}>
+            {current.body}
+          </div>
         </div>
-        <div style={{ fontSize:14,color:"#aaaabf",lineHeight:1.6,marginBottom:18 }}>
-          {current.body}
-        </div>
-        <div style={{ display:"flex",gap:4,marginBottom:16,justifyContent:"center",flexWrap:"wrap" }}>
+        <div style={{ display:"flex",gap:4,marginBottom:14,justifyContent:"center",flexWrap:"wrap",flexShrink:0 }}>
           {steps.map((_, i) => (
             <button key={i} onClick={() => setStep(i)} aria-label={`Step ${i+1}`}
               style={{ width:6,height:6,borderRadius:"50%",background: i === step ? "#e94560" : "#2a2a4a",border:"none",padding:0,cursor:"pointer" }} />
           ))}
         </div>
-        <div style={{ display:"flex",justifyContent:"space-between",gap:8 }}>
+        <div style={{ display:"flex",justifyContent:"space-between",gap:8,flexShrink:0 }}>
           <button onClick={() => setStep(s => Math.max(0, s - 1))} disabled={isFirst}
-            style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:6,padding:"8px 16px",color: isFirst ? "#3a3a5a" : "#aaaabf",fontSize:13,fontFamily:"'Outfit',sans-serif",fontWeight:600,cursor: isFirst ? "default" : "pointer" }}>
+            style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 18px",color: isFirst ? "#3a3a5a" : "#aaaabf",fontSize:14,fontFamily:"'Outfit',sans-serif",fontWeight:600,cursor: isFirst ? "default" : "pointer",minHeight:44,flex:"0 1 auto" }}>
             Back
           </button>
           <button onClick={() => isLast ? onClose() : setStep(s => s + 1)}
-            style={{ background:"#e94560",border:"none",borderRadius:6,padding:"8px 20px",color:"#fff",fontSize:13,fontFamily:"'Outfit',sans-serif",fontWeight:700,cursor:"pointer" }}>
+            style={{ background:"#e94560",border:"none",borderRadius:8,padding:"10px 22px",color:"#fff",fontSize:14,fontFamily:"'Outfit',sans-serif",fontWeight:700,cursor:"pointer",minHeight:44,flex:"0 1 auto" }}>
             {isLast ? "Done" : "Next"}
           </button>
         </div>

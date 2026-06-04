@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.13
+**Current Production Version:** v2.6.27.14
 **Last Deploy Date:** 2026-06-04
-**App.jsx Line Count:** ~11,900
+**App.jsx Line Count:** ~11,910
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,17 @@
 ---
 
 ## Version Log
+
+### v2.6.27.14 — 2026-06-04
+**Mobile fixes for both walkthroughs.** Reported in prod: card overflows or gets cut off, buttons are too small to tap, and the spotlight gets covered by the tooltip card on small viewports. Both `WelcomeTour` and `LeagueTour` updated.
+- **Measured card height for placement** (LeagueTour). The old placement math used a fixed 220px height estimate, which was too small for longer Heroes steps (long body copy + a 12-dot indicator row). When the actual card was taller than the estimate, the "fit below" branch picked positions that ran the card right over the spotlight. Now a `useRef` + post-paint `useEffect` measures the real `offsetHeight` of the card, and a re-render places it against the measured value. One-frame flash on transition is acceptable.
+- **Edge-pinning placement** (LeagueTour). New algorithm: try fit-below → fit-above → pin to whichever viewport edge has more room. The previous algorithm fell back to "center vertically on the screen" when neither side fit, which on small phones meant the centered card *always* overlapped the spotlight. Now the card pins to one edge of the viewport (top or bottom) when the spotlight occupies most of the visible area, so the spotlight stays uncovered.
+- **44px-minimum tap targets** (both tours). Back / Next / Skip / Exit buttons now use `minHeight: 44, padding: "10px 18px"` (Back) / `"10px 22px"` (Next), `fontSize: 14`. The Skip / Exit buttons got a visible border so they're easier to spot at a glance and don't read as inert text.
+- **Max-height with internal scroll** (both tours). Card sets `maxHeight: "calc(100vh - 24px)"` and the body content area scrolls (`overflowY: auto`, `flex: 1 1 auto`, `minHeight: 0`) rather than letting the card itself overflow off-screen. So no matter how long the body copy is, the card fits and the user can scroll the text.
+- **Tighter padding on small viewports.** Card padding dropped from 24/22px to 18px, viewport pad from 20 to 12 (WelcomeTour) and 16 to 12 (LeagueTour). Small but reclaims usable space on narrow phones.
+- **Header chip relabel** (LeagueTour). "League tour · Step N of M" → "Tour · N of M" to fit the narrower header row when paired with the new bordered Exit button.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.93s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.27.13 — 2026-06-04
 **Membership-gated chat reads — Phase 2 (rules deploy).** Closes the rollout started in v2.6.27.8 by dropping the `$league_key.contains('_chat')` short-circuit from `database.rules.json`. After this rule deploys, chat reads require the same `members.<auth.uid>` check that league docs require — no more "any signed-in user can read any league's chat."
