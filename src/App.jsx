@@ -12962,8 +12962,16 @@ function buildLeagueTourSteps(league, { isCommissioner = false } = {}) {
       { tabId: "standings", target: '[data-tour="standings-row"]', title: "Tap any team to drill in", body: "Tapping a team — yours or a rival's — opens their roster breakdown for the selected week. Great for finding out exactly why someone jumped ahead of you." },
       { tabId: "standings", target: '[data-tour="standings-period"]', title: "Re-rank by any week", body: "By default standings show season totals, but the period selector lets you re-rank by any specific week. Useful for arguing whose roster peaked when." },
       ...(liveDraftTabVisible ? [{ tabId: "live-draft", target: '[data-tab="live-draft"]', title: "Live Draft", body: "Your commissioner can run a live draft to fill rosters from this tab — snake order, a clock per pick, your team's on the clock in turn." }] : []),
-      { tabId: "lounge", target: '[data-tab="lounge"]', title: "Chat and polls live here", body: "The Lounge has your league chat, polls, and announcements. Trash talk is encouraged. Polls are great for season-long bets (who wins, who gets sent home first, etc)." },
-      { tabId: "lounge", target: '[data-tour="chat-composer"]', title: "Drop a message", body: "Type here to send a message to everyone in the league. Sent during the episode? Even better. Replays of someone's reactions to a blindside are league legend." },
+      // v2.6.27.17: lounge intro + chat composer collapsed into a
+      // single spotlight on the composer. The intro-on-tab-chip step
+      // was redundant — same tab as the composer step — and the
+      // double-tab-switch produced a visible flash.
+      { tabId: "lounge", target: '[data-tour="chat-composer"]', title: "Chat and polls", body: "The Lounge has your league chat and polls. Trash talk during the episode is encouraged — type here to drop a message everyone in the league sees." },
+      // v2.6.27.17: closing step lands the user on the roster tab
+      // with a clear call to action. Tour close handler also switches
+      // tabs (defense-in-depth) but the spotlight here makes the
+      // next step obvious.
+      { tabId: rosterTab, target: `[data-tab="${rosterTab}"]`, title: "Now set your team", body: "That's the tour. Head to My Roster, set your starting lineup, and don't forget to customize your team name before the episode airs." },
     ];
   }
   // Non-Heroes formats: shorter tour, no per-slot anchors. Tab-button
@@ -12980,7 +12988,8 @@ function buildLeagueTourSteps(league, { isCommissioner = false } = {}) {
     { tabId: "standings", target: '[data-tour="standings-row"]', title: "Where you stand", body: "Rankings refresh after each episode. Tap any team — yours or a rival's — to drill into how their roster scored that week." },
     { tabId: "standings", target: '[data-tour="standings-period"]', title: "Re-rank by any week", body: "By default standings show season totals, but the period selector lets you re-rank by any specific week." },
     ...(liveDraftTabVisible ? [{ tabId: "live-draft", target: '[data-tab="live-draft"]', title: "Live Draft", body: "Your commissioner can run a live draft to fill rosters from this tab — snake order, a clock per pick." }] : []),
-    { tabId: "lounge", target: '[data-tour="chat-composer"]', title: "Trash talk and polls", body: "Every league has its own chat and polls. Talk smack, run side bets, and remember whose pick you mocked the night they won the whole thing." },
+    { tabId: "lounge", target: '[data-tour="chat-composer"]', title: "Trash talk and polls", body: "Every league has its own chat and polls. Talk smack, run side bets — type here to send a message everyone sees." },
+    ...(rosterTab ? [{ tabId: rosterTab, target: `[data-tab="${rosterTab}"]`, title: "Now set your team", body: "That's the tour. Head back to your roster tab, set your lineup, and customize your team before the episode airs." }] : []),
   ].filter(Boolean);
 }
 
@@ -13043,15 +13052,13 @@ function LeagueTour({ steps, onClose, onSwitchTab }) {
       if (cancelled) return;
       const el = document.querySelector(current.target);
       if (el) {
-        // Initial scroll-to-center for this step (only fires once).
-        // Position the combined block (spotlight + gap + card) so its
-        // vertical center matches the viewport center. If the block
-        // would be taller than the viewport allows, pin spotlight
-        // a few pads from the top. v2.6.27.16: scroll is smooth so
-        // both the spotlight and card glide between step positions
-        // instead of snapping. The scroll listener re-measures rect
-        // during the animation so the targetRect tracks the element
-        // continuously.
+        // Minimal-scroll placement (v2.6.27.17): keep the spotlight
+        // at its natural position when possible — only scroll up
+        // enough to make the card fit directly below it. The card
+        // sits right below the spotlight (PAD-sized gap), so when
+        // the spotlight is e.g. a tab chip at the top of the page,
+        // the card appears immediately under it without the empty
+        // upper space the centered-block algorithm produced.
         if (scrolledForStepRef.current !== step) {
           scrolledForStepRef.current = step;
           try {
@@ -13059,11 +13066,20 @@ function LeagueTour({ steps, onClose, onSwitchTab }) {
             const rect0 = el.getBoundingClientRect();
             const vh = window.innerHeight;
             const SH = rect0.height;
-            const blockH = SH + GAP + CARD_H_EST;
-            const desiredSpotlightTop = blockH + 2 * PAD <= vh
-              ? Math.floor((vh - blockH) / 2)
-              : PAD * 4;
-            const delta = rect0.top - desiredSpotlightTop;
+            const cardNeedsBelow = GAP + CARD_H_EST + PAD;
+            const spaceBelow = vh - rect0.bottom;
+            let delta = 0;
+            if (spaceBelow < cardNeedsBelow) {
+              // Not enough room below — scroll page down so spotlight
+              // sits higher. Target a position where the card just
+              // fits below; never push spotlight above PAD * 2.
+              const targetTop = Math.max(PAD * 2, vh - cardNeedsBelow - SH);
+              delta = rect0.top - targetTop;
+            } else if (rect0.top < PAD * 2) {
+              // Spotlight is too flush to top of viewport — nudge
+              // down a touch for breathing room.
+              delta = rect0.top - PAD * 2;
+            }
             if (Math.abs(delta) > 4) window.scrollBy({ top: delta, behavior: "smooth" });
           } catch {}
         }

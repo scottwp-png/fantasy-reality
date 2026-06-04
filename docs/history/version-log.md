@@ -1,7 +1,7 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.16
+**Current Production Version:** v2.6.27.17
 **Last Deploy Date:** 2026-06-04
 **App.jsx Line Count:** ~11,910
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
@@ -22,6 +22,15 @@
 ---
 
 ## Version Log
+
+### v2.6.27.17 — 2026-06-04
+**Tour: card hugs spotlight + condensed Lounge step + closing roster CTA.** Three more follow-ups.
+- **Minimal-scroll placement.** v2.6.27.16 centered the combined spotlight + gap + card block in the viewport, but for small targets (especially tab chips) that produced a lot of dead space *above* the spotlight while the card floated below. Now the algorithm only scrolls when needed: if the card fits below the spotlight at its current position, the page doesn't move at all; if there isn't enough room below, it scrolls down just enough so the card fits, never pushing the spotlight above a `PAD * 2` from the viewport top. Net effect: card consistently appears directly below the spotlight with the standard gap, and they read as a grouped pair instead of two floating elements.
+- **Merged Lounge intro + chat composer step.** v2.6.27.16's tour had a Lounge-tab-chip intro step followed immediately by a chat-composer spotlight step. Both targets are on the same tab, so the user saw a flash as the tour briefly highlighted "a message" (the in-transit spotlight during the smooth scroll between targets on the same tab) before landing on the composer. Collapsed into one step that targets the composer and covers both "Lounge has chat + polls" and "type here to send a message" in concise copy.
+- **New closing step on the roster tab.** Old final step was the chat composer; users finished the tour on the Lounge tab. New final step targets the roster tab chip with copy: "That's the tour. Head to My Roster, set your starting lineup, and don't forget to customize your team name before the episode airs." Frames the immediate next action. The close-handler-switches-to-roster behavior from v2.6.27.16 stays as defense-in-depth for users who Skip/Exit/ESC out before reaching the closing step.
+- **Non-Heroes tour gets the same closing step** when its format has a roster tab (`survivor_pool`, `elimination_pool`, `salary_cap`, `predictions`). `standard` format has no per-user roster tab, so the closing step is omitted.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.93s).
+- **Commit:** `_pending_`
 
 ### v2.6.27.16 — 2026-06-04
 **Tour polish: centered block + smooth transitions + roster-tab landing + tighter Live Draft gating.** Three reported follow-ups to v2.6.27.15.
