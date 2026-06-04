@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.8
+**Current Production Version:** v2.6.27.9
 **Last Deploy Date:** 2026-06-04
-**App.jsx Line Count:** ~11,360
+**App.jsx Line Count:** ~11,635
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,26 @@
 ---
 
 ## Version Log
+
+### v2.6.27.9 — 2026-06-04
+**Live Draft (Heroes + Standard formats).** First swing at the #1 backlog item — a real-time snake draft so a group can sit down together and run a draft instead of the commissioner manually assigning picks for everyone.
+- **Snake order** at `App.jsx:4127-4133`. Round 0 = `order[0..N-1]`; round 1 = `order[N-1..0]`; round 2 = `order[0..N-1]`; etc. Total picks = `numTeams * slotsPerTeam`.
+- **Format-aware slot count and distribution.**
+  - Heroes (`league.format === "captains"`): `slotsPerTeam = 2 + regularSlots`. On done, picks distribute into `team.depthChart` in pick order — 1st = `captain` (Hero), 2nd = `coCaptain` (Side-Kick), rest = `regulars[]`. Managers can rearrange via the existing depth-chart UI after.
+  - Standard: `slotsPerTeam = standardConfig.picksPerManager`. Draft is per-week. `draftWeek` is stamped on `league.liveDraft` at start so the draft stays tied to the right week even if `currentWeek` advances mid-draft. On done, picks distribute into `team.weeklyRosters[draftWeek]`.
+- **Schema** at `league.liveDraft = { state, order, picks, currentPick, pickDeadline, pickTimerSec, draftWeek?, startedAt, completedAt }`. States: `pre` (commissioner can configure + start), `live` (clock counts down, on-the-clock manager picks, auto-pick fires on expiry), `done` (picks distributed).
+- **Deterministic auto-pick.** Effect at `App.jsx:4170-4180` runs on every client viewing the draft. When `pickDeadline < now` and the current pick hasn't been auto-picked yet (tracked via `useRef` to prevent re-firing within one client), it picks the first available contestant by id alphabetical order. Every client computes the same id, so racing `saveLeague` calls converge to the same pick — `saveLeague` is idempotent for equal data.
+- **Live sync via the existing `subscribeLeague` listener.** No new RTDB write path — the draft state is just a field on the league doc. Multi-client awareness comes for free.
+- **Tab visibility** at `App.jsx:1856-1864`. Commissioner of a Heroes or Standard league always sees the "Live Draft" tab; managers see it only when `liveDraft.state !== "pre"` (a draft is actively underway or done). Avoids clutter for leagues that never run a live draft.
+- **Legacy commissioner-manual draft** for Standard (the v2.4.x `WeeklyDraftTab`) is renamed to "Manual Draft" but otherwise untouched. Commissioners can still use it as a fallback while Live Draft beds in. Will remove once we confirm Live Draft holds up.
+- **Reset.** Commissioners can reset a draft at any time. For Standard the reset also clears `weeklyRosters[draftWeek]` (the draft populated them); for Heroes it leaves depth charts alone since managers may have already started arranging.
+- **UI states.**
+  - Pre: commissioner-facing setup with pick clock input (15–300s), team count, slots-per-team, total picks, active contestants; "Start Live Draft" button. Managers see "Your commissioner hasn't started a live draft yet."
+  - Live: "On the clock" panel with the active team name (highlighted in pink if it's *you*) + a large countdown that turns pink under 10s. Available contestants list below; picks are gated to the team on the clock. Recent picks feed (last 6). For Heroes, the picks render with Hero / Side-Kick / V1..Vn role labels in the done summary; for Standard they render as `#1..#N`.
+  - Done: per-team picks summary with role labels; "Reset draft" for commissioner.
+- **What this commit does NOT do.** No draft chat (use the existing Lounge chat). No undo/redo of individual picks. No "pause / resume" mid-draft — commissioner can only reset. No pre-draft mock board. No draft order customization (auto-shuffled at start; commissioner can reset and restart if unhappy). No notifications when it's your pick — that's the v2.6.27.x push notifications work, which the backlog parks under Cloud Functions design discussion. All of these are reasonable follow-ups.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.88s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.27.8 — 2026-06-04
 **Membership-gated chat reads — Phase 1 (code only).** Closes the last open privacy hole flagged since v2.6.25.0: the chat path `frtv/league_<id>_chat` was auth-readable by any signed-in user, so anyone could subscribe to any league's chat. Two-phase rollout — this commit writes the gating data structure on every save and backfills existing leagues; the actual rule change is **deferred to a follow-up commit** that lands only after we've confirmed backfill has run in production.

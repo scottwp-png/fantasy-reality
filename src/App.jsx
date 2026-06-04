@@ -1853,8 +1853,15 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
     { id:"lounge",label:"Lounge",icon:"star",access:"all" },
     { id:"contestants",label:"Cast",icon:"star",access:"all" },
     { id:"scoring",label:"Scoring",icon:"chart",access:"all" },
-    ...(league.format === "standard" ? [{ id:"weekly-draft",label:"Draft",icon:"grid",access:"commissioner" }] : []),
+    // v2.6.27.9: legacy commissioner-manual draft tab kept as a
+    // fallback while Live Draft beds in. Same surface, same name.
+    ...(league.format === "standard" ? [{ id:"weekly-draft",label:"Manual Draft",icon:"grid",access:"commissioner" }] : []),
     ...(league.format === "captains" ? [{ id:"depth-chart",label:"My Roster",icon:"crown",access:"all" }] : []),
+    // v2.6.27.9: Live Draft tab for Heroes + Standard. Visible to
+    // commissioner always; visible to managers only once the draft
+    // has actually started so the tab doesn't clutter the UI for
+    // leagues that never run a live draft.
+    ...((league.format === "captains" || league.format === "standard") && (isCommissioner || (league.liveDraft && league.liveDraft.state !== "pre")) ? [{ id:"live-draft",label:"Live Draft",icon:"grid",access:"all" }] : []),
     ...(league.format === "survivor_pool" ? [{ id:"my-pick",label:"My Pick",icon:"star",access:"all" }] : []),
     ...(league.format === "elimination_pool" ? [{ id:"weekly-pick",label:effectiveEpisodesPerWeek(league) > 1 ? "Episode Pick" : "Weekly Pick",icon:"star",access:"all" }] : []),
     ...(league.format === "salary_cap" ? [
@@ -2021,6 +2028,7 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
         {tab === "contestants" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><ContestantsTab league={league} onUpdate={isCommissioner?onUpdate:null} setModal={isCommissioner?setModal:()=>{}} setEditing={isCommissioner?setEditingItem:()=>{}} readOnly={!isCommissioner} /></SpoilerBlur>}
         {tab === "scoring" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><ScoringTab league={league} onUpdate={isCommissioner ? onUpdate : null} isCommissioner={isCommissioner} userProfile={userProfile} /></SpoilerBlur>}
         {tab === "weekly-draft" && isCommissioner && <WeeklyDraftTab league={league} onUpdate={onUpdate} standings={standings} />}
+        {tab === "live-draft" && <LiveDraftTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} />}
         {tab === "depth-chart" && <DepthChartTab league={league} onUpdate={onUpdate} lockedToTeamId={isCommissioner ? null : loggedInTeamId} defaultTeamId={loggedInTeamId} isCommissioner={isCommissioner} spoilerActive={spoilerActive} myTeamId={loggedInTeamId} userProfile={userProfile} />}
         {tab === "my-pick" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><SurvivorPoolTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} /></SpoilerBlur>}
         {tab === "weekly-pick" && <SpoilerBlur active={spoilerActive} onReveal={handleReveal} week={spoilerWeek} league={league}><EliminationPoolTab league={league} onUpdate={onUpdate} loggedInTeamId={loggedInTeamId} isCommissioner={isCommissioner} /></SpoilerBlur>}
@@ -4109,6 +4117,394 @@ function ScoringTab({ league, onUpdate, isCommissioner = true, userProfile }) {
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// LIVE DRAFT TAB (Heroes + Standard formats)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// v2.6.27.9: Snake live draft. Format-aware:
+//
+//   Heroes (internal: "captains")
+//   - One-time pre-season setup
+//   - Total picks = numTeams * (2 + regularSlots)
+//   - On done: picks distribute into team.depthChart in pick order
+//     (1st = Hero, 2nd = Side-Kick, rest = Vigilantes)
+//
+//   Standard
+//   - Per-week fresh draft (each week is its own draft)
+//   - Total picks = numTeams * standardConfig.picksPerManager
+//   - On done: picks distribute into team.weeklyRosters[draftWeek]
+//   - draftWeek is stamped on the draft state at start, so the draft
+//     stays tied to the right week even if currentWeek advances mid-
+//     draft
+//
+// Schema lives on the league at `league.liveDraft`. States: 'pre'
+// (commissioner can start/configure), 'live' (clock counts down,
+// pick on the clock, auto-pick fires deterministically on expiry),
+// 'done' (picks distributed).
+//
+// Determinism. Auto-pick selects the first available contestant by
+// id alphabetical order. Every client viewing the draft tab runs the
+// same auto-pick logic, so if multiple clients race the timeout they
+// converge to the same pick and saveLeague is idempotent.
+//
+// Snake order. Round 0 = order[0..N-1]; round 1 = order[N-1..0];
+// round 2 = order[0..N-1]; etc.
+function pickerForPick(pickNum, order) {
+  const N = order.length;
+  if (N === 0) return null;
+  const round = Math.floor(pickNum / N);
+  const pos = pickNum % N;
+  const idx = round % 2 === 0 ? pos : N - 1 - pos;
+  return order[idx];
+}
+
+function LiveDraftTab({ league, onUpdate, loggedInTeamId, isCommissioner }) {
+  const draft = league.liveDraft || null;
+  const state = draft?.state || "pre";
+  const order = draft?.order || [];
+  const picks = draft?.picks || [];
+  const currentPick = draft?.currentPick || 0;
+  const pickDeadline = draft?.pickDeadline || null;
+  const pickTimerSec = Number(draft?.pickTimerSec ?? 60) || 60;
+  const isHeroes = league.format === "captains";
+  const isStandard = league.format === "standard";
+  // Per-format slot count. Heroes = 2 (Hero+SK) + Vigilantes;
+  // Standard = picksPerManager (from standardConfig).
+  const regularSlots = Number(league.captainsConfig?.regularSlots ?? 3) || 3;
+  const picksPerManager = Number(league.standardConfig?.picksPerManager ?? 2) || 2;
+  const slotsPerTeam = isHeroes ? (2 + regularSlots) : picksPerManager;
+  const teams = league.teams || [];
+  const totalPicks = teams.length * slotsPerTeam;
+  // draftWeek is stamped on the draft state at start (Standard only).
+  // Heroes doesn't use it — depthChart is a single source of truth.
+  const draftWeek = draft?.draftWeek != null ? String(draft.draftWeek) : null;
+  // For Standard, the "already drafted this week" set comes from
+  // both the active draft's picks AND any pre-existing weeklyRosters
+  // entry for the draft week (so re-starting a draft mid-week doesn't
+  // re-pick contestants already locked in elsewhere).
+  const draftedIds = useMemo(() => {
+    const s = new Set(picks.map(p => p.contestantId));
+    return s;
+  }, [picks]);
+  // For Standard, exclude contestants eliminated by the draft week
+  // (mirrors WeeklyDraftTab's logic at App.jsx:4143-4147). For Heroes,
+  // exclude anyone currently eliminated.
+  const available = useMemo(() => {
+    return (league.contestants || []).filter(c => {
+      if (draftedIds.has(c.id)) return false;
+      if (isStandard && draftWeek) {
+        if (c.status !== "eliminated") return true;
+        if (c.eliminatedWeek && Number(draftWeek) <= c.eliminatedWeek) return true;
+        return false;
+      }
+      return c.status !== "eliminated";
+    });
+  }, [league.contestants, draftedIds, isStandard, draftWeek]);
+
+  const currentPickerId = state === "live" ? pickerForPick(currentPick, order) : null;
+  const currentPickerTeam = teams.find(t => t.id === currentPickerId);
+  const isMyPick = state === "live" && currentPickerId === loggedInTeamId;
+  // currentPick (0-based) is the index of the *next* pick to make.
+  // Display as 1-based ("Pick 5 of 20").
+  const displayPick = Math.min(currentPick + 1, totalPicks);
+
+  // Countdown ticker. Re-renders the countdown number every second
+  // when the draft is live; nothing else depends on it.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (state !== "live") return;
+    const id = setInterval(() => setNowMs(Date.now()), 500);
+    return () => clearInterval(id);
+  }, [state]);
+  const secondsLeft = pickDeadline ? Math.max(0, Math.ceil((pickDeadline - nowMs) / 1000)) : pickTimerSec;
+
+  // Deterministic auto-pick on every client viewing the draft. First
+  // available contestant by id (alphabetical). Every client computes
+  // the same id, so racing saveLeague calls converge.
+  const autoPickIdRef = useRef(null);
+  useEffect(() => {
+    if (state !== "live") { autoPickIdRef.current = null; return; }
+    if (!pickDeadline || nowMs < pickDeadline) return;
+    if (autoPickIdRef.current === currentPick) return;
+    autoPickIdRef.current = currentPick;
+    const sortedAvail = [...available].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    const choice = sortedAvail[0];
+    if (choice) {
+      makePick(choice.id, true);
+    }
+  }, [nowMs, state, pickDeadline, currentPick, available]);
+
+  function shuffledTeamIds() {
+    const ids = teams.map(t => t.id);
+    // Deterministic-ish shuffle using a seed from team count + ids so
+    // the order is reproducible if the same configuration runs again
+    // in development. For production use this is fine — once the order
+    // is in the league.liveDraft.order field it's locked.
+    for (let i = ids.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [ids[i], ids[j]] = [ids[j], ids[i]];
+    }
+    return ids;
+  }
+
+  function startDraft() {
+    if (!isCommissioner) return;
+    if (teams.length < 2) { alert("Need at least 2 teams to start a draft."); return; }
+    if (available.length < totalPicks) {
+      if (!window.confirm(`Only ${available.length} contestants available for ${totalPicks} picks. Continue anyway? Auto-pick will stop when contestants run out.`)) return;
+    }
+    if (state === "done" || state === "live") {
+      if (!window.confirm("This will clear the current draft and start over. Continue?")) return;
+    }
+    const ord = shuffledTeamIds();
+    const now = Date.now();
+    const startedWeek = isStandard ? String(league.currentWeek || 1) : null;
+    onUpdate({
+      ...league,
+      liveDraft: {
+        state: "live",
+        order: ord,
+        picks: [],
+        currentPick: 0,
+        pickDeadline: now + pickTimerSec * 1000,
+        pickTimerSec,
+        draftWeek: startedWeek,
+        startedAt: now,
+        completedAt: null,
+      },
+    });
+  }
+
+  function resetDraft() {
+    if (!isCommissioner) return;
+    const msg = isHeroes
+      ? "Reset the draft? All picks will be cleared. Team depth charts populated by the draft stay in place — you can clear them manually if needed."
+      : "Reset the draft? All picks for this draft week will be cleared from team rosters.";
+    if (!window.confirm(msg)) return;
+    // For Standard, also clear the week's rosters since the draft
+    // populated them. For Heroes, leave depth charts alone — managers
+    // may have already started arranging.
+    let nextTeams = league.teams;
+    if (isStandard && draftWeek) {
+      nextTeams = league.teams.map(t => {
+        const wr = { ...(t.weeklyRosters || {}) };
+        delete wr[draftWeek];
+        return { ...t, weeklyRosters: wr };
+      });
+    }
+    onUpdate({ ...league, teams: nextTeams, liveDraft: null });
+  }
+
+  function distributePicks(allPicks) {
+    // Group picks by team in pick order, then assign per format.
+    const byTeam = {};
+    for (const p of allPicks) {
+      (byTeam[p.teamId] = byTeam[p.teamId] || []).push(p.contestantId);
+    }
+    return teams.map(t => {
+      const got = byTeam[t.id] || [];
+      if (isHeroes) {
+        const captain = got[0] || null;
+        const coCaptain = got[1] || null;
+        const regulars = got.slice(2);
+        return { ...t, depthChart: { ...(t.depthChart || {}), captain, coCaptain, regulars } };
+      }
+      // Standard: write to weeklyRosters[draftWeek]
+      return { ...t, weeklyRosters: { ...(t.weeklyRosters || {}), [draftWeek]: got } };
+    });
+  }
+
+  function makePick(contestantId, autoPicked = false) {
+    if (state !== "live") return;
+    if (!contestantId) return;
+    // Only the team on the clock may pick (UI also gates this; this
+    // is defense for the manual-pick path too).
+    const pickerId = pickerForPick(currentPick, order);
+    if (!pickerId) return;
+    if (draftedIds.has(contestantId)) return;
+    const newPick = { pickNum: currentPick, teamId: pickerId, contestantId, autoPicked: !!autoPicked, pickedAt: Date.now() };
+    const newPicks = [...picks, newPick];
+    const nextPick = currentPick + 1;
+    const now = Date.now();
+    if (nextPick >= totalPicks) {
+      const updatedTeams = distributePicks(newPicks);
+      onUpdate({
+        ...league,
+        teams: updatedTeams,
+        liveDraft: { ...draft, picks: newPicks, currentPick: nextPick, pickDeadline: null, state: "done", completedAt: now },
+      });
+    } else {
+      onUpdate({
+        ...league,
+        liveDraft: { ...draft, picks: newPicks, currentPick: nextPick, pickDeadline: now + pickTimerSec * 1000 },
+      });
+    }
+  }
+
+  function setTimerSec(sec) {
+    if (!isCommissioner || state !== "pre") return;
+    onUpdate({
+      ...league,
+      liveDraft: { ...(league.liveDraft || {}), state: "pre", pickTimerSec: Math.max(15, Math.min(300, Number(sec) || 60)) },
+    });
+  }
+
+  // ─── Pre-draft state (commissioner-facing config + start) ───
+  if (state === "pre" || !draft) {
+    return (
+      <div>
+        <div style={{ marginBottom:14 }}>
+          <h3 style={{ margin:"0 0 6px",fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Live Draft</h3>
+          <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.5 }}>
+            {isHeroes
+              ? "Snake draft for the season. Each manager picks one contestant per round in order, then reverses next round. After the draft completes, the first pick lands in your Hero slot, second in Side-Kick, and the rest fill your Vigilante slots. You can rearrange any time afterward."
+              : `Snake draft for ${cadenceLabel(league, league.currentWeek)}. Each manager picks one contestant per round in order, then reverses next round. After the draft completes, all picks land in your roster for the ${cadenceWord(league).toLowerCase()}.`}
+          </div>
+        </div>
+        {isCommissioner ? (
+          <div style={{ padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+            <div style={{ fontSize:13,color:"#e8e8f0",fontWeight:600,marginBottom:10 }}>Commissioner setup</div>
+            <div style={{ display:"flex",flexDirection:"column",gap:10,marginBottom:14 }}>
+              <div>
+                <label style={{ display:"block",fontSize:11,fontWeight:600,color:"#8888aa",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.05em" }}>Pick clock (seconds)</label>
+                <input type="number" min="15" max="300" value={pickTimerSec} onChange={e => setTimerSec(e.target.value)}
+                  style={{ width:120,padding:"7px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none" }} />
+                <div style={{ fontSize:10,color:"#6a6a8a",marginTop:4 }}>15–300 seconds per pick. Auto-pick fires the first available contestant if the manager doesn't pick in time.</div>
+              </div>
+              <div style={{ fontSize:12,color:"#8888aa" }}>
+                <div><span style={{ color:"#aaaabf",fontWeight:600 }}>Teams:</span> {teams.length}</div>
+                <div><span style={{ color:"#aaaabf",fontWeight:600 }}>Roster slots per team:</span> {slotsPerTeam}{isHeroes ? ` (1 Hero + 1 Side-Kick + ${regularSlots} Vigilantes)` : ""}</div>
+                {isStandard && <div><span style={{ color:"#aaaabf",fontWeight:600 }}>Draft week:</span> {cadenceLabel(league, league.currentWeek)}</div>}
+                <div><span style={{ color:"#aaaabf",fontWeight:600 }}>Total picks:</span> {totalPicks}</div>
+                <div><span style={{ color:"#aaaabf",fontWeight:600 }}>Active contestants:</span> {available.length}</div>
+              </div>
+            </div>
+            <Btn onClick={startDraft} disabled={teams.length < 2 || available.length === 0}>Start Live Draft</Btn>
+          </div>
+        ) : (
+          <div style={{ padding:"14px 16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38",color:"#8888aa",fontSize:13 }}>
+            Your commissioner hasn't started a live draft yet. When they do, the action will happen here in real time.
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ─── Done state (summary) ───
+  if (state === "done") {
+    const picksByTeam = {};
+    picks.forEach(p => { (picksByTeam[p.teamId] = picksByTeam[p.teamId] || []).push(p); });
+    return (
+      <div>
+        <div style={{ marginBottom:14 }}>
+          <h3 style={{ margin:"0 0 6px",fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Draft complete{isStandard && draftWeek ? ` · ${cadenceLabel(league, draftWeek)}` : ""}</h3>
+          <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.5 }}>
+            {isHeroes
+              ? `All ${totalPicks} picks made. Each team's roster has been populated — head to My Roster to rearrange your Hero / Side-Kick / Vigilante slots before week 1 starts.`
+              : `All ${totalPicks} picks made and locked into ${cadenceLabel(league, draftWeek)} rosters.`}
+          </div>
+        </div>
+        <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+          {teams.map(t => {
+            const tp = (picksByTeam[t.id] || []).sort((a,b) => a.pickNum - b.pickNum);
+            return (
+              <div key={t.id} style={{ padding:"12px 14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+                <div style={{ fontSize:13,fontWeight:700,color:"#e8e8f0",marginBottom:6 }}>{t.name}</div>
+                <div style={{ display:"flex",flexWrap:"wrap",gap:6 }}>
+                  {tp.map((p, i) => {
+                    const c = (league.contestants || []).find(c => c.id === p.contestantId);
+                    const role = isHeroes ? (i === 0 ? "Hero" : i === 1 ? "Side-Kick" : `V${i - 1}`) : `#${i + 1}`;
+                    return (
+                      <div key={p.pickNum} style={{ fontSize:11,padding:"4px 8px",borderRadius:6,background:"#0d0d18",border:"1px solid #2a2a4a",color:"#aaaabf",display:"flex",gap:6,alignItems:"center" }}>
+                        <span style={{ color: isHeroes ? (i===0?"#f5a623":i===1?"#4ecdc4":"#6a6a8a") : "#6a6a8a",fontWeight:700 }}>{role}</span>
+                        <span style={{ color:"#e8e8f0" }}>{c?.name || "—"}</span>
+                        {p.autoPicked && <span style={{ fontSize:9,color:"#6a6a8a" }}>(auto)</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {isCommissioner && (
+          <div style={{ marginTop:16 }}>
+            <Btn variant="ghost" small onClick={resetDraft}>Reset draft</Btn>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ─── Live state ───
+  return (
+    <div>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,gap:8,flexWrap:"wrap" }}>
+        <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>Live Draft</h3>
+        <Badge color="#f5a623">Pick {displayPick} of {totalPicks}</Badge>
+      </div>
+      {/* On-the-clock panel */}
+      <div style={{
+        padding:"14px 16px",borderRadius:10,marginBottom:14,
+        background: isMyPick ? "#e9456015" : "#12121f",
+        border: isMyPick ? "1px solid #e9456044" : "1px solid #1e1e38",
+      }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8 }}>
+          <div>
+            <div style={{ fontSize:11,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>On the clock</div>
+            <div style={{ fontSize:17,fontWeight:800,fontFamily:"'Anybody',sans-serif",color: isMyPick ? "#e94560" : "#e8e8f0" }}>
+              {currentPickerTeam?.name || "—"} {isMyPick && <span style={{ fontSize:12,color:"#e94560" }}>(you)</span>}
+            </div>
+          </div>
+          <div style={{ textAlign:"right" }}>
+            <div style={{ fontSize:11,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4 }}>Time left</div>
+            <div style={{ fontSize:24,fontWeight:800,fontFamily:"'Anybody',sans-serif",color: secondsLeft <= 10 ? "#e94560" : "#e8e8f0",lineHeight:1 }}>{secondsLeft}s</div>
+          </div>
+        </div>
+      </div>
+      {/* Available contestants */}
+      <div style={{ marginBottom:14 }}>
+        <div style={{ fontSize:11,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8 }}>
+          Available · {available.length}
+        </div>
+        <div style={{ display:"flex",flexDirection:"column",gap:4,maxHeight:360,overflowY:"auto" }}>
+          {available.map(c => (
+            <button key={c.id} onClick={() => isMyPick && makePick(c.id)} disabled={!isMyPick}
+              style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:8,background:"#0d0d18",border:"1px solid #1e1e38",color:"#e8e8f0",fontSize:13,textAlign:"left",cursor: isMyPick ? "pointer" : "default",opacity: isMyPick ? 1 : 0.6,fontFamily:"'Outfit',sans-serif" }}>
+              <span style={{ flex:1 }}>{c.name}</span>
+              {isMyPick && <span style={{ fontSize:11,color:"#e94560",fontWeight:600 }}>Pick</span>}
+            </button>
+          ))}
+          {available.length === 0 && <div style={{ fontSize:12,color:"#6a6a8a",fontStyle:"italic",padding:"10px 0" }}>No contestants left.</div>}
+        </div>
+      </div>
+      {/* Recent picks */}
+      {picks.length > 0 && (
+        <div style={{ marginBottom:14 }}>
+          <div style={{ fontSize:11,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8 }}>Recent picks</div>
+          <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
+            {picks.slice(-6).reverse().map(p => {
+              const c = (league.contestants || []).find(x => x.id === p.contestantId);
+              const t = teams.find(t => t.id === p.teamId);
+              return (
+                <div key={p.pickNum} style={{ display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderRadius:8,background:"#12121f",border:"1px solid #1e1e38",fontSize:12 }}>
+                  <span style={{ color:"#6a6a8a",fontWeight:600,width:36 }}>#{p.pickNum + 1}</span>
+                  <span style={{ flex:1,color:"#e8e8f0" }}><span style={{ color:"#aaaabf",fontWeight:600 }}>{t?.name || "—"}</span> picked <span style={{ color:"#e94560",fontWeight:600 }}>{c?.name || "—"}</span></span>
+                  {p.autoPicked && <span style={{ fontSize:10,color:"#6a6a8a" }}>auto</span>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {isCommissioner && (
+        <div style={{ marginTop:12 }}>
+          <Btn variant="ghost" small onClick={resetDraft}>Reset draft</Btn>
+        </div>
+      )}
     </div>
   );
 }
