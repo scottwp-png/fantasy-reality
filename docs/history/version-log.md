@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.21
+**Current Production Version:** v2.6.27.22
 **Last Deploy Date:** 2026-06-04
-**App.jsx Line Count:** ~11,920
+**App.jsx Line Count:** ~11,890
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,16 @@
 ---
 
 ## Version Log
+
+### v2.6.27.22 — 2026-06-04
+**Tour: full revert to v2.6.27.16 logic.** v2.6.27.17 through .21 (per-step `placement`, Lounge step retargeting, closing roster step, flash fix, scroll-padding attempt, single-smooth-scroll attempt) all read as "worse than v2.6.27.16" once shipped. Reverting the tour code to match v2.6.27.16 exactly so we have a stable known-good baseline.
+- **Step list restored** to v2.6.27.16's structure for both Heroes and other formats. Lounge step is back as two steps (tab-chip intro + chat-composer composer). No closing roster step. Live Draft step still gated on `liveDraft.state !== "pre"`.
+- **Placement field removed** from step config. All steps go through the same centered-block scroll math.
+- **Flash-fix `setTargetRect(null)` removed** from the start of the locate effect. Spotlight ring may briefly render at the prior step's coords during the 150ms locate delay — acceptable trade for matching v2.6.27.16 exactly.
+- **Tour close → roster tab** stays (was in v2.6.27.16).
+- Other v2.6.27.17+ work (live draft polish, push notifications, etc.) is untouched.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.92s).
+- **Commit:** `_pending_`
 
 ### v2.6.27.21 — 2026-06-04
 **Revert v2.6.27.20.** The single-smooth-scroll + scroll-padding-top approach broke the tour. Back to v2.6.27.19's scroll logic (snap-then-smooth with explicit position math). v2.6.27.19's per-step `placement` field, Lounge step retargeting, and flash fix all stay — those weren't the issue. The chip-position and transition-feel issues need a different approach than what v2.6.27.20 tried; deferred until the right answer is clearer.
