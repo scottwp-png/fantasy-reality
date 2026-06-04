@@ -33,7 +33,7 @@
 - **Backwards-compatible.** Leagues without `swapsPerPeriod` / `swapPeriod` set behave as `1 per week` — which for the first time matches what the FAQ has been promising.
 - **What this commit does NOT do.** No "force-replace eliminated contestants for free" (recommended in the user's follow-up — covered below). No swap banking (unused swaps carry forward). No per-episode-AND-per-week composite limits (e.g., "2 per week, max 1 per episode"). No swap log shown to managers.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.22s). `src/scoring.js` untouched.
-- **Commit:** `_pending_`
+- **Commit:** `5081a4b`
 
 ### v2.6.26.1 — 2026-06-04
 **Auto-claim assigned team during doJoin — drops the extra "click Claim" step from the recipient flow.** Reported — the v2.6.26.0 onboarding still required the recipient to tap Claim on the banner after signup. With email-assignment already proving who they are, that tap was busywork.
