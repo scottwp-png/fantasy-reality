@@ -1,7 +1,7 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.3
+**Current Production Version:** v2.6.27.4
 **Last Deploy Date:** 2026-06-04
 **App.jsx Line Count:** ~11,260
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
@@ -22,6 +22,21 @@
 ---
 
 ## Version Log
+
+### v2.6.27.4 — 2026-06-04
+**PWA manifest hardening for Play Store / TWA readiness.** Pre-launch prep for the TWA submission flow on the v2.6.27.0 Play Store backlog — Bubblewrap pulls fields directly from `public/manifest.json` to generate the Android app shell, so any gap in the manifest is a gap in the store listing.
+- **Brand consistency.** `name` was "Fantasy Reality" (missing the TV). Now "Fantasy Reality TV" matches the landing page, the index.html title, and the OG tags shipped in v2.6.27.1. `short_name` stays at "Fantasy Reality" — used as the launcher label, fits in a single line under the home-screen icon.
+- **Real description.** Was "Fantasy league manager for reality TV shows" (one bland sentence). Now matches the v2.6.27.1 OG/Twitter description verbatim — "Fantasy leagues for reality TV. Draft contestants, score every episode, and finally have a reason to argue about who should have gone home. Free to play." Single source of voice across landing meta, app meta, and manifest.
+- **TWA-required new fields:**
+  - `id`: `/` — globally-unique PWA identifier per the W3C manifest spec. Bubblewrap requires it to derive the Android package ID. Without it the TWA build emits a warning and falls back to start_url, which works but isn't best-practice.
+  - `categories`: `["entertainment", "games", "sports"]` — surfaced in Play Store filters and search. Three categories all fit; Play Store lets us pick one primary during submission.
+  - `scope`: `/` — bounds the URLs the TWA owns. Explicit > implied. Required for proper TWA in-app navigation.
+  - `lang`: `en`, `dir`: `ltr` — recommended W3C fields, store crawlers consume them.
+- **Icons.** `purpose: "any"` made explicit on both 192px and 512px icons. **Did NOT add `"maskable"`** — the current PWA icons don't have the 80% safe-zone padding required by Android adaptive icons, so declaring them maskable would crop them awkwardly on Android 8+ devices. A future polish item: regenerate icons with proper safe-area inset and add `purpose: "any maskable"`. Tracked separately under TWA scaffolding in BACKLOG.md.
+- **What this commit does NOT touch.** `public/sw.js` has a cosmetic `CACHE_NAME = 'fantasy-reality-v2.0.0'` that hasn't bumped since v2.0.0. Network-first means the stale cache name doesn't cause stale-asset bugs in practice (fresh fetches always succeed; cache is fallback only), so it's not a Play Store blocker. Could be addressed when the SW gets push-notification handlers wired in for the FCM work on the Now list.
+- **Manual deploy reminder.** The landing page (`landing_page/`) is unaffected by this commit but the landing site is a separate Netlify deploy from `app.fantasyrealitytv.com`. The manifest changes ship to `app.fantasyrealitytv.com` only.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.81s). `src/scoring.js` untouched.
+- **Commit:** `_pending_`
 
 ### v2.6.27.3 — 2026-06-04
 **In-league walkthrough.** Follow-up to v2.6.27.0's welcome tour — that one teaches the concept (what is fantasy reality TV), this one teaches the league UI (which tab does what). Was parked in Later post-v2.6.27.0; promoted because it's a coherent polish bundle to ship with v2.6.27.1 (social meta tags) and v2.6.27.2 (survivor_pool fix) in the next push.
