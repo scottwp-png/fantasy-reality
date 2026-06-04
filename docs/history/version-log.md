@@ -29,7 +29,7 @@
 - **"Highlighting slides around between steps."** Two causes. (1) The spotlight div had a `transition: all 0.25s ease`, so every state update animated the ring between positions. With the scroll listener firing locate-and-set-rect frequently during scroll, the ring slid between intermediate positions for hundreds of ms after each step change. Removed the transition entirely. (2) `scrollIntoView` was called with `behavior: "smooth"` on every locate call (including ones triggered by scroll events the scroll itself caused), producing an endless chase animation. Now: `behavior: "auto"` (synchronous, instant) + a `scrolledForStepRef` guard so each step's `scrollIntoView` fires exactly once. Also rounding rect to integers and bailing out of `setTargetRect` if values didn't actually change — kills sub-pixel jitter.
 - **No tour content changes.** All 12 Heroes steps + non-Heroes 5-step fallback are unchanged.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.90s).
-- **Commit:** `_pending_`
+- **Commit:** `339069c`
 
 ### v2.6.27.5 — 2026-06-04
 **Spotlight in-league walkthrough.** Upgrade to v2.6.27.3 — instead of a centered modal that just switches the underlying tab, the tour now spotlights specific UI elements within each tab (Hero slot, Side-Kick slot, Vigilantes section, swap tracker, standings row, period selector, chat composer). Tooltip card positions adjacent to the spotlight; click-outside / ESC / Exit all dismiss; step indicator dots are clickable for jump-to-step. For Heroes/Captains the tour is 12 steps; other formats degrade to a 5-step centered tour without per-slot spotlights since they don't have multi-role roster mechanics.
