@@ -36,7 +36,7 @@
 - **Comments rewritten** to document the new behavior + the deployment dependency on Phase 1, so future-me has the context if a rollback is ever needed.
 - **No code changes.** App.jsx, firebase.js, baselines all untouched.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean.
-- **Commit:** `_pending_`
+- **Commit:** `1899bd0`
 
 ### v2.6.27.12 — 2026-06-04
 **Live draft polish round 2 + tour gated on actual league state.** Reported during testing: the in-league tour shouldn't pitch features that aren't active in a specific league (e.g. a Live Draft step in a Heroes league whose commissioner hasn't started one). Plus four polish items on the draft itself.
