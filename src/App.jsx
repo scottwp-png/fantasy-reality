@@ -12125,32 +12125,40 @@ function buildLeagueTourSteps(league) {
   // Heroes/Captains is the format with the most mechanics worth
   // anchoring on (multipliers, swap budget). Other formats degrade
   // to a single roster-intro step + the rest of the tour.
+  // v2.6.27.7: tab-button anchors for intro steps. The tab nav row
+  // at the top of LeagueDashboard renders each tab as a chip with a
+  // data-tab="<id>" attribute (see line ~1933). Using those as the
+  // spotlight target for tab-intro steps gives the user a concrete
+  // visual answer to "this tab" — the relevant chip lights up,
+  // instead of the previous "nothing's highlighted, entire page is
+  // dimmed" experience.
   if (league?.format === "captains") {
     return [
-      { tabId: rosterTab, target: null, title: "Your weekly lineup lives here", body: "This tab is your team. Each week you pick which contestants fill each slot, and the lineup locks when the episode airs." },
+      { tabId: rosterTab, target: `[data-tab="${rosterTab}"]`, title: "Your weekly lineup lives here", body: "This tab is your team. Each week you pick which contestants fill each slot, and the lineup locks when the episode airs." },
       { tabId: rosterTab, target: '[data-tour="hero-slot"]', title: "Hero — scores 2×", body: "Your Hero is your strongest pick. Every point they earn in the episode is doubled, so pick someone you really believe in." },
       { tabId: rosterTab, target: '[data-tour="sidekick-slot"]', title: "Side-Kick — scores 1.5×", body: "Your Side-Kick is your second-best pick. Their points get a 50% boost. Good slot for a strong supporting character who scores reliably but isn't quite Hero material." },
       { tabId: rosterTab, target: '[data-tour="vigilantes"]', title: "Vigilantes — score 1×", body: "Vigilantes fill out the rest of your lineup. They score at face value — no multiplier — but they're still earning points, and a great Vigilante week can carry a quiet Hero." },
       { tabId: rosterTab, target: '[data-tour="swap-tracker"]', title: "Swaps are limited", body: "Each week you get a fixed number of swaps to move contestants in and out of your roster. Reordering slots is always free, but swapping a new contestant in costs a swap. If your commissioner has banking turned on, unused swaps from prior weeks roll forward." },
-      { tabId: "scoring", target: null, title: "Every scoring rule, every point value", body: "This is the Scoring tab. Every event that earns or loses points lives here with its point value, so you always know what you're playing for." },
+      { tabId: "scoring", target: '[data-tab="scoring"]', title: "Every scoring rule, every point value", body: "This is the Scoring tab. Every event that earns or loses points lives here with its point value, so you always know what you're playing for." },
       { tabId: "scoring", target: null, title: "Commissioners tune the rules", body: "Your commissioner can tweak rules, add new ones, and turn rules on or off per-league. Two Love Island leagues can play very differently — one might reward kisses, another might punish villa drama." },
-      { tabId: "standings", target: null, title: "Where everyone stands", body: "Standings refresh after each episode. Your rank, your total, and league-wide records all live on this tab." },
+      { tabId: "standings", target: '[data-tab="standings"]', title: "Where everyone stands", body: "Standings refresh after each episode. Your rank, your total, and league-wide records all live on this tab." },
       { tabId: "standings", target: '[data-tour="standings-row"]', title: "Tap any team to drill in", body: "Tapping a team — yours or a rival's — opens their roster breakdown for the selected week. Great for finding out exactly why someone jumped ahead of you." },
       { tabId: "standings", target: '[data-tour="standings-period"]', title: "Re-rank by any week", body: "By default standings show season totals, but the period selector lets you re-rank by any specific week. Useful for arguing whose roster peaked when." },
-      { tabId: "lounge", target: null, title: "Chat and polls live here", body: "The Lounge has your league chat, polls, and announcements. Trash talk is encouraged. Polls are great for season-long bets (who wins, who gets sent home first, etc)." },
+      { tabId: "lounge", target: '[data-tab="lounge"]', title: "Chat and polls live here", body: "The Lounge has your league chat, polls, and announcements. Trash talk is encouraged. Polls are great for season-long bets (who wins, who gets sent home first, etc)." },
       { tabId: "lounge", target: '[data-tour="chat-composer"]', title: "Drop a message", body: "Type here to send a message to everyone in the league. Sent during the episode? Even better. Replays of someone's reactions to a blindside are league legend." },
     ];
   }
-  // Non-Heroes formats: shorter tour, no per-slot anchors.
+  // Non-Heroes formats: shorter tour, no per-slot anchors. Tab-button
+  // anchors still apply.
   const rosterStep = rosterTab && {
     tabId: rosterTab,
-    target: null,
+    target: `[data-tab="${rosterTab}"]`,
     title: "Your team lives here",
     body: "Set your starting lineup before each episode airs. Rosters lock when the episode begins, so don't leave it for the last minute.",
   };
   return [
     rosterStep,
-    { tabId: "scoring", target: null, title: "Every scoring rule", body: "Every event that earns or loses points is listed here, with its value. Your commissioner can tweak the rules per league, so the same show can play very differently across leagues." },
+    { tabId: "scoring", target: '[data-tab="scoring"]', title: "Every scoring rule", body: "Every event that earns or loses points is listed here, with its value. Your commissioner can tweak the rules per league, so the same show can play very differently across leagues." },
     { tabId: "standings", target: '[data-tour="standings-row"]', title: "Where you stand", body: "Rankings refresh after each episode. Tap any team — yours or a rival's — to drill into how their roster scored that week." },
     { tabId: "standings", target: '[data-tour="standings-period"]', title: "Re-rank by any week", body: "By default standings show season totals, but the period selector lets you re-rank by any specific week." },
     { tabId: "lounge", target: '[data-tour="chat-composer"]', title: "Trash talk and polls", body: "Every league has its own chat and polls. Talk smack, run side bets, and remember whose pick you mocked the night they won the whole thing." },

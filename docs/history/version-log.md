@@ -1,7 +1,7 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.6
+**Current Production Version:** v2.6.27.7
 **Last Deploy Date:** 2026-06-04
 **App.jsx Line Count:** ~11,340
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
@@ -22,6 +22,15 @@
 ---
 
 ## Version Log
+
+### v2.6.27.7 — 2026-06-04
+**Spotlight tab-intro steps.** Reported — the tab-intro steps ("This tab is your team", "This is the Scoring tab", etc.) rendered as centered modals with the whole page scrim'd out, so the body copy read as pointing at nothing. Fixed by targeting the tab nav button itself for each intro step.
+- The tab nav row at `App.jsx:1924-1939` already renders each tab as a chip with a `data-tab="<id>"` attribute (used by the existing tab-scroll-into-view-on-click logic). Re-used those selectors as the spotlight target for intro steps — `[data-tab="depth-chart"]`, `[data-tab="scoring"]`, `[data-tab="standings"]`, `[data-tab="lounge"]`.
+- Result: when an intro step fires, the relevant tab chip at the top of the page lights up with the punch-through spotlight, giving the user a concrete visual answer to "this tab." The tooltip card positions below the chip (the chips are at the top so there's always room below).
+- Heroes-format step 7 ("Commissioners tune the rules") still uses centered fallback — it's a *follow-up* to step 6's tab intro, so spotlighting the same tab chip twice in a row felt repetitive.
+- No content changes to body copy or step ordering.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.74s).
+- **Commit:** `_pending_`
 
 ### v2.6.27.6 — 2026-06-04
 **Spotlight tour polish: punch-through scrim + no slide.** Two reported bugs in the v2.6.27.5 spotlight tour, both fixed.
