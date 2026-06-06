@@ -30,7 +30,7 @@
 - **Fix.** Both inputs switched to uncontrolled with `defaultValue` + `onBlur` commit. User can freely type, backspace, retype — the value only commits when they leave the field. A `key={"swaps-" + n}` forces a re-mount if the state changes externally so the input still reflects the new value. Max bumped from 10 → 99 (swaps) and 20 → 99 (bank max).
 - **No other behavior changes.** The clamps still apply (min 1 / 0, max 99) — just on blur instead of on every keystroke.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.91s).
-- **Commit:** `_pending_`
+- **Commit:** `e89d02f`
 
 ### v2.6.27.31 — 2026-06-06
 **"Pending" contestant status — not yet eligible to be picked.** Reported real-world need: a preview revealed two new Love Island contestants who haven't entered the show yet. Commissioner wants them in the cast list (so they're ready) but managers shouldn't be able to add them to teams until they actually appear on an episode.
