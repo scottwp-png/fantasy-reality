@@ -1913,7 +1913,13 @@ function LeagueDashboard({ league, onUpdate, onBack, loggedInTeamId, isCommissio
     // commissioner always; visible to managers only once the draft
     // has actually started so the tab doesn't clutter the UI for
     // leagues that never run a live draft.
-    ...((league.format === "captains" || league.format === "standard") && (isCommissioner || (league.liveDraft && league.liveDraft.state !== "pre")) ? [{ id:"live-draft",label:"Live Draft",icon:"grid",access:"all" }] : []),
+    // v2.6.27.30: Live Draft tab is Standard-format-only now. The
+    // Heroes tour step + LiveDraftTab Heroes branch are dead code
+    // but harmless if Heroes leagues never see them. Pulled per
+    // user request — Heroes contestants are non-exclusive so a
+    // pre-season snake draft adds little; Standard is per-week
+    // redraft so live draft fits naturally.
+    ...(league.format === "standard" && (isCommissioner || (league.liveDraft && league.liveDraft.state !== "pre")) ? [{ id:"live-draft",label:"Live Draft",icon:"grid",access:"all" }] : []),
     ...(league.format === "survivor_pool" ? [{ id:"my-pick",label:"My Pick",icon:"star",access:"all" }] : []),
     ...(league.format === "elimination_pool" ? [{ id:"weekly-pick",label:effectiveEpisodesPerWeek(league) > 1 ? "Episode Pick" : "Weekly Pick",icon:"star",access:"all" }] : []),
     ...(league.format === "salary_cap" ? [
@@ -13119,7 +13125,8 @@ function buildLeagueTourSteps(league, { isCommissioner = false } = {}) {
   // 2 since there's no prior week to compare against). The
   // `isCommissioner` flag matters because commissioners see some
   // tabs (like Live Draft) before they're active.
-  const formatHasLiveDraft = league?.format === "captains" || league?.format === "standard";
+  // v2.6.27.30: live draft is Standard-only. Heroes branch removed.
+  const formatHasLiveDraft = league?.format === "standard";
   const liveDraftActive = !!(league?.liveDraft && league.liveDraft.state !== "pre");
   // v2.6.27.16: gate the tour step on whether a draft is actually
   // active (live or done), NOT just on commissioner visibility. The

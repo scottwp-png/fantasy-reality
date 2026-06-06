@@ -1,7 +1,7 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.29
+**Current Production Version:** v2.6.27.30
 **Last Deploy Date:** 2026-06-06
 **App.jsx Line Count:** ~12,000
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
@@ -22,6 +22,15 @@
 ---
 
 ## Version Log
+
+### v2.6.27.30 — 2026-06-06
+**Live Draft removed from Heroes format.** Per user re-decision — in Heroes, contestants are non-exclusive across teams (multiple managers can roster the same contestant), so a pre-season snake draft adds little value. The original v2.6.27.9 implementation supported both Heroes + Standard at the user's request; this commit narrows it back to Standard, which is per-week redraft and the format the live draft semantics actually fit.
+- **Tab visibility** at `App.jsx:1916` now gates on `format === "standard"` only. Heroes commissioners no longer see the Live Draft tab.
+- **Tour step gating** at `App.jsx:13130` uses `formatHasLiveDraft = format === "standard"`. The Live Draft tour step won't appear for Heroes leagues.
+- **`LiveDraftTab` component** is left in place with its Heroes / Captains branches intact — dead code now, but the cost of removing it cleanly isn't worth the diff churn. If Heroes leagues ever need live draft again (e.g., a "this season is a redraft" mode), the format-aware machinery is ready to flip back on.
+- **Existing Heroes leagues with a `liveDraft` object on their league doc** (started + done draft state from before this commit) — that data stays, but it's no longer accessible from the nav. Reset Season Scores or manual edit would clear it if needed.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.12s).
+- **Commit:** `_pending_`
 
 ### v2.6.27.29 — 2026-06-06
 **Advance-week flow: one primary button, dropdown trimmed, no phantom records.** Reported friction: three separate clicks (Finalize → Advance → change dropdown) for what should be one action, and the dropdown showed two future placeholder weeks that read as "records in front of the one I'm scoring."
