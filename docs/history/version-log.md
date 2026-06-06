@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.23
+**Current Production Version:** v2.6.27.24
 **Last Deploy Date:** 2026-06-06
-**App.jsx Line Count:** ~11,890
+**App.jsx Line Count:** ~11,970
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,24 @@
 ---
 
 ## Version Log
+
+### v2.6.27.24 — 2026-06-06
+**Per-week episode count overrides.** Companion to v2.6.27.23's Reset Season Scores button — together they handle the irregular-cadence cases. Reset covers "this whole week was preseason, wipe and restart fresh"; per-week overrides cover irregular weeks at the start (Love Island S13 started Monday so week 1 was 5 episodes instead of 6), mid-season (Thanksgiving / holiday breaks), and end-of-season (finale week).
+- **Schema.** `league.weekEpisodeCounts` is a sparse map of `weekNum (string) → count`. Defaults to `effectiveEpisodesPerWeek(league)` for any week without an entry. Existing leagues with no overrides keep working unchanged — the fast-path branch in the helpers preserves the original `Math.ceil(ep / epw)` formula.
+- **Three helpers** at `App.jsx:570-616` that replace the previous uniform-cadence math:
+  - `episodesInWeek(league, weekNum)` — returns the count for that week (override or default).
+  - `weekOfEpisode(league, episodeNum)` — walks the cumulative count series to find which draft week contains an episode. Capped at 200 iterations as a malformed-data safety valve.
+  - `firstEpisodeOfWeek` / `lastEpisodeOfWeek` — the inverse, returns the episode range for a given week.
+- **Six call sites updated** to use the helpers instead of `Math.ceil(ep / epw)` or `(week - 1) * epw + 1`:
+  - `draftWeeksGrouped` in standings (`App.jsx:2670`) — episodes regroup into the right weeks.
+  - Scoring summary week-range computation (`App.jsx:3747-3749`).
+  - Captains swap-banking period index (`App.jsx:6093`).
+  - Captains banking baseline / prior week (`App.jsx:6105-6106`).
+  - Captains current draft week + prev draft week first episode (`App.jsx:6132-6133`).
+- **UI** in Settings → General as a new "Weekly Cadence" card. Lists every week from 1 to `max(currentDraftWeek + 2, maxOverrideWeek)` with an editable number input per row. Empty = default (epw); filled = override. Override rows get an orange-tinted border and a "Reset" button to clear the override. Skipped for leagues where `epw <= 1` (no need to override a 1-episode-per-week schedule).
+- **Combines with v2.6.27.23.** That commit reframed "Reset All Scores" → "Reset Season Scores" with preseason copy + audit entry + `weekStatus` wipe. v2.6.27.24 adds the alternative path for cases where the commissioner wants to *keep* the irregular scores rather than wipe them.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.59s).
+- **Commit:** `_pending_`
 
 ### v2.6.27.23 — 2026-06-06
 **"Reset Season Scores" button rework (preseason / soft-start support).** A real-world need surfaced from the Love Island S13 Reddit launch — episodes started on Monday so the first week was 5 episodes instead of 6, and the commissioner skipped scoring it because the cadence didn't match the league's `episodesPerWeek=6`. Engagement dropped over the first week. The smarter pattern is to score the first week as a "preseason" / "warm-up" with everyone playing, then reset everything for the real season start once full weeks resume.

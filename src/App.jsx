@@ -561,6 +561,57 @@ function effectiveEpisodesPerWeek(league) {
   return 1;
 }
 
+// v2.6.27.24: per-week episode count overrides for irregular cadences
+// (Love Island S13 first week was 5 not 6 because episodes started on
+// Monday; mid-season Thanksgiving / finale weeks can also have non-
+// default counts). Stored at league.weekEpisodeCounts as a sparse
+// map of weekNum (string) -> count. Default for any week without an
+// override is `effectiveEpisodesPerWeek(league)`. These helpers replace
+// the previous uniform `Math.ceil(ep / epw)` math at the small handful
+// of sites that map episode↔week.
+function episodesInWeek(league, weekNum) {
+  const epw = effectiveEpisodesPerWeek(league);
+  const override = Number(league?.weekEpisodeCounts?.[String(weekNum)]);
+  if (override > 0 && Number.isFinite(override)) return override;
+  return epw;
+}
+// Given an episode number, return the draft-week number that contains
+// it. Walks the cumulative episode-count series so weeks with overrides
+// shift everything downstream.
+function weekOfEpisode(league, ep) {
+  const epNum = Number(ep);
+  if (!Number.isFinite(epNum) || epNum < 1) return 1;
+  const epw = effectiveEpisodesPerWeek(league);
+  const overrides = league?.weekEpisodeCounts || {};
+  // Fast path — no overrides at all, original formula.
+  if (Object.keys(overrides).length === 0) return Math.max(1, Math.ceil(epNum / epw));
+  let weekStart = 1;
+  let week = 1;
+  // Cap at 200 iterations as a safety valve for malformed data.
+  for (let i = 0; i < 200; i++) {
+    const count = episodesInWeek(league, week);
+    if (epNum < weekStart + count) return week;
+    weekStart += count;
+    week++;
+  }
+  return week;
+}
+function firstEpisodeOfWeek(league, weekNum) {
+  const w = Math.max(1, Number(weekNum) || 1);
+  const overrides = league?.weekEpisodeCounts || {};
+  // Fast path — no overrides.
+  if (Object.keys(overrides).length === 0) {
+    const epw = effectiveEpisodesPerWeek(league);
+    return (w - 1) * epw + 1;
+  }
+  let firstEp = 1;
+  for (let i = 1; i < w; i++) firstEp += episodesInWeek(league, i);
+  return firstEp;
+}
+function lastEpisodeOfWeek(league, weekNum) {
+  return firstEpisodeOfWeek(league, weekNum) + episodesInWeek(league, weekNum) - 1;
+}
+
 // ─── Cadence-aware UI labels ───
 // Three helpers, distinct surfaces:
 //   cadenceWord(league)   "Week"     | "Episode"   — full singular noun
@@ -2616,14 +2667,16 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
     if (epsPerWk === 1) return weeks.map(w => ({ num: w, episodes: [w] }));
     const groups = {};
     weeks.forEach(w => {
-      const dw = String(Math.ceil(Number(w) / epsPerWk));
+      // v2.6.27.24: use weekOfEpisode helper so per-week overrides
+      // (weekEpisodeCounts) shift the grouping correctly.
+      const dw = String(weekOfEpisode(league, Number(w)));
       if (!groups[dw]) groups[dw] = [];
       groups[dw].push(w);
     });
     return Object.entries(groups)
       .map(([num, eps]) => ({ num, episodes: eps.sort((a,b) => +a - +b) }))
       .sort((a,b) => +a.num - +b.num);
-  }, [weeks, epsPerWk]);
+  }, [weeks, epsPerWk, league?.weekEpisodeCounts]);
   // For multi-ep, opens the per-episode game-log modal when a chip is tapped.
   const [episodeModal, setEpisodeModal] = useState(null); // { contestantId, episode } | null
 
@@ -3693,9 +3746,9 @@ function ScoringTab({ league, onUpdate, isCommissioner = true, userProfile }) {
         const epw = effectiveEpisodesPerWeek(league);
         const isMultiEp = epw > 1;
         const selectedEpNum = Number(selectedWeek);
-        const draftWeekNum = isMultiEp ? Math.ceil(selectedEpNum / epw) : selectedEpNum;
-        const weekStart = isMultiEp ? (draftWeekNum - 1) * epw + 1 : selectedEpNum;
-        const weekEnd = isMultiEp ? draftWeekNum * epw : selectedEpNum;
+        const draftWeekNum = isMultiEp ? weekOfEpisode(league, selectedEpNum) : selectedEpNum;
+        const weekStart = isMultiEp ? firstEpisodeOfWeek(league, draftWeekNum) : selectedEpNum;
+        const weekEnd = isMultiEp ? lastEpisodeOfWeek(league, draftWeekNum) : selectedEpNum;
         const allInWeek = [];
         for (let i = weekStart; i <= weekEnd; i++) allInWeek.push(String(i));
         const wholeWeekExcluded = allInWeek.every(ep => league.skippedWeeks?.[ep]);
@@ -6039,7 +6092,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
     if (!swapBanking || !team || currentWeek <= 1) return 0;
     const epw = effectiveEpisodesPerWeek(league);
     const isWeekly = swapPeriod === "week";
-    const currentPeriodIdx = isWeekly && epw > 1 ? Math.ceil(currentWeek / epw) : currentWeek;
+    const currentPeriodIdx = isWeekly && epw > 1 ? weekOfEpisode(league, currentWeek) : currentWeek;
     if (currentPeriodIdx < 2) return 0;
     const idsOf = (chart) => {
       const s = new Set();
@@ -6051,8 +6104,8 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
     const cap = swapBankMax > 0 ? swapBankMax : Infinity;
     let bank = 0;
     for (let p = 2; p < currentPeriodIdx; p++) {
-      const baselineEp = isWeekly && epw > 1 ? (p - 1) * epw + 1 : p;
-      const priorEp = isWeekly && epw > 1 ? (p - 2) * epw + 1 : p - 1;
+      const baselineEp = isWeekly && epw > 1 ? firstEpisodeOfWeek(league, p) : p;
+      const priorEp = isWeekly && epw > 1 ? firstEpisodeOfWeek(league, p - 1) : p - 1;
       const baseline = team.weeklyDepthCharts?.[String(baselineEp)];
       const prior = team.weeklyDepthCharts?.[String(priorEp)];
       if (!baseline || !prior) continue;
@@ -6078,8 +6131,8 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
       // Per-week: compare against the chart at the start of the previous
       // draft-week (so all episodes within the same week share the same
       // baseline and "swap" only counts vs. the prior week's lineup).
-      const currentDraftWeek = epw > 1 ? Math.ceil(currentWeek / epw) : currentWeek;
-      const prevDraftWeekFirstEp = epw > 1 ? (currentDraftWeek - 2) * epw + 1 : currentWeek - 1;
+      const currentDraftWeek = epw > 1 ? weekOfEpisode(league, currentWeek) : currentWeek;
+      const prevDraftWeekFirstEp = epw > 1 ? firstEpisodeOfWeek(league, currentDraftWeek - 1) : currentWeek - 1;
       refEpisode = Math.max(1, prevDraftWeekFirstEp);
     }
     // Walk back until we find a chart entry — some past episodes may not
@@ -8730,6 +8783,65 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
           </div>
         )}
       </div>
+
+      {/* v2.6.27.24: per-week episode count overrides. For shows with
+          irregular cadence (Love Island S13 first week was 5 episodes
+          not 6 because episodes started Monday; holiday/finale weeks
+          can also have non-default counts). Default is the league's
+          episodesPerWeek setting; overrides are stored at
+          league.weekEpisodeCounts as a sparse weekNum→count map. */}
+      {(() => {
+        const epw = effectiveEpisodesPerWeek(league);
+        if (epw <= 1) return null;
+        const overrides = league?.weekEpisodeCounts || {};
+        const currentWeek = league?.currentWeek || 1;
+        const currentDraftWeek = weekOfEpisode(league, currentWeek);
+        const maxOverrideWeek = Math.max(0, ...Object.keys(overrides).map(k => Number(k) || 0));
+        const lastVisibleWeek = Math.max(currentDraftWeek + 2, maxOverrideWeek);
+        const weeksToShow = Array.from({ length: lastVisibleWeek }, (_, i) => i + 1);
+        function setCount(weekNum, raw) {
+          const w = String(weekNum);
+          const n = Math.max(1, Math.min(14, Number(raw) || epw));
+          const next = { ...(league.weekEpisodeCounts || {}) };
+          if (n === epw) delete next[w];
+          else next[w] = n;
+          onUpdate({ ...league, weekEpisodeCounts: next });
+        }
+        function clearOverride(weekNum) {
+          const w = String(weekNum);
+          const next = { ...(league.weekEpisodeCounts || {}) };
+          delete next[w];
+          onUpdate({ ...league, weekEpisodeCounts: next });
+        }
+        return (
+          <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+            <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:4 }}>Weekly Cadence</div>
+            <div style={{ fontSize:11,color:"#8888aa",marginBottom:12,lineHeight:1.5 }}>
+              Each week defaults to <span style={{ color:"#aaaabf",fontWeight:600 }}>{epw} episodes</span>. Override here for weeks with irregular counts — first week starting mid-week, holiday break, finale week, etc. Empty fields use the default.
+            </div>
+            <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
+              {weeksToShow.map(w => {
+                const override = overrides[String(w)];
+                const isOverridden = override != null;
+                return (
+                  <div key={w} style={{ display:"flex",alignItems:"center",gap:8,padding:"6px 10px",background:"#0d0d18",borderRadius:6,border: isOverridden ? "1px solid #f5a62333" : "1px solid #1e1e38" }}>
+                    <span style={{ width:60,fontSize:12,color:"#aaaabf",fontWeight:600 }}>Week {w}</span>
+                    <input type="number" min="1" max="14" value={isOverridden ? override : ""} placeholder={String(epw)}
+                      onChange={e => setCount(w, e.target.value)}
+                      style={{ width:60,padding:"4px 8px",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:4,color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none" }} />
+                    <span style={{ fontSize:11,color:"#6a6a8a",flex:1 }}>
+                      {isOverridden ? `${override} episode${override === 1 ? "" : "s"} (overridden)` : `default — ${epw} episodes`}
+                    </span>
+                    {isOverridden && (
+                      <button onClick={() => clearOverride(w)} title="Reset to default" style={{ background:"none",border:"1px solid #2a2a4a",borderRadius:4,padding:"2px 8px",color:"#aaaabf",fontSize:10,cursor:"pointer",fontFamily:"'Outfit',sans-serif" }}>Reset</button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* v2.6.25.7: "My Team" dropdown removed — superseded by the Claim
           This Team button in Settings > Invite & Teams which sets
