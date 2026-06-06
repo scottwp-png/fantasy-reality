@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.30
+**Current Production Version:** v2.6.27.31
 **Last Deploy Date:** 2026-06-06
-**App.jsx Line Count:** ~12,000
+**App.jsx Line Count:** ~12,020
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,17 @@
 ---
 
 ## Version Log
+
+### v2.6.27.31 — 2026-06-06
+**"Pending" contestant status — not yet eligible to be picked.** Reported real-world need: a preview revealed two new Love Island contestants who haven't entered the show yet. Commissioner wants them in the cast list (so they're ready) but managers shouldn't be able to add them to teams until they actually appear on an episode.
+- **Third status value** alongside `active` / `eliminated`. New: `pending`. Contestants in `pending` show up in the cast list with a "PENDING" badge but are filtered out of every roster / pick / available list.
+- **Modal toggle** in `AddContestantModal`: a "Not yet on the show" checkbox added below the photo crop section. When checked, save resolves to `status: "pending"`. When unchecked (default for new), status stays `active`. Eliminated contestants don't show the toggle — eliminated takes precedence and the box wouldn't be meaningful.
+- **18 pickable-filter sites updated** (one global find/replace): `c.status !== "eliminated"` → `c.status === "active"`. Covers roster pickers, available-contestant lists for both LiveDraftTab and the standard weekly draft, captains depth-chart options, salary-cap rosters, predictions screens, survivor / elimination pool pickers, all "available" computations. Pending contestants are now filtered out of every selection surface.
+- **"PENDING" badge** in the standings tab cast card (`App.jsx:3082`) — orange `#f5a623`, sits next to or in place of the ELIM badge.
+- **Workflow** for the LI use case: commissioner adds the new contestants with "Not yet on the show" checked. They appear in the cast as PENDING. Once the contestants actually enter on an episode, commissioner re-opens each one and unchecks the box — they become active and selectable.
+- **What this doesn't touch.** The cast-tab filter pills ("Active" / "All") still work the same — pending contestants show in "All" alongside everyone. Could add a dedicated "Pending" filter in a follow-up if there are many of them, but for the typical 1-2 mid-season additions, browsing "All" works.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.75s).
+- **Commit:** `_pending_`
 
 ### v2.6.27.30 — 2026-06-06
 **Live Draft removed from Heroes format.** Per user re-decision — in Heroes, contestants are non-exclusive across teams (multiple managers can roster the same contestant), so a pre-season snake draft adds little value. The original v2.6.27.9 implementation supported both Heroes + Standard at the user's request; this commit narrows it back to Standard, which is per-week redraft and the format the live draft semantics actually fit.

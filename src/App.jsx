@@ -2582,7 +2582,7 @@ function CouplesEditor({ league, onUpdate }) {
   }
 
   const inACoupleIds = new Set(couples.flatMap(c => c.members || []));
-  const pickable = contestants.filter(c => c.status !== "eliminated");
+  const pickable = contestants.filter(c => c.status === "active");
 
   return (
     <div>
@@ -2707,7 +2707,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
   }, [league, weeks]);
 
   const filtered = contestantStats.filter(c => {
-    if (filter==="active") return c.status!=="eliminated";
+    if (filter==="active") return c.status==="active";
     if (filter==="eliminated") return c.status==="eliminated";
     return true;
   }).sort((a,b) => {
@@ -2740,7 +2740,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
     setSelectedForMove(prev => { const n = new Set(prev); if (n.has(cid)) n.delete(cid); else n.add(cid); return n; });
   }
   function selectTribe(tn) {
-    const ids = (tribes[tn]||[]).filter(id => (league.contestants||[]).some(c=>c.id===id&&c.status!=="eliminated"));
+    const ids = (tribes[tn]||[]).filter(id => (league.contestants||[]).some(c=>c.id===id&&c.status==="active"));
     setSelectedForMove(prev => { const n = new Set(prev); const all = ids.every(id=>n.has(id)); ids.forEach(id=>{if(all)n.delete(id);else n.add(id)}); return n; });
   }
   function moveSelectedToTribe(target) {
@@ -2995,7 +2995,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
             <CouplesEditor league={league} onUpdate={onUpdate} />
           )}
           {manageMode === "tribes" && league.showType === "survivor" && (() => {
-            const ac = (league.contestants||[]).filter(c=>c.status!=="eliminated");
+            const ac = (league.contestants||[]).filter(c=>c.status==="active");
             const unassigned = ac.filter(c=>!tribeNames.some(t=>(tribes[t]||[]).includes(c.id)));
             return (
               <div>
@@ -3079,6 +3079,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                     {(() => { const pid = getCouplePartner(league, c.id); const p = pid && (league.contestants||[]).find(x=>x.id===pid); return p && <span style={{color:"#e94560",fontSize:10,marginLeft:6}}>♥ {p.name}</span>; })()}
                     {!isMerged&&c.tribe&&<span style={{color:"#4a4a6a",fontSize:10,marginLeft:6}}>{c.tribe}</span>}
                     {c.status==="eliminated"&&<span style={{marginLeft:6,fontSize:10,color:"#e94560"}}>ELIM{c.eliminatedWeek?` ${cadenceShort(league)} ${c.eliminatedWeek}`:""}</span>}
+                    {c.status==="pending"&&<span style={{marginLeft:6,fontSize:10,color:"#f5a623"}}>PENDING</span>}
                   </div>
                   {subtitle&&<div style={{fontSize:11,color:"#6a6a8a",marginTop:1}}>{subtitle}</div>}
                 </div>
@@ -3589,7 +3590,7 @@ function ScoringTab({ league, onUpdate, isCommissioner = true, userProfile }) {
   const weekScores = league.weeklyScores?.[selectedWeek] || {};
   const isWeekFinalized = league.weekStatus?.[selectedWeek]?.status === "finalized";
   const weekContestants = (league.contestants||[]).filter(c => {
-    if (c.status !== "eliminated") return true;
+    if (c.status === "active") return true;
     if (c.eliminatedWeek && Number(selectedWeek) <= c.eliminatedWeek) return true;
     return false;
   });
@@ -3719,7 +3720,7 @@ function ScoringTab({ league, onUpdate, isCommissioner = true, userProfile }) {
       });
       if (elimIds.length > 0) {
         updatedContestants = updatedContestants.map(c =>
-          elimIds.includes(c.id) && c.status !== "eliminated"
+          elimIds.includes(c.id) && c.status === "active"
             ? { ...c, status: "eliminated", eliminatedWeek: Number(currentWk) }
             : c
         );
@@ -4403,11 +4404,11 @@ function LiveDraftTab({ league, onUpdate, loggedInTeamId, isCommissioner }) {
     return (league.contestants || []).filter(c => {
       if (draftedIds.has(c.id)) return false;
       if (isStandard && draftWeek) {
-        if (c.status !== "eliminated") return true;
+        if (c.status === "active") return true;
         if (c.eliminatedWeek && Number(draftWeek) <= c.eliminatedWeek) return true;
         return false;
       }
-      return c.status !== "eliminated";
+      return c.status === "active";
     });
   }, [league.contestants, draftedIds, isStandard, draftWeek]);
 
@@ -4948,7 +4949,7 @@ function WeeklyDraftTab({ league, onUpdate, standings }) {
   }, [league, draftWeek]);
 
   const activeContestants = (league.contestants||[]).filter(c => {
-    if (c.status !== "eliminated") return true;
+    if (c.status === "active") return true;
     if (c.eliminatedWeek && Number(draftWeek) <= c.eliminatedWeek) return true;
     return false;
   });
@@ -5548,7 +5549,7 @@ function PollsSection({ league, team, onUpdate, isCommissioner }) {
   const polls = league.polls || [];
   const contestants = league.contestants || [];
   const byId = Object.fromEntries(contestants.map(c => [c.id, c]));
-  const activeContestants = contestants.filter(c => c.status !== "eliminated");
+  const activeContestants = contestants.filter(c => c.status === "active");
   // v2.6.23.6: helper for rendering an answer label. Choice-type questions
   // store the answer string directly; cast-type questions store a contestant
   // ID that needs lookup. Returning "—" for the empty / unknown case keeps
@@ -6117,7 +6118,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
     // When this team is locked in, the selectable pool is restricted to the
     // locked roster — eliminated members stay (ghost slot behavior).
     if (lockedPoolSet) return lockedPoolSet.has(c.id);
-    if (c.status !== "eliminated") return true;
+    if (c.status === "active") return true;
     if (c.eliminatedWeek && effectiveWeek <= c.eliminatedWeek) return true;
     return false;
   });
@@ -7098,7 +7099,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function SurvivorPoolTab({ league, onUpdate, loggedInTeamId, isCommissioner }) {
   const team = (league.teams||[]).find(t=>t.id===loggedInTeamId);
-  const activeContestants = (league.contestants||[]).filter(c=>c.status!=="eliminated").sort((a,b)=>a.name.localeCompare(b.name));
+  const activeContestants = (league.contestants||[]).filter(c=>c.status==="active").sort((a,b)=>a.name.localeCompare(b.name));
   const allContestants = (league.contestants||[]).sort((a,b)=>a.name.localeCompare(b.name));
 
   // Which contestants are already picked by other teams?
@@ -7181,7 +7182,7 @@ function SalaryCapRosterTab({ league, onUpdate, loggedInTeamId, isCommissioner }
   const prices = league.contestantPrices || {};
   const budget = league.salaryCapConfig?.budget || 100;
   const roster = team?.salaryCapRoster || [];
-  const allContestants = (league.contestants||[]).filter(c=>c.status!=="eliminated").sort((a,b)=>a.name.localeCompare(b.name));
+  const allContestants = (league.contestants||[]).filter(c=>c.status==="active").sort((a,b)=>a.name.localeCompare(b.name));
   const weeks = Object.keys(league.weeklyScores || {}).sort((a,b)=>+a - +b);
 
   const spent = roster.reduce((s, cid) => s + (prices[cid] || 0), 0);
@@ -7323,7 +7324,7 @@ function SalaryCapPricesTab({ league, onUpdate }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function EliminationPoolTab({ league, onUpdate, loggedInTeamId, isCommissioner }) {
   const team = (league.teams||[]).find(t=>t.id===loggedInTeamId);
-  const activeContestants = (league.contestants||[]).filter(c=>c.status!=="eliminated").sort((a,b)=>a.name.localeCompare(b.name));
+  const activeContestants = (league.contestants||[]).filter(c=>c.status==="active").sort((a,b)=>a.name.localeCompare(b.name));
   const allContestants = (league.contestants||[]).sort((a,b)=>a.name.localeCompare(b.name));
   const currentWeek = String(league.currentWeek || 1);
 
@@ -7373,7 +7374,7 @@ function EliminationPoolTab({ league, onUpdate, loggedInTeamId, isCommissioner }
           <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
             {Object.entries(weeklyPicks).sort((a,b)=>+b[0]-+a[0]).map(([wk,cid]) => {
               const c = allContestants.find(x=>x.id===cid);
-              const survived = !c || c.status !== "eliminated" || (c.eliminatedWeek && c.eliminatedWeek > Number(wk));
+              const survived = !c || c.status === "active" || (c.eliminatedWeek && c.eliminatedWeek > Number(wk));
               return (
                 <div key={wk} style={{ display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderRadius:8,background:"#12121f",border:"1px solid #1e1e38" }}>
                   <Badge color="#6a6a8a">{cadenceShort(league)} {wk}</Badge>
@@ -7404,7 +7405,7 @@ function PredictionsPlayerTab({ league, onUpdate, loggedInTeamId }) {
     onUpdate({ ...league, teams: updatedTeams });
   }
 
-  const allContestants = (league.contestants||[]).filter(c=>c.status!=="eliminated").sort((a,b)=>a.name.localeCompare(b.name));
+  const allContestants = (league.contestants||[]).filter(c=>c.status==="active").sort((a,b)=>a.name.localeCompare(b.name));
 
   return (
     <div>
@@ -9199,10 +9200,10 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
 
       <div style={{ marginBottom:20,padding:"16px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
         <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0",marginBottom:12 }}>Contestant Status</div>
-        {(league.contestants||[]).filter(c=>c.status!=="eliminated").map(c=>(
+        {(league.contestants||[]).filter(c=>c.status==="active").map(c=>(
           <EliminateRow key={c.id} contestant={c} league={league} onUpdate={onUpdate} />
         ))}
-        {(league.contestants||[]).filter(c=>c.status!=="eliminated").length===0 && <div style={{ color:"#4a4a6a",fontSize:12 }}>No active contestants</div>}
+        {(league.contestants||[]).filter(c=>c.status==="active").length===0 && <div style={{ color:"#4a4a6a",fontSize:12 }}>No active contestants</div>}
 
         {/* Eliminated contestants */}
         {(league.contestants||[]).filter(c=>c.status==="eliminated").length > 0 && (
@@ -9444,13 +9445,19 @@ function AddContestantModal({ open, onClose, league, onUpdate, editing }) {
   const [photoCropY, setPhotoCropY] = useState(20);
   const [photoCropZoom, setPhotoCropZoom] = useState(1);
   const [photoError, setPhotoError] = useState("");
+  // v2.6.27.31: "pending" status — contestant exists in the cast
+  // but isn't eligible to be picked yet (announced in a preview but
+  // hasn't entered the show). Commissioner flips this off once the
+  // contestant actually shows up. Eliminated status takes precedence
+  // and isn't editable from this checkbox.
+  const [isPending, setIsPending] = useState(false);
   // Mode: "single" = the per-contestant form, "bulk" = paste-many. Editing forces
   // single (you can't bulk-edit an existing contestant through this modal).
   const [mode, setMode] = useState("single");
 
   useEffect(() => {
-    if (editing) { setName(editing.name||""); setBio(editing.bio||""); setGender(editing.gender||""); setPhotoUrl(editing.photoUrl||""); setPhotoCropY(editing.photoCropY||20); setPhotoCropZoom(editing.photoCropZoom||1); }
-    else { setName(""); setBio(""); setGender(""); setPhotoUrl(""); }
+    if (editing) { setName(editing.name||""); setBio(editing.bio||""); setGender(editing.gender||""); setPhotoUrl(editing.photoUrl||""); setPhotoCropY(editing.photoCropY||20); setPhotoCropZoom(editing.photoCropZoom||1); setIsPending(editing.status === "pending"); }
+    else { setName(""); setBio(""); setGender(""); setPhotoUrl(""); setIsPending(false); }
     setPhotoError("");
     setMode("single");
   }, [editing, open]);
@@ -9480,7 +9487,13 @@ function AddContestantModal({ open, onClose, league, onUpdate, editing }) {
 
   function handleSave() {
     if (!name.trim()) return;
-    const contestant = { id: editing?.id || generateId(), name: name.trim(), bio: bio.trim(), gender: gender.trim(), photoUrl: photoUrl.trim(), photoCropY: Number(photoCropY), photoCropZoom: Number(photoCropZoom), status: editing?.status || "active", tribe: editing?.tribe || "" };
+    // v2.6.27.31: status resolution. Eliminated stays eliminated
+    // regardless of the pending checkbox. Otherwise, the checkbox
+    // dictates pending vs active.
+    const resolvedStatus = editing?.status === "eliminated"
+      ? "eliminated"
+      : (isPending ? "pending" : "active");
+    const contestant = { id: editing?.id || generateId(), name: name.trim(), bio: bio.trim(), gender: gender.trim(), photoUrl: photoUrl.trim(), photoCropY: Number(photoCropY), photoCropZoom: Number(photoCropZoom), status: resolvedStatus, tribe: editing?.tribe || "" };
     if (editing) onUpdate({ ...league, contestants: league.contestants.map(c=>c.id===editing.id?{...c,...contestant}:c) });
     else onUpdate({ ...league, contestants: [...(league.contestants||[]), contestant] });
     onClose();
@@ -9562,6 +9575,20 @@ function AddContestantModal({ open, onClose, league, onUpdate, editing }) {
             <img src={photoUrl} alt="Zoomed" style={{ width:"100%",height:"100%",objectFit:"cover",objectPosition:`center ${photoCropY}%`,transform:`scale(${photoCropZoom})`,transformOrigin:`center ${photoCropY}%` }} onError={e=>{e.target.style.display="none"}} />
           </div>
         </div>
+      )}
+      {/* v2.6.27.31: pending eligibility toggle. Hidden when the
+          contestant is already eliminated (state-of-the-show says
+          they're done; pending vs active doesn't apply). */}
+      {editing?.status !== "eliminated" && (
+        <label style={{ display:"flex",alignItems:"flex-start",gap:10,padding:"10px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:8,marginTop:14,cursor:"pointer" }}>
+          <input type="checkbox" checked={isPending} onChange={e => setIsPending(e.target.checked)} style={{ accentColor:"#f5a623",width:18,height:18,marginTop:2,flexShrink:0 }} />
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:13,color:"#e8e8f0",fontWeight:600 }}>Not yet on the show</div>
+            <div style={{ fontSize:11,color:"#8888aa",marginTop:2,lineHeight:1.5 }}>
+              Marks this contestant as pending entry — they'll appear in the cast but managers can't pick them yet. Uncheck once they actually show up on the episode.
+            </div>
+          </div>
+        </label>
       )}
       <div style={{ display:"flex",gap:8,marginTop:16 }}>
         {editing && <Btn variant="danger" onClick={handleDelete}><Icon name="trash" size={14}/> Delete</Btn>}
