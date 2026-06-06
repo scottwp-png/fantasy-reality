@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.27
+**Current Production Version:** v2.6.27.28
 **Last Deploy Date:** 2026-06-06
-**App.jsx Line Count:** ~11,990
+**App.jsx Line Count:** ~12,000
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,12 @@
 ---
 
 ## Version Log
+
+### v2.6.27.28 — 2026-06-06
+**Thumbnail wrapper fix — overflow:hidden so scale doesn't visually break.** v2.6.27.27 applied `transform: scale()` directly to `<img>` elements with explicit pixel `width`/`height`. Without `overflow: hidden` on a parent, the scaled image extends beyond its allocated layout box and shows outside the rounded corners. The canonical pattern (used by `ContestantAvatar` at `App.jsx:1097-1105` and by the league Cast Manage view at `App.jsx:2959`) wraps the img in a sized container div with `overflow: hidden`, and the img itself is `width: 100%; height: 100%` plus the transform.
+- Updated the three thumbnails from v2.6.27.27 to use the wrapper pattern. Same data driving the zoom, same visual result as `ContestantAvatar` everywhere it's used in leagues.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.50s).
+- **Commit:** `_pending_`
 
 ### v2.6.27.27 — 2026-06-06
 **Thumbnail rendering picks up `photoCropZoom`.** Follow-up to v2.6.27.26 — the data was being saved + propagating, but several thumbnail render sites in the UI only read `photoCropY` (position) and never applied `photoCropZoom` (scale). When the admin zoomed a headshot, the saved value went unused at the small-thumbnail surfaces. Added the `transform: scale()` + `transformOrigin` pair to three places:
