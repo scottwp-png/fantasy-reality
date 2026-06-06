@@ -39,7 +39,7 @@
 - **UI** in Settings → General as a new "Weekly Cadence" card. Lists every week from 1 to `max(currentDraftWeek + 2, maxOverrideWeek)` with an editable number input per row. Empty = default (epw); filled = override. Override rows get an orange-tinted border and a "Reset" button to clear the override. Skipped for leagues where `epw <= 1` (no need to override a 1-episode-per-week schedule).
 - **Combines with v2.6.27.23.** That commit reframed "Reset All Scores" → "Reset Season Scores" with preseason copy + audit entry + `weekStatus` wipe. v2.6.27.24 adds the alternative path for cases where the commissioner wants to *keep* the irregular scores rather than wipe them.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.59s).
-- **Commit:** `_pending_`
+- **Commit:** `103f53d`
 
 ### v2.6.27.23 — 2026-06-06
 **"Reset Season Scores" button rework (preseason / soft-start support).** A real-world need surfaced from the Love Island S13 Reddit launch — episodes started on Monday so the first week was 5 episodes instead of 6, and the commissioner skipped scoring it because the cadence didn't match the league's `episodesPerWeek=6`. Engagement dropped over the first week. The smarter pattern is to score the first week as a "preseason" / "warm-up" with everyone playing, then reset everything for the real season start once full weeks resume.
