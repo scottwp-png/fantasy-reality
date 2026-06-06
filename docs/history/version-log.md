@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.32
+**Current Production Version:** v2.6.27.33
 **Last Deploy Date:** 2026-06-06
-**App.jsx Line Count:** ~12,020
+**App.jsx Line Count:** ~12,130
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,24 @@
 ---
 
 ## Version Log
+
+### v2.6.27.33 — 2026-06-06
+**Pending status: defense-in-depth at every roster-write path + auto-strip on flip.** Two layered fixes after the user reported being able to swap a pending contestant onto their team. v2.6.27.31's filter at every read site was technically correct but a cached UI or a path I'd missed could still slip through; the user pushed for "just gate it at the write."
+- **`isPickPendingBlocked(league, contestantId)` helper** at `App.jsx:650-657`. Called at the start of every roster-mutation function. If the contestant's status is `"pending"`, shows an alert and returns true; caller bails before mutating.
+- **Six write paths now guarded:**
+  - `makePick` in LiveDraftTab (Standard live draft, both manual click + auto-pick)
+  - `makePick` in WeeklyDraftTab (Standard manual draft)
+  - `setSlotWithSwap` in DepthChartTab (Heroes captain / side-kick / vigilante swap)
+  - `setPick` in SurvivorPoolTab
+  - `toggleContestant` in SalaryCapRosterTab (only on the add side; removing is always fine)
+  - `makePick` in EliminationPoolTab (weekly pick)
+- **Flipping a contestant to pending now auto-strips them from every existing roster.** Reported: "what happens if someone with that flag is already on a roster?" Without this, marking a contestant pending only blocked future adds — existing roster references stayed and they could still score. Now:
+  - `countContestantRosters(teams, cid)` tallies references across Heroes depth chart (current + per-week), Standard weekly rosters, salary-cap roster, Survivor pick, Elimination pool weekly picks.
+  - If the count is > 0 when the commissioner saves with the pending box freshly checked, a confirm fires: "Victoria is currently on 2 rosters / pick slots. Marking them pending will remove them from every one. Continue?"
+  - `scrubContestantFromRosters(teams, cid)` runs on confirm and nulls/filters them out of every slot across every team. Same format coverage as the count function.
+- **No-op cases.** If the count is 0 (no existing references), no confirm — just the status flip. If `editing.status` was already `"pending"`, no scrub (idempotent re-save).
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.85s).
+- **Commit:** `_pending_`
 
 ### v2.6.27.32 — 2026-06-06
 **Swap Rules inputs fixed: no more snap-back-to-1 and max bumped to 99.** Reported — couldn't change the "Swaps allowed" number, stuck at 1 (or 10 if the user tried to exceed). Two bugs at the same site.

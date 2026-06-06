@@ -647,6 +647,119 @@ const cadenceLabel = (league, n) => n != null ? `${cadenceWord(league)} ${n}` : 
 // episode metadata.
 //
 // No-op if episodes[N] already exists. First-seed wins.
+// v2.6.27.33: defense-in-depth — every roster-mutation path (Heroes
+// swap, Survivor pick, Salary Cap toggle, Elimination Pool pick,
+// Standard live + manual draft makePick) calls this before writing.
+// If the contestant is marked "pending" (not yet on the show),
+// returns true and shows an alert; the caller bails out without
+// mutating. Previously the only gate was filtering pending out of
+// dropdowns, but any path that bypassed the dropdown (auto-pick,
+// shortcuts, cached UI from before the contestant was marked
+// pending) would let them through.
+function isPickPendingBlocked(league, contestantId) {
+  if (!contestantId) return false;
+  const c = (league?.contestants || []).find(x => x.id === contestantId);
+  if (!c || c.status !== "pending") return false;
+  try { alert(`${c.name} hasn't entered the show yet and can't be added to a roster. Once they appear on an episode, the commissioner can mark them as active in the Cast tab.`); } catch {}
+  return true;
+}
+
+// v2.6.27.33: scrub a contestant id from every roster field across
+// every team. Used when a contestant flips to pending — they shouldn't
+// be sitting on any team's roster anymore. Covers all five format-
+// specific patterns: Heroes depth chart (current + per-week),
+// Standard weekly rosters, salary-cap roster, Survivor pool pick,
+// Elimination pool weekly picks.
+function scrubContestantFromRosters(teams, cid) {
+  return (teams || []).map(t => {
+    let next = t;
+    if (t.depthChart) {
+      const dc = { ...t.depthChart };
+      let any = false;
+      if (dc.captain === cid) { dc.captain = null; any = true; }
+      if (dc.coCaptain === cid) { dc.coCaptain = null; any = true; }
+      if ((dc.regulars || []).includes(cid)) {
+        dc.regulars = (dc.regulars || []).filter(id => id !== cid);
+        any = true;
+      }
+      if (any) next = { ...next, depthChart: dc };
+    }
+    if (t.weeklyDepthCharts) {
+      const wdc = {};
+      let any = false;
+      Object.entries(t.weeklyDepthCharts).forEach(([wk, chart]) => {
+        const c = { ...(chart || {}) };
+        let inner = false;
+        if (c.captain === cid) { c.captain = null; inner = true; }
+        if (c.coCaptain === cid) { c.coCaptain = null; inner = true; }
+        if ((c.regulars || []).includes(cid)) {
+          c.regulars = (c.regulars || []).filter(id => id !== cid);
+          inner = true;
+        }
+        wdc[wk] = inner ? c : chart;
+        if (inner) any = true;
+      });
+      if (any) next = { ...next, weeklyDepthCharts: wdc };
+    }
+    if (t.weeklyRosters) {
+      const wr = {};
+      let any = false;
+      Object.entries(t.weeklyRosters).forEach(([wk, ids]) => {
+        if ((ids || []).includes(cid)) {
+          wr[wk] = ids.filter(id => id !== cid);
+          any = true;
+        } else wr[wk] = ids;
+      });
+      if (any) next = { ...next, weeklyRosters: wr };
+    }
+    if ((t.salaryCapRoster || []).includes(cid)) {
+      next = { ...next, salaryCapRoster: t.salaryCapRoster.filter(id => id !== cid) };
+    }
+    if (t.survivorPoolPick === cid) {
+      next = { ...next, survivorPoolPick: null };
+    }
+    if (t.weeklyPicks) {
+      const wp = {};
+      let any = false;
+      Object.entries(t.weeklyPicks).forEach(([wk, pick]) => {
+        if (pick === cid) { wp[wk] = null; any = true; } else wp[wk] = pick;
+      });
+      if (any) next = { ...next, weeklyPicks: wp };
+    }
+    return next;
+  });
+}
+
+// Count how many rosters / picks a contestant currently sits on. Used
+// to surface "this contestant is on N rosters — marking pending will
+// remove them" in the confirm dialog.
+function countContestantRosters(teams, cid) {
+  let count = 0;
+  (teams || []).forEach(t => {
+    if (t.depthChart) {
+      if (t.depthChart.captain === cid) count++;
+      if (t.depthChart.coCaptain === cid) count++;
+      if ((t.depthChart.regulars || []).includes(cid)) count++;
+    }
+    if (t.weeklyDepthCharts) {
+      Object.values(t.weeklyDepthCharts).forEach(c => {
+        if (c?.captain === cid) count++;
+        if (c?.coCaptain === cid) count++;
+        if ((c?.regulars || []).includes(cid)) count++;
+      });
+    }
+    if (t.weeklyRosters) {
+      Object.values(t.weeklyRosters).forEach(ids => { if ((ids || []).includes(cid)) count++; });
+    }
+    if ((t.salaryCapRoster || []).includes(cid)) count++;
+    if (t.survivorPoolPick === cid) count++;
+    if (t.weeklyPicks) {
+      Object.values(t.weeklyPicks).forEach(pick => { if (pick === cid) count++; });
+    }
+  });
+  return count;
+}
+
 function ensureEpisode(league, n) {
   const key = String(n);
   if (league?.episodes?.[key]) return league;
@@ -4682,6 +4795,7 @@ function LiveDraftTab({ league, onUpdate, loggedInTeamId, isCommissioner }) {
   function makePick(contestantId, autoPicked = false) {
     if (state !== "live") return;
     if (!contestantId) return;
+    if (isPickPendingBlocked(league, contestantId)) return;
     // Only the team on the clock may pick (UI also gates this; this
     // is defense for the manual-pick path too).
     const pickerId = pickerForPick(currentPick, order);
@@ -4980,6 +5094,7 @@ function WeeklyDraftTab({ league, onUpdate, standings }) {
   }
 
   function makePick(contestantId) {
+    if (isPickPendingBlocked(league, contestantId)) return;
     const teamId = getCurrentTeamId();
     if (!teamId) return;
     const updated = {
@@ -6326,6 +6441,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
   }
 
   function setSlotWithSwap(slot, contestantId) {
+    if (isPickPendingBlocked(league, contestantId)) return;
     const id = contestantId || null;
     const nc = { ...localChart, regulars: [...(localChart.regulars||[])] };
     const currentInSlot = getSlotValue(nc, slot);
@@ -7107,6 +7223,7 @@ function SurvivorPoolTab({ league, onUpdate, loggedInTeamId, isCommissioner }) {
   (league.teams||[]).forEach(t => { if (t.survivorPoolPick && t.id !== loggedInTeamId) takenPicks.add(t.survivorPoolPick); });
 
   function setPick(contestantId) {
+    if (isPickPendingBlocked(league, contestantId)) return;
     const updatedTeams = league.teams.map(t => t.id === loggedInTeamId ? { ...t, survivorPoolPick: contestantId || null } : t);
     onUpdate({ ...league, teams: updatedTeams });
   }
@@ -7193,6 +7310,7 @@ function SalaryCapRosterTab({ league, onUpdate, loggedInTeamId, isCommissioner }
     if (roster.includes(cid)) {
       newRoster = roster.filter(id=>id!==cid);
     } else {
+      if (isPickPendingBlocked(league, cid)) return;
       const cost = prices[cid] || 0;
       if (cost > remaining) return; // can't afford
       newRoster = [...roster, cid];
@@ -7333,6 +7451,7 @@ function EliminationPoolTab({ league, onUpdate, loggedInTeamId, isCommissioner }
   const usedPicks = new Set(Object.values(weeklyPicks));
 
   function makePick(cid) {
+    if (isPickPendingBlocked(league, cid)) return;
     const newPicks = { ...weeklyPicks, [currentWeek]: cid };
     const updatedTeams = league.teams.map(t => t.id === loggedInTeamId ? { ...t, weeklyPicks: newPicks } : t);
     onUpdate({ ...league, teams: updatedTeams });
@@ -9508,7 +9627,19 @@ function AddContestantModal({ open, onClose, league, onUpdate, editing }) {
       ? "eliminated"
       : (isPending ? "pending" : "active");
     const contestant = { id: editing?.id || generateId(), name: name.trim(), bio: bio.trim(), gender: gender.trim(), photoUrl: photoUrl.trim(), photoCropY: Number(photoCropY), photoCropZoom: Number(photoCropZoom), status: resolvedStatus, tribe: editing?.tribe || "" };
-    if (editing) onUpdate({ ...league, contestants: league.contestants.map(c=>c.id===editing.id?{...c,...contestant}:c) });
+    // v2.6.27.33: when flipping an existing contestant to pending,
+    // scrub them from every roster they're currently sitting on.
+    // Pending means "not yet in the show" — they shouldn't be on a
+    // team's lineup. Confirm with a count first.
+    let teamsAfter = league.teams;
+    if (editing && resolvedStatus === "pending" && editing.status !== "pending") {
+      const n = countContestantRosters(league.teams || [], editing.id);
+      if (n > 0) {
+        if (!confirm(`${editing.name} is currently on ${n} roster${n === 1 ? "" : "s"} / pick slot${n === 1 ? "" : "s"}. Marking them pending will remove them from every one. Continue?`)) return;
+        teamsAfter = scrubContestantFromRosters(league.teams || [], editing.id);
+      }
+    }
+    if (editing) onUpdate({ ...league, teams: teamsAfter, contestants: league.contestants.map(c=>c.id===editing.id?{...c,...contestant}:c) });
     else onUpdate({ ...league, contestants: [...(league.contestants||[]), contestant] });
     onClose();
   }
