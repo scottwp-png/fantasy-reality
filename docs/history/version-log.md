@@ -33,7 +33,7 @@
   2. Open any league with that show / season — the auto-cascade fires within a few seconds and flips Victoria to pending. If she was on someone's roster, she's automatically removed.
   3. When Victoria actually enters the show, admin un-checks the box, saves. Cascade flips her back to active.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.87s).
-- **Commit:** `_pending_`
+- **Commit:** `b36b60c`
 
 ### v2.6.27.33 — 2026-06-06
 **Pending status: defense-in-depth at every roster-write path + auto-strip on flip.** Two layered fixes after the user reported being able to swap a pending contestant onto their team. v2.6.27.31's filter at every read site was technically correct but a cached UI or a path I'd missed could still slip through; the user pushed for "just gate it at the write."
