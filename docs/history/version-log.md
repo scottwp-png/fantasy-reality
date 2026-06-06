@@ -1,7 +1,7 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.31
+**Current Production Version:** v2.6.27.32
 **Last Deploy Date:** 2026-06-06
 **App.jsx Line Count:** ~12,020
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
@@ -22,6 +22,15 @@
 ---
 
 ## Version Log
+
+### v2.6.27.32 — 2026-06-06
+**Swap Rules inputs fixed: no more snap-back-to-1 and max bumped to 99.** Reported — couldn't change the "Swaps allowed" number, stuck at 1 (or 10 if the user tried to exceed). Two bugs at the same site.
+- **Snap-back bug.** Controlled input pattern was `value={n} onChange={e => update(Math.max(min, Math.min(max, Number(e.target.value) || min)))}`. The `|| min` fallback fired whenever the user cleared the field to retype — empty string → `Number("")` → `0` → `0 || 1` → `1`. So the field snapped to 1 the moment they tried to backspace + retype.
+- **Max-cap bug.** Hard-coded `max="10"` (or `"20"` for bank max) clamped any larger input. Leagues with longer rosters or special rules might want more.
+- **Fix.** Both inputs switched to uncontrolled with `defaultValue` + `onBlur` commit. User can freely type, backspace, retype — the value only commits when they leave the field. A `key={"swaps-" + n}` forces a re-mount if the state changes externally so the input still reflects the new value. Max bumped from 10 → 99 (swaps) and 20 → 99 (bank max).
+- **No other behavior changes.** The clamps still apply (min 1 / 0, max 99) — just on blur instead of on every keystroke.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.91s).
+- **Commit:** `_pending_`
 
 ### v2.6.27.31 — 2026-06-06
 **"Pending" contestant status — not yet eligible to be picked.** Reported real-world need: a preview revealed two new Love Island contestants who haven't entered the show yet. Commissioner wants them in the cast list (so they're ready) but managers shouldn't be able to add them to teams until they actually appear on an episode.

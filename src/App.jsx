@@ -9052,7 +9052,17 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
             <div style={{ display:"flex",gap:10,flexWrap:"wrap" }}>
               <div style={{ flex:"1 1 140px",minWidth:120 }}>
                 <label style={{ display:"block",fontSize:11,fontWeight:600,color:"#8888aa",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.05em" }}>Swaps allowed</label>
-                <input type="number" min="1" max="10" value={swapsPerPeriod} onChange={e => update({ swapsPerPeriod: Math.max(1, Math.min(10, Number(e.target.value) || 1)) })}
+                {/* v2.6.27.32: uncontrolled + onBlur commit. Previous
+                    controlled input snapped back to 1 whenever the
+                    field was cleared (empty string → Number → 0 → || 1).
+                    Max bumped from 10 to 99 — leagues with longer
+                    rosters or special rules can want more. The `key`
+                    forces a re-mount if the value changes externally. */}
+                <input type="number" min="1" max="99" key={`swaps-${swapsPerPeriod}`} defaultValue={swapsPerPeriod}
+                  onBlur={e => {
+                    const n = Math.max(1, Math.min(99, Number(e.target.value) || swapsPerPeriod));
+                    if (n !== swapsPerPeriod) update({ swapsPerPeriod: n });
+                  }}
                   style={{ width:"100%",padding:"8px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none",boxSizing:"border-box" }} />
               </div>
               {isMultiEp && (
@@ -9094,7 +9104,11 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
               {swapBanking && (
                 <div style={{ marginTop:10,paddingLeft:28 }}>
                   <label style={{ display:"block",fontSize:11,fontWeight:600,color:"#8888aa",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.05em" }}>Bank max <span style={{ fontSize:9,color:"#6a6a8a",fontWeight:500 }}>(0 = unlimited)</span></label>
-                  <input type="number" min="0" max="20" value={swapBankMax} onChange={e => update({ swapBankMax: Math.max(0, Math.min(20, Number(e.target.value) || 0)) })}
+                  <input type="number" min="0" max="99" key={`bankmax-${swapBankMax}`} defaultValue={swapBankMax}
+                    onBlur={e => {
+                      const n = Math.max(0, Math.min(99, Number(e.target.value)));
+                      if (n !== swapBankMax) update({ swapBankMax: Number.isFinite(n) ? n : swapBankMax });
+                    }}
                     style={{ width:120,padding:"7px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,color:"#e8e8f0",fontSize:13,fontFamily:"'Outfit',sans-serif",outline:"none" }} />
                 </div>
               )}
