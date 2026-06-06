@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.24
+**Current Production Version:** v2.6.27.25
 **Last Deploy Date:** 2026-06-06
-**App.jsx Line Count:** ~11,970
+**App.jsx Line Count:** ~11,990
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,16 @@
 ---
 
 ## Version Log
+
+### v2.6.27.25 — 2026-06-06
+**Import Cast now syncs admin photo / bio changes to existing contestants.** Reported — when the admin updates a contestant's photo or bio at the show-cast level (`showCast/<showType>/season_<N>`), commissioners who'd already imported the cast had no way to pull those updates short of manually re-editing each contestant. The Import Cast button only added new contestants and silently skipped any name match.
+- **New behavior.** The button now diffs the admin record against each league contestant by case-insensitive name and patches `photoUrl`, `photoCropY`, and `bio` when the admin has a value that differs from what's on the league record.
+- **Empty admin values don't overwrite** — if the admin record has a blank bio, the commissioner's bio stays. Treats empty as "no opinion."
+- **Gender and tribe stay untouched** during sync. Commissioners can customize those per-league (custom tribe assignments, etc.) and re-import shouldn't overwrite that intent. If the admin set a value the commissioner left blank, the new-contestant path picks it up; existing contestants keep their per-league values.
+- **Status and `eliminatedWeek` stay untouched.** Those are league-specific game state, not cast metadata — admin doesn't manage them.
+- **Confirmation copy reframed** to surface both actions: "Add 5 new contestants and update 8 existing (photo / bio sync)?" so the commissioner knows what's about to change. If nothing to add and nothing to sync, the button shows "All N contestants already in this league with no admin changes to sync."
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.52s).
+- **Commit:** `_pending_`
 
 ### v2.6.27.24 — 2026-06-06
 **Per-week episode count overrides.** Companion to v2.6.27.23's Reset Season Scores button — together they handle the irregular-cadence cases. Reset covers "this whole week was preseason, wipe and restart fresh"; per-week overrides cover irregular weeks at the start (Love Island S13 started Monday so week 1 was 5 episodes instead of 6), mid-season (Thanksgiving / holiday breaks), and end-of-season (finale week).

@@ -2777,8 +2777,13 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
           {!readOnly&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             <Btn small onClick={()=>{setEditing(null);setModal("add-contestant")}}><Icon name="plus" size={14}/> Add</Btn>
             {/* v2.6.6.0: import the admin-managed cast for this league's
-                (showType, seasonNumber). Skips contestants already present
-                (matched by case-insensitive name) so re-imports are idempotent. */}
+                (showType, seasonNumber). Matches by case-insensitive name.
+                v2.6.27.25: also syncs photoUrl / photoCropY / bio from the
+                admin record onto existing league contestants — admin photo
+                / bio updates flow through on re-import. Gender + tribe
+                are NOT synced (commissioners can customize those per-
+                league and overwriting would surprise them). Status +
+                eliminatedWeek stay untouched (league-specific game state). */}
             {league.seasonNumber && <Btn small variant="ghost" onClick={async ()=>{
               const data = await loadRootData(`showCast/${league.showType}/season_${league.seasonNumber}`, null);
               const incoming = Array.isArray(data?.contestants) ? data.contestants : [];
@@ -2786,20 +2791,49 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                 alert(`No show cast set up yet for ${SHOW_PRESETS[league.showType]?.name || league.showType} Season ${league.seasonNumber}. Ask the admin to populate it.`);
                 return;
               }
-              const existing = new Set((league.contestants||[]).map(c => (c.name||"").toLowerCase().trim()));
-              const toAdd = incoming.filter(sc => !existing.has((sc.name||"").toLowerCase().trim())).map(sc => ({
-                id: generateId(),
-                name: sc.name,
-                photoUrl: sc.photoUrl || "",
-                ...(sc.photoCropY != null ? { photoCropY: sc.photoCropY } : {}),
-                gender: sc.gender || "",
-                tribe: sc.tribe || null,
-                status: "active",
-                bio: sc.bio || "",
-              }));
-              if (toAdd.length === 0) { alert(`All ${incoming.length} contestants from the show cast are already in this league.`); return; }
-              if (!confirm(`Import ${toAdd.length} contestant${toAdd.length===1?"":"s"} from ${SHOW_PRESETS[league.showType]?.name || league.showType} Season ${league.seasonNumber}?`)) return;
-              onUpdate({ ...league, contestants: [...(league.contestants||[]), ...toAdd] });
+              const byName = new Map((league.contestants||[]).map(c => [(c.name||"").toLowerCase().trim(), c]));
+              const toAdd = [];
+              let updated = 0;
+              const adminPatches = new Map(); // existingId -> patch
+              for (const sc of incoming) {
+                const key = (sc.name||"").toLowerCase().trim();
+                const existing = byName.get(key);
+                if (!existing) {
+                  toAdd.push({
+                    id: generateId(),
+                    name: sc.name,
+                    photoUrl: sc.photoUrl || "",
+                    ...(sc.photoCropY != null ? { photoCropY: sc.photoCropY } : {}),
+                    gender: sc.gender || "",
+                    tribe: sc.tribe || null,
+                    status: "active",
+                    bio: sc.bio || "",
+                  });
+                } else {
+                  // Diff the sync-eligible fields and patch only what
+                  // changed. Empty admin values don't overwrite existing
+                  // commissioner-set values (treat empty as "no opinion").
+                  const patch = {};
+                  if (sc.photoUrl && sc.photoUrl !== existing.photoUrl) patch.photoUrl = sc.photoUrl;
+                  if (sc.photoCropY != null && sc.photoCropY !== existing.photoCropY) patch.photoCropY = sc.photoCropY;
+                  if (sc.bio && sc.bio !== existing.bio) patch.bio = sc.bio;
+                  if (Object.keys(patch).length > 0) {
+                    adminPatches.set(existing.id, patch);
+                    updated++;
+                  }
+                }
+              }
+              if (toAdd.length === 0 && updated === 0) { alert(`All ${incoming.length} contestants already in this league with no admin changes to sync.`); return; }
+              const parts = [];
+              if (toAdd.length) parts.push(`Add ${toAdd.length} new contestant${toAdd.length===1?"":"s"}`);
+              if (updated) parts.push(`update ${updated} existing (photo / bio sync)`);
+              const summary = parts.join(" and ");
+              if (!confirm(`${summary[0].toUpperCase() + summary.slice(1)} from ${SHOW_PRESETS[league.showType]?.name || league.showType} Season ${league.seasonNumber}?`)) return;
+              const merged = (league.contestants||[]).map(c => {
+                const patch = adminPatches.get(c.id);
+                return patch ? { ...c, ...patch } : c;
+              });
+              onUpdate({ ...league, contestants: [...merged, ...toAdd] });
             }}>📥 Import Cast</Btn>}
             <Btn small variant="ghost" onClick={()=>setManagePhotos(!managePhotos)}>Manage</Btn>
           </div>}
