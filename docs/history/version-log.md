@@ -1,7 +1,7 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.25
+**Current Production Version:** v2.6.27.26
 **Last Deploy Date:** 2026-06-06
 **App.jsx Line Count:** ~11,990
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
@@ -22,6 +22,15 @@
 ---
 
 ## Version Log
+
+### v2.6.27.26 — 2026-06-06
+**Photo zoom (`photoCropZoom`) now propagates from admin to leagues.** Reported — when the admin adjusts a contestant's headshot zoom in the admin cast editor, the change didn't appear anywhere. Cast records use both `photoCropY` (vertical position, 0-100%) and `photoCropZoom` (scale, 1.0-3.0); the admin editor saves both, but three of the four code paths that copy admin-cast data into a league only carried `photoCropY`. The fourth path (auto-cast cascade at `App.jsx:10248`) already handled `photoCropZoom`; the three that didn't are now fixed:
+- **League creation** (`App.jsx:1278`) — initial cast import when a league is created against a populated admin season.
+- **Manual Import Cast button — new contestants** (`App.jsx:2806`) — when the button adds contestants not yet on the league.
+- **Manual Import Cast button — existing sync** (`App.jsx:2818`) — the v2.6.27.25 admin-photo-sync diff now also patches `photoCropZoom` when the admin value differs from the league's stored value.
+- Existing leagues with old-shape contestants (no `photoCropZoom`) pick up the field naturally the next time the commissioner hits Import Cast — the diff treats the missing field as "stale" and applies the admin value.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.55s).
+- **Commit:** `_pending_`
 
 ### v2.6.27.25 — 2026-06-06
 **Import Cast now syncs admin photo / bio changes to existing contestants.** Reported — when the admin updates a contestant's photo or bio at the show-cast level (`showCast/<showType>/season_<N>`), commissioners who'd already imported the cast had no way to pull those updates short of manually re-editing each contestant. The Import Cast button only added new contestants and silently skipped any name match.

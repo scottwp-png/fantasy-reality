@@ -1276,6 +1276,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, commissionerNam
             name: sc.name,
             photoUrl: sc.photoUrl || "",
             ...(sc.photoCropY != null ? { photoCropY: sc.photoCropY } : {}),
+            ...(sc.photoCropZoom != null ? { photoCropZoom: sc.photoCropZoom } : {}),
             gender: sc.gender || "",
             tribe: sc.tribe || null,
             status: "active",
@@ -2804,6 +2805,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                     name: sc.name,
                     photoUrl: sc.photoUrl || "",
                     ...(sc.photoCropY != null ? { photoCropY: sc.photoCropY } : {}),
+                    ...(sc.photoCropZoom != null ? { photoCropZoom: sc.photoCropZoom } : {}),
                     gender: sc.gender || "",
                     tribe: sc.tribe || null,
                     status: "active",
@@ -2816,6 +2818,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                   const patch = {};
                   if (sc.photoUrl && sc.photoUrl !== existing.photoUrl) patch.photoUrl = sc.photoUrl;
                   if (sc.photoCropY != null && sc.photoCropY !== existing.photoCropY) patch.photoCropY = sc.photoCropY;
+                  if (sc.photoCropZoom != null && sc.photoCropZoom !== existing.photoCropZoom) patch.photoCropZoom = sc.photoCropZoom;
                   if (sc.bio && sc.bio !== existing.bio) patch.bio = sc.bio;
                   if (Object.keys(patch).length > 0) {
                     adminPatches.set(existing.id, patch);
