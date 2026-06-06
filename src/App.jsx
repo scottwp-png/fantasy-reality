@@ -1392,7 +1392,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, commissionerNam
             ...(sc.photoCropZoom != null ? { photoCropZoom: sc.photoCropZoom } : {}),
             gender: sc.gender || "",
             tribe: sc.tribe || null,
-            status: "active",
+            status: sc.status === "pending" ? "pending" : "active",
             bio: sc.bio || "",
           }));
         }
@@ -2914,6 +2914,8 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
               const byName = new Map((league.contestants||[]).map(c => [(c.name||"").toLowerCase().trim(), c]));
               const toAdd = [];
               let updated = 0;
+              let statusFlipped = 0;
+              let statusScrubs = 0;
               const adminPatches = new Map(); // existingId -> patch
               for (const sc of incoming) {
                 const key = (sc.name||"").toLowerCase().trim();
@@ -2927,7 +2929,7 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                     ...(sc.photoCropZoom != null ? { photoCropZoom: sc.photoCropZoom } : {}),
                     gender: sc.gender || "",
                     tribe: sc.tribe || null,
-                    status: "active",
+                    status: sc.status === "pending" ? "pending" : "active",
                     bio: sc.bio || "",
                   });
                 } else {
@@ -2939,6 +2941,18 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
                   if (sc.photoCropY != null && sc.photoCropY !== existing.photoCropY) patch.photoCropY = sc.photoCropY;
                   if (sc.photoCropZoom != null && sc.photoCropZoom !== existing.photoCropZoom) patch.photoCropZoom = sc.photoCropZoom;
                   if (sc.bio && sc.bio !== existing.bio) patch.bio = sc.bio;
+                  // v2.6.27.34: status cascade. Admin's pending /
+                  // active wins over league's stored value EXCEPT
+                  // when the league has them eliminated (league-
+                  // specific game state).
+                  if (existing.status !== "eliminated") {
+                    const adminStatus = sc.status === "pending" ? "pending" : "active";
+                    if (existing.status !== adminStatus) {
+                      patch.status = adminStatus;
+                      if (adminStatus === "pending") statusScrubs += countContestantRosters(league.teams || [], existing.id);
+                      statusFlipped++;
+                    }
+                  }
                   if (Object.keys(patch).length > 0) {
                     adminPatches.set(existing.id, patch);
                     updated++;
@@ -2948,14 +2962,23 @@ function ContestantsTab({ league, onUpdate, setModal, setEditing, readOnly }) {
               if (toAdd.length === 0 && updated === 0) { alert(`All ${incoming.length} contestants already in this league with no admin changes to sync.`); return; }
               const parts = [];
               if (toAdd.length) parts.push(`Add ${toAdd.length} new contestant${toAdd.length===1?"":"s"}`);
-              if (updated) parts.push(`update ${updated} existing (photo / bio sync)`);
+              if (updated) {
+                const tail = statusFlipped > 0
+                  ? ` (photo / bio / status sync${statusScrubs > 0 ? `; ${statusScrubs} roster slot${statusScrubs===1?"":"s"} will be cleared by status flips to pending` : ""})`
+                  : " (photo / bio sync)";
+                parts.push(`update ${updated} existing${tail}`);
+              }
               const summary = parts.join(" and ");
               if (!confirm(`${summary[0].toUpperCase() + summary.slice(1)} from ${SHOW_PRESETS[league.showType]?.name || league.showType} Season ${league.seasonNumber}?`)) return;
-              const merged = (league.contestants||[]).map(c => {
+              const mergedContestants = (league.contestants||[]).map(c => {
                 const patch = adminPatches.get(c.id);
                 return patch ? { ...c, ...patch } : c;
               });
-              onUpdate({ ...league, contestants: [...merged, ...toAdd] });
+              let mergedTeams = league.teams || [];
+              adminPatches.forEach((patch, cid) => {
+                if (patch.status === "pending") mergedTeams = scrubContestantFromRosters(mergedTeams, cid);
+              });
+              onUpdate({ ...league, contestants: [...mergedContestants, ...toAdd], teams: mergedTeams });
             }}>📥 Import Cast</Btn>}
             <Btn small variant="ghost" onClick={()=>setManagePhotos(!managePhotos)}>Manage</Btn>
           </div>}
@@ -10451,9 +10474,9 @@ export default function FantasyRealityTV() {
       if (cancelled) return;
       const incoming = Array.isArray(data?.contestants) ? data.contestants : [];
       if (incoming.length === 0) return;
-      const existing = new Set((rawSelected.contestants || []).map(c => (c.name || "").toLowerCase().trim()));
+      const byName = new Map((rawSelected.contestants || []).map(c => [(c.name || "").toLowerCase().trim(), c]));
       const additions = incoming
-        .filter(sc => !existing.has((sc.name || "").toLowerCase().trim()))
+        .filter(sc => !byName.has((sc.name || "").toLowerCase().trim()))
         .map(sc => ({
           id: generateId(),
           name: sc.name,
@@ -10462,13 +10485,40 @@ export default function FantasyRealityTV() {
           ...(sc.photoCropZoom != null ? { photoCropZoom: sc.photoCropZoom } : {}),
           gender: sc.gender || "",
           tribe: sc.tribe || null,
-          status: "active",
+          // v2.6.27.34: new contestants pick up admin's status. Was
+          // hardcoded "active" before — so admin marking someone
+          // pending didn't cascade as pending on first sync.
+          status: sc.status === "pending" ? "pending" : "active",
           bio: sc.bio || "",
         }));
-      if (additions.length === 0) return;
+      // v2.6.27.34: status cascade for EXISTING contestants. If admin
+      // has them as pending and the league still has them as active,
+      // flip the league to pending and strip them from rosters. If
+      // admin has them active and the league has them pending,
+      // flip back to active. Eliminated stays eliminated regardless
+      // — league-specific game-state, admin doesn't manage it.
+      const statusUpdates = []; // { id, fromStatus, toStatus }
+      incoming.forEach(sc => {
+        const key = (sc.name || "").toLowerCase().trim();
+        const ex = byName.get(key);
+        if (!ex) return;
+        if (ex.status === "eliminated") return;
+        const adminStatus = sc.status === "pending" ? "pending" : "active";
+        if (ex.status !== adminStatus) statusUpdates.push({ id: ex.id, fromStatus: ex.status, toStatus: adminStatus });
+      });
+      if (additions.length === 0 && statusUpdates.length === 0) return;
+      let updatedContestants = rawSelected.contestants || [];
+      let updatedTeams = rawSelected.teams || [];
+      statusUpdates.forEach(u => {
+        updatedContestants = updatedContestants.map(c => c.id === u.id ? { ...c, status: u.toStatus } : c);
+        if (u.toStatus === "pending") {
+          updatedTeams = scrubContestantFromRosters(updatedTeams, u.id);
+        }
+      });
       const merged = {
         ...rawSelected,
-        contestants: [...(rawSelected.contestants || []), ...additions],
+        contestants: [...updatedContestants, ...additions],
+        teams: updatedTeams,
       };
       // Persist directly — same path as a manual edit.
       try { await saveLeague(merged); } catch {}

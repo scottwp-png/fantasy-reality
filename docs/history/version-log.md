@@ -1,9 +1,9 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.33
+**Current Production Version:** v2.6.27.34
 **Last Deploy Date:** 2026-06-06
-**App.jsx Line Count:** ~12,130
+**App.jsx Line Count:** ~12,160
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,18 @@
 ---
 
 ## Version Log
+
+### v2.6.27.34 — 2026-06-06
+**Admin "pending" status now cascades to leagues.** Reported — user was marking a contestant as pending at the admin show-cast level but it wasn't reaching individual leagues. Three import paths copied admin data into leagues; all three hardcoded the imported status to `"active"` and never synced status changes after the initial import. Now all three carry admin's pending → league.
+- **Auto-cascade effect** at `App.jsx:10443-10495`. Was: only added net-new contestants. Now: also walks every contestant that already exists in the league and, if admin's status differs from the league's (and the league hasn't eliminated them), flips the league to match. Pending flips also trigger `scrubContestantFromRosters` so existing roster references get pulled. Eliminated stays eliminated — league-specific game state, admin doesn't manage it.
+- **Manual "Import Cast" button** at `App.jsx:2782`. The v2.6.27.25 diff that synced photo / bio now also includes status. Confirm copy expands to flag any roster slots that will be cleared as a result of pending flips: "update 3 existing (photo / bio / status sync; 2 roster slots will be cleared by status flips to pending)."
+- **League creation import** at `App.jsx:1278`. The initial cast import at league-create time now honors admin's pending — a brand-new league created against an admin cast that has pending contestants will see them as pending from day one.
+- **What admin needs to do for the LI Victoria case:**
+  1. Open admin Show Cast section, edit Victoria, check "Not yet on the show," save.
+  2. Open any league with that show / season — the auto-cascade fires within a few seconds and flips Victoria to pending. If she was on someone's roster, she's automatically removed.
+  3. When Victoria actually enters the show, admin un-checks the box, saves. Cascade flips her back to active.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.87s).
+- **Commit:** `_pending_`
 
 ### v2.6.27.33 — 2026-06-06
 **Pending status: defense-in-depth at every roster-write path + auto-strip on flip.** Two layered fixes after the user reported being able to swap a pending contestant onto their team. v2.6.27.31's filter at every read site was technically correct but a cached UI or a path I'd missed could still slip through; the user pushed for "just gate it at the write."
