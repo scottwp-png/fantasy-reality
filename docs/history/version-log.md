@@ -30,7 +30,7 @@
 - **Manual Import Cast button — existing sync** (`App.jsx:2818`) — the v2.6.27.25 admin-photo-sync diff now also patches `photoCropZoom` when the admin value differs from the league's stored value.
 - Existing leagues with old-shape contestants (no `photoCropZoom`) pick up the field naturally the next time the commissioner hits Import Cast — the diff treats the missing field as "stale" and applies the admin value.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.55s).
-- **Commit:** `_pending_`
+- **Commit:** `87d1d53`
 
 ### v2.6.27.25 — 2026-06-06
 **Import Cast now syncs admin photo / bio changes to existing contestants.** Reported — when the admin updates a contestant's photo or bio at the show-cast level (`showCast/<showType>/season_<N>`), commissioners who'd already imported the cast had no way to pull those updates short of manually re-editing each contestant. The Import Cast button only added new contestants and silently skipped any name match.
