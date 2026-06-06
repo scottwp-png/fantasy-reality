@@ -32,7 +32,7 @@
 - **Workflow** for the LI use case: commissioner adds the new contestants with "Not yet on the show" checked. They appear in the cast as PENDING. Once the contestants actually enter on an episode, commissioner re-opens each one and unchecks the box — they become active and selectable.
 - **What this doesn't touch.** The cast-tab filter pills ("Active" / "All") still work the same — pending contestants show in "All" alongside everyone. Could add a dedicated "Pending" filter in a follow-up if there are many of them, but for the typical 1-2 mid-season additions, browsing "All" works.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.75s).
-- **Commit:** `_pending_`
+- **Commit:** `3c6dd00`
 
 ### v2.6.27.30 — 2026-06-06
 **Live Draft removed from Heroes format.** Per user re-decision — in Heroes, contestants are non-exclusive across teams (multiple managers can roster the same contestant), so a pre-season snake draft adds little value. The original v2.6.27.9 implementation supported both Heroes + Standard at the user's request; this commit narrows it back to Standard, which is per-week redraft and the format the live draft semantics actually fit.
