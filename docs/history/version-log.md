@@ -30,7 +30,7 @@
 - **`LiveDraftTab` component** is left in place with its Heroes / Captains branches intact — dead code now, but the cost of removing it cleanly isn't worth the diff churn. If Heroes leagues ever need live draft again (e.g., a "this season is a redraft" mode), the format-aware machinery is ready to flip back on.
 - **Existing Heroes leagues with a `liveDraft` object on their league doc** (started + done draft state from before this commit) — that data stays, but it's no longer accessible from the nav. Reset Season Scores or manual edit would clear it if needed.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.12s).
-- **Commit:** `_pending_`
+- **Commit:** `5009ead`
 
 ### v2.6.27.29 — 2026-06-06
 **Advance-week flow: one primary button, dropdown trimmed, no phantom records.** Reported friction: three separate clicks (Finalize → Advance → change dropdown) for what should be one action, and the dropdown showed two future placeholder weeks that read as "records in front of the one I'm scoring."
