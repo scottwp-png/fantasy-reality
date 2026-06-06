@@ -3681,9 +3681,17 @@ function ScoringTab({ league, onUpdate, isCommissioner = true, userProfile }) {
     onUpdate({ ...league, currentWeek: (league.currentWeek||1) - 1 });
   }
 
-  function advanceWeek() {
-    const nextWeek = (league.currentWeek||1) + 1;
+  // v2.6.27.29: advanceWeek now optionally finalizes the current week
+  // first AND updates the dropdown selection to the new week. Single
+  // primary action collapses the previous 3-step flow (finalize ->
+  // advance -> change dropdown). Empty future episode records no
+  // longer get seeded (ensureEpisode call dropped) — nothing in the
+  // codebase reads `episodes[N]` for empty future weeks, and dropping
+  // the seed prevents phantom records from piling up if a commissioner
+  // hits Advance multiple times.
+  function advanceWeek({ finalize = false } = {}) {
     const currentWk = String(league.currentWeek||1);
+    const nextWeek = (league.currentWeek||1) + 1;
     let updatedTeams = league.teams;
     if (league.format === "captains") {
       updatedTeams = league.teams.map(t => ({
@@ -3713,8 +3721,25 @@ function ScoringTab({ league, onUpdate, isCommissioner = true, userProfile }) {
     }
 
     let updated = { ...league, currentWeek: nextWeek, teams: updatedTeams, contestants: updatedContestants };
-    updated = ensureEpisode(updated, nextWeek);
+    if (finalize) {
+      const actorName = userProfile?.displayName || "Commissioner";
+      updated = appendAudit(updated, {
+        type: "finalize", actorName,
+        desc: `${actorName} finalized ${cadenceLabel(league, currentWk)} and advanced to ${cadenceLabel(league, nextWeek)}`,
+        meta: { week: currentWk },
+      });
+      updated = {
+        ...updated,
+        weekStatus: {
+          ...(updated.weekStatus || {}),
+          [currentWk]: { status: "finalized", finalizedAt: Date.now() },
+        },
+      };
+      updated = ensureEpisode(updated, currentWk);
+    }
     onUpdate(updated);
+    setSelectedWeek(String(nextWeek));
+    setEdits({});
   }
 
   // Group scoring rules by category
@@ -3753,8 +3778,12 @@ function ScoringTab({ league, onUpdate, isCommissioner = true, userProfile }) {
         <h3 style={{ margin:0,fontFamily:"'Anybody',sans-serif",fontWeight:800,fontSize:18,color:"#f0f0f5",letterSpacing:"-0.02em" }}>
           {view === "events" ? `Score ${cadenceWord(league)}` : view === "assign" ? "" : view === "rules" ? "Scoring Rules" : `${cadenceWord(league)} Summary`}
         </h3>
+        {/* v2.6.27.29: dropdown only shows weeks 1..currentWeek. Previously
+            padded commissioner view by +2 future weeks, which read as
+            phantom records "in front of the one I'm scoring." Real weeks
+            are added by hitting Advance from the current week. */}
         <Select value={selectedWeek} onChange={e=>{setSelectedWeek(e.target.value);setEdits({});setView(onUpdate?"events":"summary");setSelectedRule(null)}}
-          options={Array.from({length: onUpdate ? Math.max(league.currentWeek||1,1)+2 : Math.max(league.currentWeek||1,1)},(_,i)=>({value:String(i+1),label:cadenceLabel(league, i+1)}))} />
+          options={Array.from({length: Math.max(league.currentWeek||1,1)},(_,i)=>({value:String(i+1),label:cadenceLabel(league, i+1)}))} />
       </div>
 
       {/* View tabs */}
@@ -4178,35 +4207,37 @@ function ScoringTab({ league, onUpdate, isCommissioner = true, userProfile }) {
           <Btn small variant="ghost" onClick={discardChanges}>Discard</Btn>
           <Btn onClick={saveScores}><Icon name="save" size={14}/> Save {cadenceLabel(league, selectedWeek)}</Btn>
         </div>
-      ) : (
-        <div style={{ display:"flex",gap:8,marginTop:20,flexWrap:"wrap" }}>
-          {(league.currentWeek||1) > 1 && <Btn variant="ghost" onClick={reverseWeek} small>← Back to {cadenceLabel(league, (league.currentWeek||1)-1)}</Btn>}
-          <Btn variant="secondary" onClick={advanceWeek} small>Advance to {cadenceLabel(league, (league.currentWeek||1)+1)} →</Btn>
-          {Object.keys(weekScores).length > 0 && !league.weekStatus?.[selectedWeek]?.finalizedAt && (
-            <Btn variant="ghost" onClick={() => {
-              if (!confirm(`Finalize ${cadenceLabel(league, selectedWeek)}? This enables spoiler protection for all members.`)) return;
-              const actorName = userProfile?.displayName || "Commissioner";
-              let updated = appendAudit(league, {
-                type: "finalize", actorName,
-                desc: `${actorName} finalized ${cadenceLabel(league, selectedWeek)} (rosters auto-released)`,
-                meta: { week: selectedWeek },
-              });
-              updated = {
-                ...updated,
-                weekStatus: {
-                  ...(updated.weekStatus || {}),
-                  [String(selectedWeek)]: { status: "finalized", finalizedAt: Date.now() }
-                }
-              };
-              updated = ensureEpisode(updated, selectedWeek);
-              onUpdate(updated);
-            }} small>Finalize {cadenceLabel(league, selectedWeek)}</Btn>
-          )}
-          {league.weekStatus?.[selectedWeek]?.finalizedAt && (
-            <Badge color="#4ecdc4">{cadenceLabel(league, selectedWeek)} Finalized</Badge>
-          )}
-        </div>
-      ))}
+      ) :
+        // v2.6.27.29: collapsed Finalize + Advance into one primary
+        // action. Buttons always reference currentWeek (not the
+        // dropdown's selectedWeek) — the dropdown navigates history,
+        // these buttons move the league forward. Combined action
+        // also auto-advances the dropdown.
+        (() => {
+          const currentWk = String(league.currentWeek||1);
+          const nextWeekLabel = cadenceLabel(league, (league.currentWeek||1)+1);
+          const hasScoresOnCurrent = Object.keys(league.weeklyScores?.[currentWk] || {}).length > 0;
+          const currentFinalized = league.weekStatus?.[currentWk]?.status === "finalized";
+          return (
+            <div style={{ display:"flex",gap:8,marginTop:20,flexWrap:"wrap" }}>
+              {(league.currentWeek||1) > 1 && <Btn variant="ghost" onClick={reverseWeek} small>← Back to {cadenceLabel(league, (league.currentWeek||1)-1)}</Btn>}
+              {currentFinalized ? (
+                <Btn onClick={() => advanceWeek({ finalize: false })} small>Advance to {nextWeekLabel} →</Btn>
+              ) : hasScoresOnCurrent ? (
+                <Btn onClick={() => {
+                  if (!confirm(`Finalize ${cadenceLabel(league, currentWk)} and advance to ${nextWeekLabel}?\n\nThis enables spoiler protection for the finalized week. The dropdown will jump to the new week.`)) return;
+                  advanceWeek({ finalize: true });
+                }} small>Finalize {cadenceLabel(league, currentWk)} & Advance →</Btn>
+              ) : (
+                <Btn variant="ghost" onClick={() => advanceWeek({ finalize: false })} small>Skip to {nextWeekLabel} →</Btn>
+              )}
+              {currentFinalized && (
+                <Badge color="#4ecdc4">{cadenceLabel(league, currentWk)} Finalized</Badge>
+              )}
+            </div>
+          );
+        })()
+      )}
     </div>
   );
 }

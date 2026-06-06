@@ -1,7 +1,7 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.28
+**Current Production Version:** v2.6.27.29
 **Last Deploy Date:** 2026-06-06
 **App.jsx Line Count:** ~12,000
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
@@ -22,6 +22,19 @@
 ---
 
 ## Version Log
+
+### v2.6.27.29 — 2026-06-06
+**Advance-week flow: one primary button, dropdown trimmed, no phantom records.** Reported friction: three separate clicks (Finalize → Advance → change dropdown) for what should be one action, and the dropdown showed two future placeholder weeks that read as "records in front of the one I'm scoring."
+- **Combined primary action.** Bottom-of-scoring-tab buttons are now state-aware:
+  - **Has scores + not finalized:** `Finalize Week N & Advance →` — finalizes the current week (enables spoiler protection, appends audit entry) and advances to N+1 in a single onUpdate call. Auto-jumps the dropdown to the new week + clears scoring edits buffer.
+  - **Already finalized:** `Advance to Week N+1 →` — just advance, no re-finalize.
+  - **No scores yet:** `Skip to Week N+1 →` — ghost-styled, makes "I'm not scoring this week" explicit.
+- **Dropdown padding dropped.** Was `currentWeek + 2` (commissioner) / `currentWeek` (member). Now `currentWeek` for everyone. No more phantom future placeholder weeks ahead of the active scoring week.
+- **`ensureEpisode` seeding dropped from `advanceWeek`.** The episode metadata seed for the new week is no longer written on advance — nothing in the codebase reads `episodes[N]` for empty weeks, and the seeding was causing visible "stacking records" if the commissioner advanced multiple times. Episode records still get lazy-backfilled by the finalize path and by first-score writes (via `weekStatus` writes), so consumed paths are unaffected.
+- **Buttons always reference `currentWeek`** (not `selectedWeek`). The dropdown navigates history; the buttons advance the league forward. Eliminates the case where a commissioner viewing Week 1 history accidentally finalized that week from the bottom action area.
+- **What's untouched.** `Unfinalize` button at the top of a finalized week's view still works the same. Standalone "Advance" button on the post-finalize nudge banner still works. The first-time-create-league and standings-aware paths that DO call `ensureEpisode` (with proper finalize timestamps) are unchanged.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.04s).
+- **Commit:** `_pending_`
 
 ### v2.6.27.28 — 2026-06-06
 **Thumbnail wrapper fix — overflow:hidden so scale doesn't visually break.** v2.6.27.27 applied `transform: scale()` directly to `<img>` elements with explicit pixel `width`/`height`. Without `overflow: hidden` on a parent, the scaled image extends beyond its allocated layout box and shows outside the rounded corners. The canonical pattern (used by `ContestantAvatar` at `App.jsx:1097-1105` and by the league Cast Manage view at `App.jsx:2959`) wraps the img in a sized container div with `overflow: hidden`, and the img itself is `width: 100%; height: 100%` plus the transform.
