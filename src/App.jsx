@@ -9199,7 +9199,12 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
         <div style={{ fontSize:14,fontWeight:700,color:"#e94560",marginBottom:4 }}>Danger Zone</div>
         <div style={{ fontSize:12,color:"#6a6a8a",marginBottom:12,lineHeight:1.4 }}>These actions cannot be undone.</div>
         <div style={{ display:"flex",gap:8,flexWrap:"wrap",flexDirection:"column" }}>
-          <Btn variant="danger" small onClick={()=>{if(confirm("Clear ALL scores for this league? Teams keep their rosters but all scoring data will be erased. This cannot be undone.")) onUpdate({...league,weeklyScores:{},currentWeek:1})}}>Reset All Scores</Btn>
+          <Btn variant="danger" small onClick={()=>{
+            if (!confirm("Reset season scores?\n\nUseful when the first week was a preseason / warm-up and you want to start the real season fresh. Wipes all scoring history, advances back to week 1. Rosters, contestants, scoring rules, chat, and any live draft state are kept. This cannot be undone.")) return;
+            const actorName = userProfile?.displayName || "Commissioner";
+            const audited = appendAudit(league, { type:"setting", actorName, desc:`${actorName} reset season scores (preseason → season start)` });
+            onUpdate({ ...audited, weeklyScores: {}, weekStatus: {}, currentWeek: 1 });
+          }}>Reset Season Scores</Btn>
           <Btn variant="danger" small onClick={()=>{
             const data = JSON.stringify(league, null, 2);
             const blob = new Blob([data], {type:"application/json"});

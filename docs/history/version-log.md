@@ -1,8 +1,8 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.22
-**Last Deploy Date:** 2026-06-04
+**Current Production Version:** v2.6.27.23
+**Last Deploy Date:** 2026-06-06
 **App.jsx Line Count:** ~11,890
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
@@ -22,6 +22,14 @@
 ---
 
 ## Version Log
+
+### v2.6.27.23 — 2026-06-06
+**"Reset Season Scores" button rework (preseason / soft-start support).** A real-world need surfaced from the Love Island S13 Reddit launch — episodes started on Monday so the first week was 5 episodes instead of 6, and the commissioner skipped scoring it because the cadence didn't match the league's `episodesPerWeek=6`. Engagement dropped over the first week. The smarter pattern is to score the first week as a "preseason" / "warm-up" with everyone playing, then reset everything for the real season start once full weeks resume.
+- **Existing button reframed.** Settings → Danger Zone already had a "Reset All Scores" button that wiped `weeklyScores` and set `currentWeek = 1`. Renamed to "Reset Season Scores," updated the confirmation copy to call out the preseason use case explicitly, and added two missing actions: also wipe `weekStatus` (so previously-finalized weeks re-open) and append an audit-log entry so the action shows up in league history.
+- **Why this is enough for the immediate LI S13 / future-launch case.** Since all post-reset weeks are full 6-episode weeks, the uniform `Math.ceil(ep / epw)` week math just works once the slate is wiped. The irregular 5-episode week 1 effectively becomes preseason and disappears from standings math entirely. Doesn't solve mid-season irregular weeks (Thanksgiving, finale week, etc.) — those would need per-week episode-count overrides, which is a deferred follow-up.
+- **What's kept across the reset.** Team rosters / depth charts (so managers don't have to re-draft), contestants, scoring rules, league chat, live draft state, schedule editor, audit log. Just the scoring history + week-status data gets wiped.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.22s).
+- **Commit:** `_pending_`
 
 ### v2.6.27.22 — 2026-06-04
 **Tour: full revert to v2.6.27.16 logic.** v2.6.27.17 through .21 (per-step `placement`, Lounge step retargeting, closing roster step, flash fix, scroll-padding attempt, single-smooth-scroll attempt) all read as "worse than v2.6.27.16" once shipped. Reverting the tour code to match v2.6.27.16 exactly so we have a stable known-good baseline.
