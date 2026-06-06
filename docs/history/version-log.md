@@ -34,7 +34,7 @@
 - **Buttons always reference `currentWeek`** (not `selectedWeek`). The dropdown navigates history; the buttons advance the league forward. Eliminates the case where a commissioner viewing Week 1 history accidentally finalized that week from the bottom action area.
 - **What's untouched.** `Unfinalize` button at the top of a finalized week's view still works the same. Standalone "Advance" button on the post-finalize nudge banner still works. The first-time-create-league and standings-aware paths that DO call `ensureEpisode` (with proper finalize timestamps) are unchanged.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.04s).
-- **Commit:** `_pending_`
+- **Commit:** `3302b20`
 
 ### v2.6.27.28 — 2026-06-06
 **Thumbnail wrapper fix — overflow:hidden so scale doesn't visually break.** v2.6.27.27 applied `transform: scale()` directly to `<img>` elements with explicit pixel `width`/`height`. Without `overflow: hidden` on a parent, the scaled image extends beyond its allocated layout box and shows outside the rounded corners. The canonical pattern (used by `ContestantAvatar` at `App.jsx:1097-1105` and by the league Cast Manage view at `App.jsx:2959`) wraps the img in a sized container div with `overflow: hidden`, and the img itself is `width: 100%; height: 100%` plus the transform.
