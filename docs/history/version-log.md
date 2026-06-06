@@ -39,7 +39,7 @@
   - `scrubContestantFromRosters(teams, cid)` runs on confirm and nulls/filters them out of every slot across every team. Same format coverage as the count function.
 - **No-op cases.** If the count is 0 (no existing references), no confirm — just the status flip. If `editing.status` was already `"pending"`, no scrub (idempotent re-save).
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (2.85s).
-- **Commit:** `_pending_`
+- **Commit:** `ad3c168`
 
 ### v2.6.27.32 — 2026-06-06
 **Swap Rules inputs fixed: no more snap-back-to-1 and max bumped to 99.** Reported — couldn't change the "Swaps allowed" number, stuck at 1 (or 10 if the user tried to exceed). Two bugs at the same site.
