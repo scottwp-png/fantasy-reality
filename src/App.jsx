@@ -7012,7 +7012,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
                     return (
                       <div key={c.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"4px 0" }}>
                         <span style={{ fontSize:10,fontWeight:700,color:roleColor,width:20,textAlign:"center" }}>{role}</span>
-                        {c.photoUrl && <img src={c.photoUrl} alt="" style={{ width:20,height:20,borderRadius:5,objectFit:"cover",objectPosition:`center ${c.photoCropY||20}%` }} onError={e=>{e.target.style.display="none"}} />}
+                        {c.photoUrl && <img src={c.photoUrl} alt="" style={{ width:20,height:20,borderRadius:5,objectFit:"cover",objectPosition:`center ${c.photoCropY||20}%`,transform:`scale(${c.photoCropZoom||1})`,transformOrigin:`center ${c.photoCropY||20}%` }} onError={e=>{e.target.style.display="none"}} />}
                         <span style={{ flex:1,fontSize:12,color:c.status==="eliminated"?"#6a6a8a":"#e8e8f0",
                           textDecoration:c.status==="eliminated"?"line-through":"none" }}>{c.name}</span>
                         <SpoilerText active={spoilerActive}>
@@ -11593,7 +11593,7 @@ function ShowCastSection({ selectedShow, lockedSeason }) {
                   display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#0d0d18",borderRadius:8,border:"1px solid #1e1e38",cursor:"pointer",textAlign:"left",width:"100%",fontFamily:"'Outfit',sans-serif",
                 }}>
                   {c.photoUrl ? (
-                    <img src={c.photoUrl} alt="" style={{ width:36,height:36,borderRadius:8,objectFit:"cover",objectPosition:`center ${c.photoCropY||20}%`,flexShrink:0 }} />
+                    <img src={c.photoUrl} alt="" style={{ width:36,height:36,borderRadius:8,objectFit:"cover",objectPosition:`center ${c.photoCropY||20}%`,transform:`scale(${c.photoCropZoom||1})`,transformOrigin:`center ${c.photoCropY||20}%`,flexShrink:0 }} />
                   ) : (
                     <div style={{ width:36,height:36,borderRadius:8,background:"#1a1a30",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:"#8888aa",flexShrink:0 }}>{(c.name||"?")[0]}</div>
                   )}
@@ -11918,7 +11918,7 @@ function ShowEpisodeDetail({ selectedShow, seasonKey, episode, castList, mergedR
                   border: isOn ? ((activeRule.points||0)>=0?"1px solid #4ecdc433":"1px solid #e9456033") : "1px solid #1e1e38",
                 }}>
                   {c.photoUrl ? (
-                    <img src={c.photoUrl} alt="" style={{ width:32,height:32,borderRadius:8,objectFit:"cover",objectPosition:`center ${c.photoCropY||20}%`,flexShrink:0 }} />
+                    <img src={c.photoUrl} alt="" style={{ width:32,height:32,borderRadius:8,objectFit:"cover",objectPosition:`center ${c.photoCropY||20}%`,transform:`scale(${c.photoCropZoom||1})`,transformOrigin:`center ${c.photoCropY||20}%`,flexShrink:0 }} />
                   ) : (
                     <div style={{ width:32,height:32,borderRadius:8,background:"#1a1a30",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:"#8888aa",flexShrink:0 }}>{(c.name||"?")[0]}</div>
                   )}

@@ -1,7 +1,7 @@
 # Fantasy Reality TV — Version History
 
 **Repo:** github.com/scottwp-png/fantasy-reality
-**Current Production Version:** v2.6.27.26
+**Current Production Version:** v2.6.27.27
 **Last Deploy Date:** 2026-06-06
 **App.jsx Line Count:** ~11,990
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
@@ -22,6 +22,15 @@
 ---
 
 ## Version Log
+
+### v2.6.27.27 — 2026-06-06
+**Thumbnail rendering picks up `photoCropZoom`.** Follow-up to v2.6.27.26 — the data was being saved + propagating, but several thumbnail render sites in the UI only read `photoCropY` (position) and never applied `photoCropZoom` (scale). When the admin zoomed a headshot, the saved value went unused at the small-thumbnail surfaces. Added the `transform: scale()` + `transformOrigin` pair to three places:
+- `App.jsx:7015` — small 20×20 contestant chip rendered in the per-league scoring summary view.
+- `App.jsx:11596` — 36×36 thumbnail in the admin **Show Cast** editor's contestant list.
+- `App.jsx:11921` — 32×32 thumbnail in the admin scoring-rule editor's cast list (rule-level scoring view).
+- All four other photo render sites already handled both (`App.jsx:1102-1104` lightbox detail, `App.jsx:2959` league-Cast Manage screen, `App.jsx:9507`/`9523` AddContestantModal previews). The contestant lightbox at `App.jsx:1059` intentionally uses `objectFit: contain` so crop doesn't apply — viewing the full source photo.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean (3.47s).
+- **Commit:** `_pending_`
 
 ### v2.6.27.26 — 2026-06-06
 **Photo zoom (`photoCropZoom`) now propagates from admin to leagues.** Reported — when the admin adjusts a contestant's headshot zoom in the admin cast editor, the change didn't appear anywhere. Cast records use both `photoCropY` (vertical position, 0-100%) and `photoCropZoom` (scale, 1.0-3.0); the admin editor saves both, but three of the four code paths that copy admin-cast data into a league only carried `photoCropY`. The fourth path (auto-cast cascade at `App.jsx:10248`) already handled `photoCropZoom`; the three that didn't are now fixed:
