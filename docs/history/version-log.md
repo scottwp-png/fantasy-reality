@@ -37,7 +37,7 @@
 - **`oncePerContestant`** locks a contestant out of a rule once they've been scored for it in any other week (this week stays editable to undo a mis-score); locked rows show "already scored — with {partner}".
 - **New built-in LI rules** for future leagues: `li_first_kiss` (First Kiss, +5, pairable + once) and `li_i_love_you` (Said "I Love You", +4, pairable), added to the Love Island preset defaults. Point values are tunable per-league.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean.
-- **Commit:** `_pending_`
+- **Commit:** `774ba1d`
 
 ### v2.6.27.34 — 2026-06-06
 **Admin "pending" status now cascades to leagues.** Reported — user was marking a contestant as pending at the admin show-cast level but it wasn't reaching individual leagues. Three import paths copied admin data into leagues; all three hardcoded the imported status to `"active"` and never synced status changes after the initial import. Now all three carry admin's pending → league.
