@@ -44,13 +44,19 @@ export function calcTeamWeekPoints(league, team, weekNum) {
     const chart = savedChart;
 
     // Finale-week couples mode (League's finaleWeek === weekNum, manager picked
-    // 2 couples instead of a depth chart). Hero couple = both members × 2,
-    // Sidekick couple = both members × 1.5. Existing leagues have no `mode`
-    // field on their charts, so this branch never fires for them.
+    // ranked couples instead of a depth chart). v2.6.28.0: up to 4 ranked
+    // couples at descending multipliers. Legacy charts (pre-v2.6.28.0) stored
+    // heroCouple (×2) + sidekickCouple (×1.5) and have no `couples` array —
+    // the fallback below scores them identically. Existing non-finale leagues
+    // have no `mode` field on their charts, so this branch never fires for them.
     if (chart.mode === "couples") {
+      const MULT = [2, 1.5, 1.25, 1]; // rank 1..4 → descending weight
+      const ranked = chart.couples || [chart.heroCouple, chart.sidekickCouple].filter(Boolean);
       let total = 0;
-      (chart.heroCouple || []).forEach(cid => { total += calcContestantWeekPoints(weekScores, cid) * 2; });
-      (chart.sidekickCouple || []).forEach(cid => { total += calcContestantWeekPoints(weekScores, cid) * 1.5; });
+      ranked.forEach((members, i) => {
+        const mult = MULT[i] ?? 1;
+        (members || []).forEach(cid => { total += calcContestantWeekPoints(weekScores, cid) * mult; });
+      });
       return Math.round(total * 100) / 100;
     }
 

@@ -102,6 +102,8 @@ const DEFAULT_SCORING_RULES = [
   { id: "li_coupled", label: "Coupled Up", points: 5, category: "Social" },
   { id: "li_dumped", label: "Dumped from Island", points: -5, category: "Survival" },
   { id: "li_recoupled", label: "Switched Partners", points: 3, category: "Social" },
+  { id: "li_first_kiss", label: "First Kiss", points: 5, category: "Social", pairable: true, oncePerContestant: true },
+  { id: "li_i_love_you", label: 'Said "I Love You"', points: 4, category: "Social", pairable: true },
   { id: "li_got_text", label: "Got a Text", points: 2, category: "Moments" },
   { id: "li_date", label: "Went on a Date", points: 3, category: "Social" },
   { id: "li_casa_loyal", label: "Stayed Loyal (Casa Amor)", points: 8, category: "Social" },
@@ -234,6 +236,31 @@ const DEFAULT_SCORING_RULES = [
   { id: "winner_of_the_show", label: "Winner of the Show", points: 30, category: "Endgame" },
 ];
 
+// v2.6.28.0: carries optional boolean rule flags from a library / default rule
+// object onto a league rule copy, without adding falsy keys to rules that don't
+// set them. Keep this in sync with every flag a rule can carry.
+// - isElimination: scoring it auto-flips contestant status to eliminated.
+// - pairable: scoring it prompts for a partner islander; both get the points.
+// - oncePerContestant: a contestant can only ever be scored once for this rule.
+function carryRuleFlags(r) {
+  return {
+    ...(r.isElimination ? { isElimination: true } : {}),
+    ...(r.pairable ? { pairable: true } : {}),
+    ...(r.oncePerContestant ? { oncePerContestant: true } : {}),
+  };
+}
+
+// v2.6.28.0: paired scoring events (First Kiss, "I Love You", …). When a rule is
+// `pairable`, scoring it records who it happened between at
+// league.eventPairings = [{ week, ruleId, members:[a,b] }] — a store SEPARATE
+// from weeklyScores, which stays a pure numeric map (calcContestantWeekPoints
+// blindly sums Object.values, so a non-numeric value there would corrupt totals).
+// Both islanders still get normal numeric points in weeklyScores; eventPairings
+// only remembers the "with whom" for display + once-per-contestant enforcement.
+function pairingKey(week, ruleId, members) {
+  return `${week}|${ruleId}|${[...(members||[])].sort().join("-")}`;
+}
+
 // v2.5.3.0: each preset can declare an `airSchedule` describing when new
 // episodes typically air. Used by getAutoLockState() to auto-lock rosters
 // `lockLeadHours` before showtime in the viewer's LOCAL timezone (so an 8pm
@@ -249,7 +276,7 @@ const SHOW_PRESETS = {
     airSchedule: { dayOfWeek: 1, hour: 19, minute: 0, lockLeadHours: 2 }, // Mon 7pm
     scoringDefaults: ["money_earned_per_1k","favorite_dish_in_quickfire","favorite_dish_in_elimination","win_quickfire","win_elimination","win_restaurant_wars","return_from_last_chance_kitchen","tc_final_3","tc_winner","least_favorite_dish_in_quickfire","least_favorite_dish_in_elimination","cuts_self","fails_to_get_all_components_on_plate","entirely_empty_plate","tc_eliminated"] },
   love_island: { name: "Love Island", emoji: "LI", color: "#ff5da0", defaultFormat: "standard", episodesPerWeek: 6,
-    scoringDefaults: ["li_coupled","li_dumped","li_recoupled","li_got_text","li_date","li_casa_loyal","li_casa_switched","li_public_vote_saved","li_public_vote_bottom","li_challenge_win","li_final_couple","li_winner","li_crying"] },
+    scoringDefaults: ["li_coupled","li_dumped","li_recoupled","li_first_kiss","li_i_love_you","li_got_text","li_date","li_casa_loyal","li_casa_switched","li_public_vote_saved","li_public_vote_bottom","li_challenge_win","li_final_couple","li_winner","li_crying"] },
   the_bachelor: { name: "The Bachelor/ette", emoji: "B", color: "#e86b8a", defaultFormat: "standard", episodesPerWeek: 1,
     airSchedule: { dayOfWeek: 1, hour: 20, minute: 0, lockLeadHours: 2 }, // Mon 8pm
     scoringDefaults: ["ba_rose","ba_no_rose","ba_first_impression","ba_one_on_one","ba_group_date_rose","ba_two_on_one","ba_kiss","ba_self_elim","ba_crying","ba_limo_exit_drama","ba_hometown","ba_fantasy_suite","ba_final_rose","ba_engaged"] },
@@ -893,6 +920,9 @@ function countRosterByCategory(rosterIds, league, category) {
 function getCouplePartner(league, contestantId) {
   const couples = league?.couples || [];
   for (const c of couples) {
+    // v2.6.28.0: projected couples are finale predictions, not actual current
+    // couplings — skip them so the regular-season heart badge stays truthful.
+    if (c.projected) continue;
     const m = c.members || [];
     if (m.includes(contestantId)) return m.find(x => x !== contestantId) || null;
   }
@@ -1327,7 +1357,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, commissionerNam
           id, label: r.label, points: Number(r.points) || 0,
           category: r.category || "Other",
           ...(r.description ? { description: r.description } : {}),
-          ...(r.isElimination ? { isElimination: true } : {}),
+          ...carryRuleFlags(r),
         }));
       if (baseRules.length > 0) setScoringRules(baseRules);
     })();
@@ -1355,7 +1385,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, commissionerNam
         ? { id: ruleId, label: libRule.label, points: Number(libRule.points) || 0,
             category: libRule.category || "Other",
             ...(libRule.description ? { description: libRule.description } : {}),
-            ...(libRule.isElimination ? { isElimination: true } : {}) }
+            ...carryRuleFlags(libRule) }
         : DEFAULT_SCORING_RULES.find(r=>r.id===ruleId);
       if (rule) setScoringRules([...scoringRules, rule]);
     }
@@ -1733,7 +1763,7 @@ function CreateLeagueScreen({ onSave, onCancel, commissionerUid, commissionerNam
                   id, label: r.label, points: Number(r.points) || 0,
                   category: r.category || "Other",
                   ...(r.description ? { description: r.description } : {}),
-                  ...(r.isElimination ? { isElimination: true } : {}),
+                  ...carryRuleFlags(r),
                 }))
               : DEFAULT_SCORING_RULES.filter(r => preset?.scoringDefaults?.includes(r.id));
             templateRules.forEach(r => { if (!scoringRules.some(sr=>sr.id===r.id)) { const c = r.category||"Other"; if(!cats[c]) cats[c]=[]; cats[c].push({...r, _inactive: true}); }});
@@ -2674,18 +2704,26 @@ function TeamProfileModal({ team, league, standings, onClose }) {
 function CouplesEditor({ league, onUpdate }) {
   const [m1, setM1] = useState("");
   const [m2, setM2] = useState("");
+  const [projected, setProjected] = useState(false);
   const contestants = league.contestants || [];
   const couples = league.couples || [];
   const byId = Object.fromEntries(contestants.map(c => [c.id, c]));
 
   function addCouple() {
     if (!m1 || !m2 || m1 === m2) return;
-    // Dissolve any existing couples that contain either member
-    const filtered = couples.filter(c => {
-      const mem = c.members || [];
-      return !mem.includes(m1) && !mem.includes(m2);
-    });
-    const newCouple = { id: generateId(), members: [m1, m2] };
+    // Regular add dissolves any prior REAL couple containing either member
+    // (Love Island recoupling). v2.6.28.0: a projected add is a finale
+    // prediction — it dissolves nothing, may overlap a real couple, and can
+    // include a currently-single islander (e.g. Aidan ♥ Priya while Priya is
+    // still coupled with Ethan and Aidan is single).
+    const filtered = projected
+      ? couples
+      : couples.filter(c => {
+          if (c.projected) return true; // leave predictions intact
+          const mem = c.members || [];
+          return !mem.includes(m1) && !mem.includes(m2);
+        });
+    const newCouple = { id: generateId(), members: [m1, m2], ...(projected ? { projected: true } : {}) };
     onUpdate({ ...league, couples: [...filtered, newCouple] });
     setM1(""); setM2("");
   }
@@ -2694,13 +2732,15 @@ function CouplesEditor({ league, onUpdate }) {
     onUpdate({ ...league, couples: couples.filter(c => c.id !== coupleId) });
   }
 
-  const inACoupleIds = new Set(couples.flatMap(c => c.members || []));
+  // "Currently coupled" reflects actual couplings only — projected predictions
+  // don't make an islander unavailable to pick.
+  const inACoupleIds = new Set(couples.filter(c => !c.projected).flatMap(c => c.members || []));
   const pickable = contestants.filter(c => c.status === "active");
 
   return (
     <div>
       <div style={{ fontSize:11,color:"#6a6a8a",marginBottom:10,lineHeight:1.4 }}>
-        Couples are informational during the regular season (a heart badge appears next to each contestant on the Cast tab). In the final week, managers will pick a Hero couple and a Sidekick couple instead of a depth chart. A contestant can be in only one couple — adding a new couple auto-dissolves any prior one for either member.
+        Couples are informational during the regular season (a heart badge appears next to each contestant on the Cast tab). In the finale week, managers pick 4 ranked couples instead of a depth chart. A contestant can be in only one real couple — adding one auto-dissolves any prior couple for either member. Tick <span style={{ color:"#aaaabf",fontWeight:600 }}>Projected</span> to add a predicted final couple that ignores those rules — it can overlap a current couple or pair a currently-single islander, so managers can pick likely endgame pairs before they officially form.
       </div>
 
       {couples.length === 0 && (
@@ -2714,12 +2754,13 @@ function CouplesEditor({ league, onUpdate }) {
         const a = byId[aId]; const b = byId[bId];
         if (!a || !b) return null;
         return (
-          <div key={c.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:"#12121f",borderRadius:8,border:"1px solid #1e1e38",marginBottom:6 }}>
+          <div key={c.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:"#12121f",borderRadius:8,border:c.projected?"1px dashed #9d5dff55":"1px solid #1e1e38",marginBottom:6 }}>
             <ContestantAvatar contestant={a} league={league} size={28} />
             <div style={{ fontSize:12,fontWeight:600,color:"#e8e8f0",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{a.name}</div>
             <span style={{ color:"#e94560",fontSize:14 }}>♥</span>
             <ContestantAvatar contestant={b} league={league} size={28} />
             <div style={{ fontSize:12,fontWeight:600,color:"#e8e8f0",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{b.name}</div>
+            {c.projected && <Badge color="#9d5dff">PROJECTED</Badge>}
             <button onClick={()=>dissolveCouple(c.id)} title="Dissolve couple" style={{
               background:"none",border:"1px solid #2a2a4a",borderRadius:6,color:"#e94560",
               width:26,height:26,cursor:"pointer",fontSize:14,flexShrink:0,
@@ -2752,6 +2793,10 @@ function CouplesEditor({ league, onUpdate }) {
           </select>
           <Btn small onClick={addCouple} disabled={!m1 || !m2 || m1 === m2}>Add</Btn>
         </div>
+        <label style={{ display:"flex",alignItems:"center",gap:8,fontSize:11,color:"#aaaabf",cursor:"pointer",marginTop:8 }}>
+          <input type="checkbox" checked={projected} onChange={e=>setProjected(e.target.checked)} style={{ accentColor:"#9d5dff" }} />
+          Projected final couple <span style={{ color:"#6a6a8a" }}>(prediction — skips the one-couple-per-person rule, allows singles)</span>
+        </label>
       </div>
     </div>
   );
@@ -3723,6 +3768,13 @@ function ScoringTab({ league, onUpdate, isCommissioner = true, userProfile }) {
   const [selectedRule, setSelectedRule] = useState(null);
   const [view, setView] = useState(onUpdate ? "events" : "summary"); // "events" | "assign" | "summary" | "rules"
 
+  // v2.6.28.0: paired-event scoring state (see pairingKey / league.eventPairings).
+  // pairingFor: contestant id currently choosing a partner (inline picker open).
+  // stagedPairings / removedPairingKeys: buffered like `edits`, committed on Save.
+  const [pairingFor, setPairingFor] = useState(null);
+  const [stagedPairings, setStagedPairings] = useState([]);
+  const [removedPairingKeys, setRemovedPairingKeys] = useState([]);
+
   const weekScores = league.weeklyScores?.[selectedWeek] || {};
   const isWeekFinalized = league.weekStatus?.[selectedWeek]?.status === "finalized";
   const weekContestants = (league.contestants||[]).filter(c => {
@@ -3736,6 +3788,7 @@ function ScoringTab({ league, onUpdate, isCommissioner = true, userProfile }) {
 
   // Compute hasChanges from whether edits actually differ from saved
   const hasChanges = useMemo(() => {
+    if (stagedPairings.length > 0 || removedPairingKeys.length > 0) return true;
     if (Object.keys(edits).length === 0) return false;
     for (const cid of Object.keys(edits)) {
       const saved = weekScores[cid] || {};
@@ -3745,7 +3798,26 @@ function ScoringTab({ league, onUpdate, isCommissioner = true, userProfile }) {
       }
     }
     return false;
-  }, [edits, weekScores]);
+  }, [edits, weekScores, stagedPairings, removedPairingKeys]);
+
+  // Effective pairings = saved (minus staged removals) + staged additions.
+  const effectivePairings = useMemo(() => {
+    const existing = (league.eventPairings || []).filter(p => !removedPairingKeys.includes(pairingKey(p.week, p.ruleId, p.members)));
+    return [...existing, ...stagedPairings];
+  }, [league.eventPairings, stagedPairings, removedPairingKeys]);
+
+  // Partner (other member) for a contestant in a given rule/week, or null.
+  function partnerFor(cid, ruleId, week = selectedWeek) {
+    for (const p of effectivePairings) {
+      if (String(p.week) === String(week) && p.ruleId === ruleId && (p.members || []).includes(cid)) {
+        return (p.members || []).find(x => x !== cid) || null;
+      }
+    }
+    return null;
+  }
+
+  // Close any open partner picker when the rule or week changes.
+  useEffect(() => { setPairingFor(null); }, [selectedRule, selectedWeek]);
 
   // Merge saved + edits for a contestant
   function getMerged(cid) {
@@ -3778,6 +3850,35 @@ function ScoringTab({ league, onUpdate, isCommissioner = true, userProfile }) {
     weekContestants.forEach(c => setScore(c.id, rule.id, rule.points, allActive ? 0 : 1));
   }
 
+  // ── Paired-event scoring (v2.6.28.0) ──
+  function selectPartner(cid, partnerId, rule) {
+    if (!partnerId) { setPairingFor(null); return; }
+    setScore(cid, rule.id, rule.points, 1);
+    setScore(partnerId, rule.id, rule.points, 1);
+    setStagedPairings(prev => [...prev, { week: String(selectedWeek), ruleId: rule.id, members: [cid, partnerId] }]);
+    setPairingFor(null);
+  }
+
+  function clearPairing(cid, rule) {
+    const partner = partnerFor(cid, rule.id);
+    setScore(cid, rule.id, rule.points, 0);
+    if (partner) setScore(partner, rule.id, rule.points, 0);
+    const key = pairingKey(selectedWeek, rule.id, partner ? [cid, partner] : [cid]);
+    setStagedPairings(prev => prev.filter(p => pairingKey(p.week, p.ruleId, p.members) !== key));
+    setRemovedPairingKeys(prev => prev.includes(key) ? prev : [...prev, key]);
+    if (pairingFor === cid) setPairingFor(null);
+  }
+
+  function onRowToggle(c, rule) {
+    if (rule.pairable) {
+      const isOn = getCount(c.id, rule.id, rule.points) > 0;
+      if (isOn) clearPairing(c.id, rule);
+      else setPairingFor(prev => prev === c.id ? null : c.id);
+    } else {
+      toggleContestant(c.id, rule);
+    }
+  }
+
   function saveScores() {
     const weekKey = selectedWeek;
     const mergedWeek = { ...weekScores, ...edits };
@@ -3808,13 +3909,21 @@ function ScoringTab({ league, onUpdate, isCommissioner = true, userProfile }) {
       return c;
     });
 
+    // v2.6.28.0: commit staged paired-event pairings alongside the scores.
+    const nextPairings = [
+      ...(league.eventPairings || []).filter(p => !removedPairingKeys.includes(pairingKey(p.week, p.ruleId, p.members))),
+      ...stagedPairings,
+    ];
+
     const audited = appendAudit(league, auditEntry);
-    onUpdate({ ...audited, weeklyScores: merged, contestants: nextContestants });
+    onUpdate({ ...audited, weeklyScores: merged, contestants: nextContestants, eventPairings: nextPairings });
     setEdits({});
+    setStagedPairings([]); setRemovedPairingKeys([]); setPairingFor(null);
   }
 
   function discardChanges() {
     setEdits({});
+    setStagedPairings([]); setRemovedPairingKeys([]); setPairingFor(null);
   }
 
   function reverseWeek() {
@@ -3913,6 +4022,95 @@ function ScoringTab({ league, onUpdate, isCommissioner = true, userProfile }) {
   }
 
   const rule = selectedRule ? (league.scoringRules||[]).find(r=>r.id===selectedRule) : null;
+
+  // v2.6.28.0: supporting data for the (possibly paired) rule being scored.
+  const byIdAll = Object.fromEntries((league.contestants||[]).map(c => [c.id, c]));
+  // Once-per-contestant lockout: contestants scored for this rule in ANOTHER
+  // week can't be scored again (this week stays editable so a mis-score undoes).
+  const lockedIds = new Set();
+  if (rule?.oncePerContestant) {
+    Object.entries(league.weeklyScores || {}).forEach(([wk, wkScores]) => {
+      if (String(wk) === String(selectedWeek)) return;
+      Object.entries(wkScores || {}).forEach(([cid, cs]) => { if ((cs?.[rule.id] || 0) !== 0) lockedIds.add(cid); });
+    });
+  }
+  // Partner for a contestant in this rule across ANY week (locked-row label).
+  function anyPartnerFor(cid) {
+    for (const p of effectivePairings) {
+      if (p.ruleId === rule?.id && (p.members || []).includes(cid)) return (p.members || []).find(x => x !== cid) || null;
+    }
+    return null;
+  }
+
+  // One row in the score-assignment list. Paired rules (rule.pairable) replace
+  // the count stepper with a "with whom" partner picker and award both islanders.
+  function renderScoreRow(c) {
+    const count = getCount(c.id, rule.id, rule.points);
+    const isOn = count > 0;
+    const locked = lockedIds.has(c.id) && !isOn;
+    const picking = pairingFor === c.id;
+    const partnerId = rule.pairable && isOn ? partnerFor(c.id, rule.id) : null;
+    const partner = partnerId ? byIdAll[partnerId] : null;
+    const disabled = isWeekFinalized || locked;
+    const lockPartnerId = locked ? anyPartnerFor(c.id) : null;
+    const partnerOpts = picking
+      ? [...weekContestants].filter(o => o.id !== c.id && !lockedIds.has(o.id) && getCount(o.id, rule.id, rule.points) === 0).sort((a, b) => a.name.localeCompare(b.name))
+      : [];
+    return (
+      <div key={c.id} style={{
+        display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,
+        background:isOn?(rule.points>=0?"#4ecdc418":"#e9456018"):(locked?"#0d0d18":"#12121f"),
+        border:isOn?(rule.points>=0?"1px solid #4ecdc433":"1px solid #e9456033"):"1px solid #1e1e38",
+        opacity:locked?0.6:1,transition:"all 0.1s ease",
+      }}>
+        <button onClick={()=>{ if (!disabled) onRowToggle(c, rule); }} style={{
+          width:32,height:32,borderRadius:8,border:isOn?"none":"2px solid #3a3a5a",
+          cursor:disabled?"not-allowed":"pointer",opacity:disabled?0.5:1,
+          background:isOn?(rule.points>=0?"#4ecdc4":"#e94560"):"transparent",
+          display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,
+        }}>
+          {isOn && <Icon name="check" size={14}/>}
+        </button>
+        <div style={{ flex:1,minWidth:0,cursor:disabled?"default":"pointer" }} onClick={()=>{ if (!disabled) onRowToggle(c, rule); }}>
+          <span style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>{c.name}</span>
+          {partner && <span style={{ color:"#e94560",fontSize:11,marginLeft:8,fontWeight:600 }}>♥ {partner.name}</span>}
+          {locked && <span style={{ color:"#6a6a8a",fontSize:11,marginLeft:8 }}>already scored{lockPartnerId && byIdAll[lockPartnerId] ? ` · with ${byIdAll[lockPartnerId].name}` : ""}</span>}
+        </div>
+        {picking ? (
+          <select autoFocus value="" onChange={e=>selectPartner(c.id, e.target.value, rule)} style={{
+            padding:"7px 10px",background:"#0d0d18",border:"1px solid #e9456055",borderRadius:6,
+            color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",maxWidth:180,
+          }}>
+            <option value="">— with whom? —</option>
+            {partnerOpts.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+          </select>
+        ) : rule.pairable ? (
+          isOn && (
+            <span style={{ color:rule.points>=0?"#4ecdc4":"#e94560",fontSize:12,fontWeight:600,minWidth:40,textAlign:"right" }}>
+              {rule.points>=0?"+":""}{formatPts(rule.points, league)}
+            </span>
+          )
+        ) : (
+          isOn && (
+            <div style={{ display:"flex",alignItems:"center",gap:4 }}>
+              <button onClick={()=>{ if (!isWeekFinalized) setScore(c.id,rule.id,rule.points,Math.max(0,count-1)); }} style={{
+                width:32,height:32,borderRadius:8,border:"1px solid #2a2a4a",background:"#1e1e38",
+                color:"#ccc",cursor:isWeekFinalized?"not-allowed":"pointer",opacity:isWeekFinalized?0.4:1,fontSize:15,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",
+              }}>−</button>
+              <span style={{ color:"#e8e8f0",fontWeight:700,fontSize:14,minWidth:20,textAlign:"center" }}>{count}</span>
+              <button onClick={()=>{ if (!isWeekFinalized) setScore(c.id,rule.id,rule.points,count+1); }} style={{
+                width:32,height:32,borderRadius:8,border:"1px solid #2a2a4a",background:"#1e1e38",
+                color:"#ccc",cursor:isWeekFinalized?"not-allowed":"pointer",opacity:isWeekFinalized?0.4:1,fontSize:15,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",
+              }}>+</button>
+              <span style={{ color:rule.points>=0?"#4ecdc4":"#e94560",fontSize:12,fontWeight:600,minWidth:40,textAlign:"right" }}>
+                {(count*rule.points)>0?"+":""}{formatPts(count*rule.points, league)}
+              </span>
+            </div>
+          )
+        )}
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -4147,10 +4345,16 @@ function ScoringTab({ league, onUpdate, isCommissioner = true, userProfile }) {
             <div style={{ color:rule.points>=0?"#4ecdc4":"#e94560",fontSize:13,marginTop:6 }}>
               {rule.points>0?"+":""}{formatPts(rule.points, league)} pts per occurrence
             </div>
+            {rule.pairable && (
+              <div style={{ color:"#e94560",fontSize:11,marginTop:8,lineHeight:1.5 }}>
+                ♥ Paired event — tap an islander, then pick who it was with. Both score {rule.points>=0?"+":""}{formatPts(rule.points, league)}.
+                {rule.oncePerContestant && " Each islander can only be scored once for this — those already scored are locked."}
+              </div>
+            )}
           </div>
 
-          {/* Tribe quick-select buttons */}
-          {tribeNames.length > 0 && !isMerged && (
+          {/* Tribe quick-select buttons — hidden for paired events (can't bulk-pair) */}
+          {tribeNames.length > 0 && !isMerged && !rule.pairable && (
             <div style={{ marginBottom:14 }}>
               <div style={{ fontSize:11,fontWeight:600,color:"#6a6a8a",textTransform:"uppercase",marginBottom:6 }}>Quick Select</div>
               <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
@@ -4190,91 +4394,14 @@ function ScoringTab({ league, onUpdate, isCommissioner = true, userProfile }) {
               <div key={tribe} style={{ marginBottom:12 }}>
                 <div style={{ fontSize:11,fontWeight:700,color:"#6a6a8a",textTransform:"uppercase",marginBottom:4,letterSpacing:"0.05em" }}>{tribe}</div>
                 <div style={{ display:"flex",flexDirection:"column",gap:3 }}>
-                  {members.map(c => {
-                    const count = getCount(c.id, rule.id, rule.points);
-                    const isOn = count > 0;
-                    return (
-                      <div key={c.id} style={{
-                        display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,
-                        background:isOn?(rule.points>=0?"#4ecdc418":"#e9456018"):"#12121f",
-                        border:isOn?(rule.points>=0?"1px solid #4ecdc433":"1px solid #e9456033"):"1px solid #1e1e38",
-                        transition:"all 0.1s ease",
-                      }}>
-                        <button onClick={()=>{ if (!isWeekFinalized) toggleContestant(c.id, rule); }} style={{
-                          width:32,height:32,borderRadius:8,border:isOn?"none":"2px solid #3a3a5a",
-                          cursor:isWeekFinalized?"not-allowed":"pointer",opacity:isWeekFinalized?0.4:1,
-                          background:isOn?(rule.points>=0?"#4ecdc4":"#e94560"):"transparent",
-                          display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,
-                        }}>
-                          {isOn && <Icon name="check" size={14}/>}
-                        </button>
-                        <div style={{ flex:1,cursor:isWeekFinalized?"default":"pointer" }} onClick={()=>{ if (!isWeekFinalized) toggleContestant(c.id, rule); }}>
-                          <span style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>{c.name}</span>
-                        </div>
-                        {isOn && (
-                          <div style={{ display:"flex",alignItems:"center",gap:4 }}>
-                            <button onClick={()=>{ if (!isWeekFinalized) setScore(c.id,rule.id,rule.points,Math.max(0,count-1)); }} style={{
-                              width:32,height:32,borderRadius:8,border:"1px solid #2a2a4a",background:"#1e1e38",
-                              color:"#ccc",cursor:isWeekFinalized?"not-allowed":"pointer",opacity:isWeekFinalized?0.4:1,fontSize:15,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",
-                            }}>−</button>
-                            <span style={{ color:"#e8e8f0",fontWeight:700,fontSize:14,minWidth:20,textAlign:"center" }}>{count}</span>
-                            <button onClick={()=>{ if (!isWeekFinalized) setScore(c.id,rule.id,rule.points,count+1); }} style={{
-                              width:32,height:32,borderRadius:8,border:"1px solid #2a2a4a",background:"#1e1e38",
-                              color:"#ccc",cursor:isWeekFinalized?"not-allowed":"pointer",opacity:isWeekFinalized?0.4:1,fontSize:15,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",
-                            }}>+</button>
-                            <span style={{ color:rule.points>=0?"#4ecdc4":"#e94560",fontSize:12,fontWeight:600,minWidth:40,textAlign:"right" }}>
-                              {(count*rule.points)>0?"+":""}{formatPts(count*rule.points, league)}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {members.map(c => renderScoreRow(c))}
                 </div>
               </div>
             );
           }) : (
             /* No tribes — flat list */
             <div style={{ display:"flex",flexDirection:"column",gap:3 }}>
-              {[...weekContestants].sort((a,b) => a.name.localeCompare(b.name)).map(c => {
-                const count = getCount(c.id, rule.id, rule.points);
-                const isOn = count > 0;
-                return (
-                  <div key={c.id} style={{
-                    display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,
-                    background:isOn?(rule.points>=0?"#4ecdc418":"#e9456018"):"#12121f",
-                    border:isOn?(rule.points>=0?"1px solid #4ecdc433":"1px solid #e9456033"):"1px solid #1e1e38",
-                  }}>
-                    <button onClick={()=>{ if (!isWeekFinalized) toggleContestant(c.id, rule); }} style={{
-                      width:32,height:32,borderRadius:8,border:isOn?"none":"2px solid #3a3a5a",
-                      cursor:isWeekFinalized?"not-allowed":"pointer",opacity:isWeekFinalized?0.4:1,
-                      background:isOn?(rule.points>=0?"#4ecdc4":"#e94560"):"transparent",
-                      display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,
-                    }}>
-                      {isOn && <Icon name="check" size={14}/>}
-                    </button>
-                    <div style={{ flex:1,cursor:isWeekFinalized?"default":"pointer" }} onClick={()=>{ if (!isWeekFinalized) toggleContestant(c.id, rule); }}>
-                      <span style={{ color:"#e8e8f0",fontSize:13,fontWeight:600 }}>{c.name}</span>
-                    </div>
-                    {isOn && (
-                      <div style={{ display:"flex",alignItems:"center",gap:4 }}>
-                        <button onClick={()=>{ if (!isWeekFinalized) setScore(c.id,rule.id,rule.points,Math.max(0,count-1)); }} style={{
-                          width:32,height:32,borderRadius:8,border:"1px solid #2a2a4a",background:"#1e1e38",
-                          color:"#ccc",cursor:isWeekFinalized?"not-allowed":"pointer",opacity:isWeekFinalized?0.4:1,fontSize:15,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",
-                        }}>−</button>
-                        <span style={{ color:"#e8e8f0",fontWeight:700,fontSize:14,minWidth:20,textAlign:"center" }}>{count}</span>
-                        <button onClick={()=>{ if (!isWeekFinalized) setScore(c.id,rule.id,rule.points,count+1); }} style={{
-                          width:32,height:32,borderRadius:8,border:"1px solid #2a2a4a",background:"#1e1e38",
-                          color:"#ccc",cursor:isWeekFinalized?"not-allowed":"pointer",opacity:isWeekFinalized?0.4:1,fontSize:15,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",
-                        }}>+</button>
-                        <span style={{ color:rule.points>=0?"#4ecdc4":"#e94560",fontSize:12,fontWeight:600,minWidth:40,textAlign:"right" }}>
-                          {(count*rule.points)>0?"+":""}{formatPts(count*rule.points, league)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {[...weekContestants].sort((a,b) => a.name.localeCompare(b.name)).map(c => renderScoreRow(c))}
             </div>
           )}
 
@@ -5304,10 +5431,20 @@ function WeeklyDraftTab({ league, onUpdate, standings }) {
 }
 
 // Finale-week couple picker — replaces the normal depth chart UI for one week
-// when league.finaleWeek === league.currentWeek. Each manager picks a Hero
-// couple (both members × 2) and a Sidekick couple (both members × 1.5). The
-// saved chart shape is { mode: "couples", heroCouple: [id, id], sidekickCouple: [id, id] }
-// which the scoring engine in src/scoring.js has a dedicated branch for.
+// when league.finaleWeek === league.currentWeek. v2.6.28.0: each manager picks
+// 4 ranked couples at descending multipliers (×2 / ×1.5 / ×1.25 / ×1). The
+// saved chart shape is { mode: "couples", couples: [[id,id], …] } (rank order),
+// which the scoring engine in src/scoring.js has a dedicated branch for. Legacy
+// charts saved the old 2-couple shape (heroCouple/sidekickCouple) — the loader
+// below reads those back into the first two ranked slots.
+const FINALE_COUPLE_SLOTS = [
+  { mult: 2,    label: "×2",    color: "#f5a623" },
+  { mult: 1.5,  label: "×1.5",  color: "#4ecdc4" },
+  { mult: 1.25, label: "×1.25", color: "#9d5dff" },
+  { mult: 1,    label: "×1",    color: "#8888aa" },
+];
+const FINALE_COUPLE_COUNT = FINALE_COUPLE_SLOTS.length;
+
 function FinaleCouplePickerScreen({ league, onUpdate, lockedToTeamId, defaultTeamId, isCommissioner, myTeamId }) {
   const [selectedTeam, setSelectedTeam] = useState(lockedToTeamId || defaultTeamId || myTeamId || (league.teams||[])[0]?.id || "");
   const team = (league.teams||[]).find(t => t.id === selectedTeam);
@@ -5319,26 +5456,31 @@ function FinaleCouplePickerScreen({ league, onUpdate, lockedToTeamId, defaultTea
   const byId = Object.fromEntries(contestants.map(c => [c.id, c]));
 
   const savedChart = team?.weeklyDepthCharts?.[String(finaleWeek)];
-  const savedHero = savedChart?.mode === "couples" ? (savedChart.heroCouple || []) : [];
-  const savedSidekick = savedChart?.mode === "couples" ? (savedChart.sidekickCouple || []) : [];
-  const savedHeroId = couples.find(c => arraysEqualUnordered(c.members, savedHero))?.id || "";
-  const savedSidekickId = couples.find(c => arraysEqualUnordered(c.members, savedSidekick))?.id || "";
+  // Ranked member-arrays saved for this team, new shape first then legacy.
+  const savedCouples = savedChart?.mode === "couples"
+    ? (savedChart.couples || [savedChart.heroCouple, savedChart.sidekickCouple].filter(Boolean))
+    : [];
+  const savedPickIds = savedCouples.map(members => couples.find(c => arraysEqualUnordered(c.members, members))?.id || "");
+  const padPicks = (ids) => { const p = (ids || []).slice(0, FINALE_COUPLE_COUNT); while (p.length < FINALE_COUPLE_COUNT) p.push(""); return p; };
+  const savedKey = padPicks(savedPickIds).join(",");
 
-  const [heroId, setHeroId] = useState(savedHeroId);
-  const [sidekickId, setSidekickId] = useState(savedSidekickId);
+  const [picks, setPicks] = useState(padPicks(savedPickIds));
 
-  useEffect(() => { setHeroId(savedHeroId); setSidekickId(savedSidekickId); }, [selectedTeam, savedHeroId, savedSidekickId]);
+  useEffect(() => { setPicks(padPicks(savedPickIds)); }, [selectedTeam, savedKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const dirty = heroId !== savedHeroId || sidekickId !== savedSidekickId;
-  const canSave = !!heroId && !!sidekickId && heroId !== sidekickId && dirty;
+  const dirty = picks.join(",") !== savedKey;
+  const allFilled = picks.every(Boolean);
+  const allDistinct = new Set(picks.filter(Boolean)).size === picks.filter(Boolean).length;
+  const canSave = allFilled && allDistinct && dirty;
   const readOnly = !!lockedToTeamId && lockedToTeamId !== myTeamId;
+
+  function setPick(i, id) { setPicks(prev => prev.map((p, idx) => idx === i ? id : p)); }
 
   function save() {
     if (!canSave || !team) return;
-    const hero = couples.find(c => c.id === heroId);
-    const side = couples.find(c => c.id === sidekickId);
-    if (!hero || !side) return;
-    const newChart = { mode: "couples", heroCouple: hero.members || [], sidekickCouple: side.members || [] };
+    const chosen = picks.map(id => couples.find(c => c.id === id));
+    if (chosen.some(c => !c)) return;
+    const newChart = { mode: "couples", couples: chosen.map(c => c.members || []) };
     onUpdate({
       ...league,
       teams: league.teams.map(t => t.id === team.id ? {
@@ -5364,7 +5506,7 @@ function FinaleCouplePickerScreen({ league, onUpdate, lockedToTeamId, defaultTea
       </div>
 
       <div style={{ padding:"12px 14px",background:"#e9456011",borderRadius:10,border:"1px solid #e9456033",marginBottom:14,fontSize:12,color:"#e94560",lineHeight:1.5 }}>
-        ♥ Finale week — pick a Hero couple (both members ×2) and a Sidekick couple (both members ×1.5). The depth chart is paused for this {cadenceWord(league).toLowerCase()} only.
+        ♥ Finale week — rank 4 couples from most to least confident (both members score ×2 / ×1.5 / ×1.25 / ×1). The depth chart is paused for this {cadenceWord(league).toLowerCase()} only.
       </div>
 
       {(league.teams||[]).length > 1 && !lockedToTeamId && (
@@ -5372,52 +5514,44 @@ function FinaleCouplePickerScreen({ league, onUpdate, lockedToTeamId, defaultTea
       )}
 
       {!team && <EmptyState message="No team selected." />}
-      {team && couples.length < 2 && (
-        <EmptyState message={`Need at least 2 couples configured to pick. ${couples.length} couple${couples.length===1?"":"s"} set so far — add more on the Cast tab → Manage → Couples.`} />
+      {team && couples.length < FINALE_COUPLE_COUNT && (
+        <EmptyState message={`Need at least ${FINALE_COUPLE_COUNT} couples configured to pick. ${couples.length} couple${couples.length===1?"":"s"} set so far — add more (including Projected predictions) on the Cast tab → Manage → Couples.`} />
       )}
 
-      {team && couples.length >= 2 && (
+      {team && couples.length >= FINALE_COUPLE_COUNT && (
         <>
-          <div style={{ marginBottom:14,padding:"14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-            <div style={{ fontSize:11,fontWeight:700,color:"#f5a623",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.05em" }}>Hero Couple · ×2</div>
-            {readOnly ? (
-              <div style={{ fontSize:14,color:"#e8e8f0",fontWeight:600 }}>{renderCoupleLabel(couples.find(c => c.id === savedHeroId))}</div>
-            ) : (
-              <select value={heroId} onChange={e=>setHeroId(e.target.value)} style={{
-                width:"100%",padding:"10px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
-                color:heroId?"#e8e8f0":"#6a6a8a",fontSize:14,fontFamily:"'Outfit',sans-serif",outline:"none",
-              }}>
-                <option value="">— Pick a couple —</option>
-                {couples.filter(c => c.id !== sidekickId).map(c => (
-                  <option key={c.id} value={c.id}>{renderCoupleLabel(c)}</option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          <div style={{ marginBottom:14,padding:"14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
-            <div style={{ fontSize:11,fontWeight:700,color:"#4ecdc4",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.05em" }}>Sidekick Couple · ×1.5</div>
-            {readOnly ? (
-              <div style={{ fontSize:14,color:"#e8e8f0",fontWeight:600 }}>{renderCoupleLabel(couples.find(c => c.id === savedSidekickId))}</div>
-            ) : (
-              <select value={sidekickId} onChange={e=>setSidekickId(e.target.value)} style={{
-                width:"100%",padding:"10px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
-                color:sidekickId?"#e8e8f0":"#6a6a8a",fontSize:14,fontFamily:"'Outfit',sans-serif",outline:"none",
-              }}>
-                <option value="">— Pick a couple —</option>
-                {couples.filter(c => c.id !== heroId).map(c => (
-                  <option key={c.id} value={c.id}>{renderCoupleLabel(c)}</option>
-                ))}
-              </select>
-            )}
-          </div>
+          {FINALE_COUPLE_SLOTS.map((slot, i) => {
+            const pickId = picks[i];
+            const available = couples.filter(c => c.id === pickId || !picks.some((p, idx) => idx !== i && p === c.id));
+            return (
+              <div key={i} style={{ marginBottom:12,padding:"14px",background:"#12121f",borderRadius:10,border:"1px solid #1e1e38" }}>
+                <div style={{ fontSize:11,fontWeight:700,color:slot.color,marginBottom:8,textTransform:"uppercase",letterSpacing:"0.05em" }}>Couple {i+1} · {slot.label}</div>
+                {readOnly ? (
+                  <div style={{ fontSize:14,color:"#e8e8f0",fontWeight:600 }}>{renderCoupleLabel(couples.find(c => c.id === pickId))}</div>
+                ) : (
+                  <select value={pickId} onChange={e=>setPick(i, e.target.value)} style={{
+                    width:"100%",padding:"10px 12px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
+                    color:pickId?"#e8e8f0":"#6a6a8a",fontSize:14,fontFamily:"'Outfit',sans-serif",outline:"none",
+                  }}>
+                    <option value="">— Pick a couple —</option>
+                    {available.map(c => (
+                      <option key={c.id} value={c.id}>{renderCoupleLabel(c)}{c.projected ? " (projected)" : ""}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            );
+          })}
 
           {!readOnly && (
-            <div style={{ display:"flex",gap:8,justifyContent:"flex-end" }}>
-              {dirty && (
-                <Btn variant="ghost" onClick={()=>{ setHeroId(savedHeroId); setSidekickId(savedSidekickId); }}>Discard</Btn>
+            <div style={{ display:"flex",gap:8,justifyContent:"flex-end",alignItems:"center" }}>
+              {dirty && allFilled && !allDistinct && (
+                <span style={{ fontSize:11,color:"#e94560",marginRight:"auto" }}>Each couple can only be picked once.</span>
               )}
-              <Btn onClick={save} disabled={!canSave}>{savedChart?.mode === "couples" ? "Update Pick" : "Save Pick"}</Btn>
+              {dirty && (
+                <Btn variant="ghost" onClick={()=>setPicks(padPicks(savedPickIds))}>Discard</Btn>
+              )}
+              <Btn onClick={save} disabled={!canSave}>{savedChart?.mode === "couples" ? "Update Picks" : "Save Picks"}</Btn>
             </div>
           )}
         </>
@@ -8316,6 +8450,8 @@ function ScoringRulesSection({ league, onUpdate, userProfile }) {
   const [newPoints, setNewPoints] = useState(0);
   const [newCategory, setNewCategory] = useState("");
   const [newDescription, setNewDescription] = useState("");
+  const [newPairable, setNewPairable] = useState(false);
+  const [newOncePerContestant, setNewOncePerContestant] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
 
   // Group rules by category, preserving the order they appear in the league array
@@ -8352,7 +8488,7 @@ function ScoringRulesSection({ league, onUpdate, userProfile }) {
           id, label: r.label, points: Number(r.points) || 0,
           category: r.category || "Other",
           ...(r.description ? { description: r.description } : {}),
-          ...(r.isElimination ? { isElimination: true } : {}),
+          ...carryRuleFlags(r),
         }));
     }
     const showIds = new Set(SHOW_PRESETS[league.showType]?.scoringDefaults || []);
@@ -8406,6 +8542,19 @@ function ScoringRulesSection({ league, onUpdate, userProfile }) {
     onUpdate({ ...audited, scoringRules: nextRules });
   }
 
+  // v2.6.28.0: paired-event flags. `pairable` makes scoring prompt for a
+  // partner islander (both get the points); `oncePerContestant` blocks a
+  // contestant from ever being scored for the rule twice (e.g. First Kiss).
+  function updateRuleFlag(ruleId, flag, value) {
+    const nextRules = rules.map(r => {
+      if (r.id !== ruleId) return r;
+      const next = { ...r };
+      if (value) next[flag] = true; else delete next[flag];
+      return next;
+    });
+    onUpdate({ ...league, scoringRules: nextRules });
+  }
+
   function removeRule(ruleId) {
     const rule = rules.find(r => r.id === ruleId);
     if (!rule) return;
@@ -8433,6 +8582,8 @@ function ScoringRulesSection({ league, onUpdate, userProfile }) {
       id, label, points: pts,
       category: newCategory.trim() || "Custom",
       ...(desc ? { description: desc } : {}),
+      ...(newPairable ? { pairable: true } : {}),
+      ...(newOncePerContestant ? { oncePerContestant: true } : {}),
     };
     const actorName = userProfile?.displayName || "Commissioner";
     const audited = appendAudit(league, {
@@ -8442,7 +8593,7 @@ function ScoringRulesSection({ league, onUpdate, userProfile }) {
       meta: { ruleId: id, points: pts },
     });
     onUpdate({ ...audited, scoringRules: [...rules, rule] });
-    setNewLabel(""); setNewPoints(0); setNewCategory(""); setNewDescription(""); setAdding(false);
+    setNewLabel(""); setNewPoints(0); setNewCategory(""); setNewDescription(""); setNewPairable(false); setNewOncePerContestant(false); setAdding(false);
   }
 
   function addFromLibrary(rule) {
@@ -8496,6 +8647,16 @@ function ScoringRulesSection({ league, onUpdate, userProfile }) {
                 width:"100%",marginTop:6,padding:"6px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
                 color:"#aaaabf",fontSize:11,fontFamily:"'Outfit',sans-serif",outline:"none",resize:"vertical",boxSizing:"border-box",lineHeight:1.4,
               }} />
+              <div style={{ display:"flex",gap:16,flexWrap:"wrap",marginTop:8 }}>
+                <label style={{ display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#aaaabf",cursor:"pointer" }} title="Scoring this rule asks you to pick a partner islander; both get the points.">
+                  <input type="checkbox" checked={!!rule.pairable} onChange={e=>updateRuleFlag(rule.id, "pairable", e.target.checked)} style={{ accentColor:"#e94560" }} />
+                  Involves 2 islanders
+                </label>
+                <label style={{ display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#aaaabf",cursor:"pointer" }} title="A contestant can only ever be scored once for this rule, across all weeks (e.g. First Kiss).">
+                  <input type="checkbox" checked={!!rule.oncePerContestant} onChange={e=>updateRuleFlag(rule.id, "oncePerContestant", e.target.checked)} style={{ accentColor:"#9d5dff" }} />
+                  Once per contestant
+                </label>
+              </div>
             </div>
           ))}
         </div>
@@ -8523,6 +8684,16 @@ function ScoringRulesSection({ league, onUpdate, userProfile }) {
                 width:"100%",padding:"8px 10px",background:"#0d0d18",border:"1px solid #2a2a4a",borderRadius:6,
                 color:"#e8e8f0",fontSize:12,fontFamily:"'Outfit',sans-serif",outline:"none",resize:"vertical",boxSizing:"border-box",lineHeight:1.4,
               }} />
+            </div>
+            <div style={{ display:"flex",gap:16,flexWrap:"wrap",marginBottom:10 }}>
+              <label style={{ display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#aaaabf",cursor:"pointer" }} title="Scoring this rule asks you to pick a partner islander; both get the points.">
+                <input type="checkbox" checked={newPairable} onChange={e=>setNewPairable(e.target.checked)} style={{ accentColor:"#e94560" }} />
+                Involves 2 islanders
+              </label>
+              <label style={{ display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#aaaabf",cursor:"pointer" }} title="A contestant can only ever be scored once for this rule (e.g. First Kiss).">
+                <input type="checkbox" checked={newOncePerContestant} onChange={e=>setNewOncePerContestant(e.target.checked)} style={{ accentColor:"#9d5dff" }} />
+                Once per contestant
+              </label>
             </div>
             <Btn small onClick={addCustomRule} disabled={!newLabel.trim()}>Add Rule</Btn>
           </div>
@@ -9344,7 +9515,7 @@ function SettingsTab({ league, onUpdate, allLeagues, setModal, setEditing, userP
                 {league.finaleActive ? "♥" : "○"} Finale Mode {league.finaleActive && <Badge color="#e94560">ACTIVE</Badge>}
               </div>
               <div style={{ fontSize:12,color:"#8888aa",lineHeight:1.5 }}>
-                Flip this on for the finale {cadenceWord(league).toLowerCase()} only — managers' depth charts swap to a couple picker (Hero couple ×2, Sidekick couple ×1.5). Affects the current {cadenceWord(league).toLowerCase()}; turn off after the finale to return to the normal depth chart. Requires couples on the Manage Contestants → Couples tab.
+                Flip this on for the finale {cadenceWord(league).toLowerCase()} only — managers' depth charts swap to a couple picker where they rank 4 couples (×2 / ×1.5 / ×1.25 / ×1). Affects the current {cadenceWord(league).toLowerCase()}; turn off after the finale to return to the normal depth chart. Requires at least 4 couples on the Manage Contestants → Couples tab (Projected predictions count).
               </div>
             </div>
             <Btn small variant={league.finaleActive?"danger":"secondary"} onClick={()=>onUpdate({...league, finaleActive: !league.finaleActive})}>

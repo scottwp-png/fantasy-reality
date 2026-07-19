@@ -3,7 +3,7 @@
 **Repo:** github.com/scottwp-png/fantasy-reality
 **Current Production Version:** v2.6.27.34
 **Last Deploy Date:** 2026-06-06
-**App.jsx Line Count:** ~12,160
+**App.jsx Line Count:** ~14,046
 **Deploy Target:** Netlify auto-deploy from GitHub `main` branch
 
 ---
@@ -22,6 +22,22 @@
 ---
 
 ## Version Log
+
+### v2.6.28.0 — 2026-07-19
+**Finale mode → 4 ranked couples + projected couples, and paired scoring events (First Kiss / "I Love You").** Two independent Love Island features shipped together.
+
+**Finale mode: 4 ranked couples (was Hero + Sidekick).**
+- **`scoring.js` couple branch.** The finale chart's `mode:"couples"` branch now scores up to 4 ranked couples at descending multipliers `[2, 1.5, 1.25, 1]` via a new `chart.couples` array (`[[a,b], …]` in rank order). Legacy charts (old `heroCouple` ×2 / `sidekickCouple` ×1.5 shape, no `couples` array) fall through a compatibility path that scores them identically — regression harness stayed 10/10 PASS.
+- **`FinaleCouplePickerScreen`** rebuilt from 2 selects to 4 ranked slots (Couple 1 ×2 … Couple 4 ×1). Each slot excludes couples chosen in other slots; requires ≥4 couples configured; saves `{ mode:"couples", couples:[m1..m4] }`.
+- **Projected couples.** `CouplesEditor` gained a "Projected final couple" checkbox — a prediction that skips the one-couple-per-person / auto-dissolve rules, so a manager can enter a likely endgame pair before it officially forms (e.g. *Aidan ♥ Priya* while Priya is still coupled with Ethan and Aidan is single). Projected couples render with a PROJECTED badge, are pickable in the finale, and are excluded from `getCouplePartner` so the regular-season heart badge stays truthful.
+
+**Paired scoring events (general mechanism).**
+- **Rule flags `pairable` + `oncePerContestant`**, mirroring the existing `isElimination` pattern via a new `carryRuleFlags()` helper threaded through all four rule-seeding sites. Settable per-rule in the league Scoring-Rules editor and the Add-Custom-Rule form, so a commissioner can flag an existing custom "First Kiss" rule.
+- **Partner picker in `ScoringTab`.** Scoring a `pairable` rule replaces the count stepper with a "with whom?" partner dropdown; selecting a partner scores **both** islanders and records the pair. Pairing metadata lives in a new **separate** store `league.eventPairings = [{ week, ruleId, members:[a,b] }]` — NOT inside `weeklyScores`, because `calcContestantWeekPoints` blindly sums `Object.values()` and a non-numeric value there would corrupt every total. Pairings are buffered like score edits and committed on Save (Discard clears them).
+- **`oncePerContestant`** locks a contestant out of a rule once they've been scored for it in any other week (this week stays editable to undo a mis-score); locked rows show "already scored — with {partner}".
+- **New built-in LI rules** for future leagues: `li_first_kiss` (First Kiss, +5, pairable + once) and `li_i_love_you` (Said "I Love You", +4, pairable), added to the Love Island preset defaults. Point values are tunable per-league.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean.
+- **Commit:** `_pending_`
 
 ### v2.6.27.34 — 2026-06-06
 **Admin "pending" status now cascades to leagues.** Reported — user was marking a contestant as pending at the admin show-cast level but it wasn't reaching individual leagues. Three import paths copied admin data into leagues; all three hardcoded the imported status to `"active"` and never synced status changes after the initial import. Now all three carry admin's pending → league.
