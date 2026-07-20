@@ -2287,7 +2287,9 @@ function StandingsTab({ league, standings, onUpdate, isCommissioner, myTeamId })
   // v2.6.23.5: default the standings breakdown period to season total —
   // it's the headline number for the season-long story. Per-week view stays
   // available via the dropdown for drilling into a specific episode.
-  const [viewWeek, setViewWeek] = useState("season");
+  // v2.6.28.2: during the finale, open the breakdown on the finale week so the
+  // couple picks are visible immediately; otherwise default to season total.
+  const [viewWeek, setViewWeek] = useState(league.finaleActive ? String(league.currentWeek||1) : "season");
 
   // v2.6.25.3: re-rank by the selected breakdown period. Season → use the
   // standings as-passed (calcStandings already ranked by season total).
@@ -2303,8 +2305,14 @@ function StandingsTab({ league, standings, onUpdate, isCommissioner, myTeamId })
     });
     return attachRanks(sorted, t => calcTeamWeekPoints(league, t, viewWeek));
   }, [standings, viewWeek, league]);
+  // v2.6.28.2: weeks that hold a finale couples pick (any team). Used to label
+  // them in the breakdown dropdown and to guarantee they're listed even if the
+  // current week later moved past them.
+  const finaleWeeks = new Set();
+  (league.teams||[]).forEach(t => Object.entries(t.weeklyDepthCharts||{}).forEach(([wk, chart]) => { if (chart?.mode === "couples") finaleWeeks.add(String(wk)); }));
+  const maxWeekNum = Math.max(league.currentWeek||1, 1, ...weeks.map(Number), ...[...finaleWeeks].map(Number));
   const weekOpts = [
-    ...Array.from({length:Math.max(league.currentWeek||1,1)},(_,i)=>({value:String(i+1),label:cadenceLabel(league, i+1)})),
+    ...Array.from({length:maxWeekNum},(_,i)=>({ value:String(i+1), label:cadenceLabel(league, i+1) + (finaleWeeks.has(String(i+1)) ? " · Finale ♥" : "") })),
     { value:"season", label:"Season Total" },
   ];
 

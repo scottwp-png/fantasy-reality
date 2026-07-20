@@ -23,6 +23,14 @@
 
 ## Version Log
 
+### v2.6.28.2 — 2026-07-19
+**Finale week is now findable in the Standings breakdown.** After v2.6.28.1 made `getTeamRosterForWeek` understand couples, the finale week was technically selectable but indistinguishable — it appeared in the "Roster Breakdown Period" dropdown as an ordinary episode label, and the breakdown defaulted to Season Total, so managers couldn't tell which week held the couple picks.
+- **Finale weeks are labeled** `… · Finale ♥` in the breakdown dropdown, detected by scanning every team's `weeklyDepthCharts` for a `mode:"couples"` chart (robust whether or not `finaleActive` is still on).
+- **The dropdown always lists finale weeks**, even if the current week later moved past them — `maxWeekNum` now also considers scored weeks and finale weeks, not just `currentWeek`.
+- **While finale mode is active**, the breakdown opens on the finale week by default (instead of Season Total) so the couples show immediately.
+- `npm run build` clean.
+- **Commit:** `_pending_`
+
 ### v2.6.28.1 — 2026-07-19
 **Finale mode fixes: roster lock, cross-team visibility, and activity logging.** Three gaps in v2.6.28.0's finale picker, all because it was a bespoke screen that didn't reuse the normal depth-chart plumbing.
 - **Roster lock now applies.** `FinaleCouplePickerScreen` honors `isRosterLocked(league)` — managers can't change finale picks once rosters lock (commissioners still can), with the same 🔒 banner the depth chart shows. Was: `readOnly` only checked `lockedToTeamId`, so lock was silently ignored.
