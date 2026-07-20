@@ -23,6 +23,14 @@
 
 ## Version Log
 
+### v2.6.29.1 — 2026-07-19
+**Split admin episode scoring into Save (checkpoint) + Push to Leagues (publish).** v2.6.29.0 pushed to leagues on every Save, which conflated "don't lose my work" with "publish," and re-clobbered any commissioner edits on each intermediate save. Reworked per intent:
+- **Save** now only checkpoints the episode to the show-wide source (`showScoring/…`) so in-progress scoring survives an app close — it no longer touches leagues.
+- **Push to Leagues** is a separate button (labeled with the opted-in league count) that publishes the episode to every matching, non-finalized league at once — replacing the per-league Re-sync trip — behind a confirm. Still uses `pushEpisodeToLeague` + `saveLeague`; finalized weeks are skipped.
+- Newest-first episode list from v2.6.29.0 retained.
+- `npm run build` clean.
+- **Commit:** `_pending_`
+
 ### v2.6.29.0 — 2026-07-19
 **Admin episode scoring pushes to leagues on Save, and the episode list is newest-first.** Two asks for the admin Show-Wide Episode Scoring UI.
 - **Push on Save.** Previously the cascade was pull-only — it ran when a commissioner opened their league and skipped already-cascaded episodes, so admin re-scoring didn't propagate without a manual Re-sync. Now `ShowEpisodeDetail.saveAll` writes the episode, then force-pushes it into **every opted-in league** for the same show + season whose that-episode/week isn't `finalized`, via new module fn `pushEpisodeToLeague` (authoritative overwrite + cascade stamp, same as the commissioner Re-sync). Finalized weeks are left untouched. The Save header reports "pushed to N leagues · M finalized skipped". Required threading `leagues` from `AdminPanel` → `AdminShowsTab` → `AdminShowDetail` → `ShowWideScoringSection` → `ShowEpisodeDetail`.

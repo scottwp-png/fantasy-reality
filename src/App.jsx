@@ -12276,7 +12276,7 @@ function ShowWideScoringSection({ selectedShow, mergedRules, lockedSeason, leagu
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,gap:8,flexWrap:"wrap" }}>
         <div style={{ flex:1,minWidth:0 }}>
           <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>Show-Wide Episode Scoring</div>
-          <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>One record per episode, newest first. Tap to open and score; Save pushes it to every opted-in league right away (finalized weeks are left alone).</div>
+          <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>One record per episode, newest first. Tap to open and score. <b>Save</b> checkpoints your work; <b>Push to Leagues</b> publishes it to every opted-in league at once (finalized weeks are left alone).</div>
         </div>
         <Btn small onClick={startCreate} disabled={!seasonKey || castList.length === 0}><Icon name="plus" size={12}/> New Episode</Btn>
       </div>
@@ -12382,18 +12382,36 @@ function ShowEpisodeDetail({ selectedShow, seasonKey, episode, castList, mergedR
   function getCount(name, ruleId) { return Number(scores?.[name]?.[ruleId]) || 0; }
   function countAssigned(ruleId) { return castList.reduce((s, c) => s + (getCount(c.name, ruleId) > 0 ? 1 : 0), 0); }
 
+  // Save = checkpoint only. Persists the episode to the show-wide source so
+  // in-progress scoring survives an app close. Does NOT touch leagues — that's
+  // the explicit "Push to Leagues" action below, used once when scoring is done.
   async function saveAll() {
     setSaving(true);
     setPushInfo(null);
     try {
       await saveRootData(`showScoring/${selectedShow}/${seasonKey}/${episode}`, scores);
-      // v2.6.29.0: push this episode straight into every opted-in league for the
-      // same show + season, so scoring goes live on Save instead of waiting for
-      // each commissioner to open their league. Leagues that have FINALIZED this
-      // episode are left untouched.
+      setSavedAt(Date.now());
+    } catch (e) {
+      console.error("Episode save failed:", e);
+      alert("Save failed: " + (e?.message || "unknown error") + ". Your edits are preserved locally — try Save again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // v2.6.29.0: one-click publish. Saves the episode, then pushes it into every
+  // opted-in league for this show + season whose episode/week isn't finalized —
+  // replaces going into each league and hitting Re-sync. Finalized weeks are
+  // left alone (that's a commissioner's locked-in scoring).
+  const pushTargets = (leagues || []).filter(l => l.useShowWideScoring && l.showType === selectedShow && getShowSeasonKey(l) === seasonKey);
+  async function pushToLeagues() {
+    if (!confirm(`Push Episode ${episode} to ${pushTargets.length} league${pushTargets.length===1?"":"s"} using show-wide scoring? This overwrites their Episode ${episode} with these scores (finalized weeks are skipped).`)) return;
+    setSaving(true);
+    setPushInfo(null);
+    try {
+      await saveRootData(`showScoring/${selectedShow}/${seasonKey}/${episode}`, scores);
       let pushed = 0, skippedFinalized = 0;
-      const targets = (leagues || []).filter(l => l.useShowWideScoring && l.showType === selectedShow && getShowSeasonKey(l) === seasonKey);
-      await Promise.all(targets.map(async l => {
+      await Promise.all(pushTargets.map(async l => {
         if (l.weekStatus?.[String(episode)]?.status === "finalized") { skippedFinalized++; return; }
         const { league: updated, changed } = pushEpisodeToLeague(l, episode, scores);
         if (!changed) return;
@@ -12402,8 +12420,8 @@ function ShowEpisodeDetail({ selectedShow, seasonKey, episode, castList, mergedR
       setSavedAt(Date.now());
       setPushInfo({ pushed, skippedFinalized });
     } catch (e) {
-      console.error("Episode save failed:", e);
-      alert("Save failed: " + (e?.message || "unknown error") + ". Your edits are preserved locally — try Save again.");
+      console.error("Push to leagues failed:", e);
+      alert("Push failed: " + (e?.message || "unknown error") + ". Your edits are saved — try Push again.");
     } finally {
       setSaving(false);
     }
@@ -12432,15 +12450,16 @@ function ShowEpisodeDetail({ selectedShow, seasonKey, episode, castList, mergedR
         </div>
         {savedAt && (
           <span style={{ fontSize:11,color:"#4ecdc4",textAlign:"right",lineHeight:1.3 }}>
-            Saved
+            {pushInfo ? "Pushed" : "Saved"}
             {pushInfo && (
               <span style={{ display:"block",fontSize:10,color:"#6a6a8a" }}>
-                pushed to {pushInfo.pushed} league{pushInfo.pushed===1?"":"s"}{pushInfo.skippedFinalized>0?` · ${pushInfo.skippedFinalized} finalized skipped`:""}
+                {pushInfo.pushed} league{pushInfo.pushed===1?"":"s"} updated{pushInfo.skippedFinalized>0?` · ${pushInfo.skippedFinalized} finalized skipped`:""}
               </span>
             )}
           </span>
         )}
-        <Btn small onClick={saveAll} disabled={saving}>{saving?"Saving...":"Save"}</Btn>
+        <Btn small variant="secondary" onClick={saveAll} disabled={saving}>{saving?"…":"Save"}</Btn>
+        <Btn small onClick={pushToLeagues} disabled={saving || pushTargets.length===0} title={pushTargets.length===0?"No opted-in leagues for this show/season":`Publish to ${pushTargets.length} league(s)`}>{saving?"…":`Push to Leagues${pushTargets.length?` (${pushTargets.length})`:""}`}</Btn>
       </div>
 
       {view === "assign" && activeRule ? (
