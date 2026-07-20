@@ -29,7 +29,7 @@
 - **The dropdown always lists finale weeks**, even if the current week later moved past them — `maxWeekNum` now also considers scored weeks and finale weeks, not just `currentWeek`.
 - **While finale mode is active**, the breakdown opens on the finale week by default (instead of Season Total) so the couples show immediately.
 - `npm run build` clean.
-- **Commit:** `_pending_`
+- **Commit:** `106fd77`
 
 ### v2.6.28.1 — 2026-07-19
 **Finale mode fixes: roster lock, cross-team visibility, and activity logging.** Three gaps in v2.6.28.0's finale picker, all because it was a bespoke screen that didn't reuse the normal depth-chart plumbing.
