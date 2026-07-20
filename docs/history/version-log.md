@@ -23,6 +23,14 @@
 
 ## Version Log
 
+### v2.6.29.0 — 2026-07-19
+**Admin episode scoring pushes to leagues on Save, and the episode list is newest-first.** Two asks for the admin Show-Wide Episode Scoring UI.
+- **Push on Save.** Previously the cascade was pull-only — it ran when a commissioner opened their league and skipped already-cascaded episodes, so admin re-scoring didn't propagate without a manual Re-sync. Now `ShowEpisodeDetail.saveAll` writes the episode, then force-pushes it into **every opted-in league** for the same show + season whose that-episode/week isn't `finalized`, via new module fn `pushEpisodeToLeague` (authoritative overwrite + cascade stamp, same as the commissioner Re-sync). Finalized weeks are left untouched. The Save header reports "pushed to N leagues · M finalized skipped". Required threading `leagues` from `AdminPanel` → `AdminShowsTab` → `AdminShowDetail` → `ShowWideScoringSection` → `ShowEpisodeDetail`.
+- **Newest-first episode list.** The index `episodeList` now sorts descending (most recent episode at top) so admin isn't scrolling to the bottom of a long season each time.
+- Leagues are updated via `saveLeague` (granular per-league write); the admin's in-memory list isn't mutated — each commissioner's live `subscribeLeague` picks up the change, and finalized weeks are protected.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean.
+- **Commit:** `_pending_`
+
 ### v2.6.28.4 — 2026-07-19
 **Finale rosters show by default in season-view Standings.** The season (headline) roster breakdown reads `team.depthChart` for the "current" lineup, but the finale picker writes couples to `weeklyDepthCharts[currentWeek]` and leaves `depthChart` as the stale regular-season chart — so the default Standings view kept showing each team's old depth chart instead of their finale couples. `getTeamRosterForWeek` now uses the current week's chart when it's `mode:"couples"` for the season view, so finale rosters appear automatically (no dropdown hunt), exactly like the live depth chart showed week-to-week during the regular season. Teams that haven't picked yet fall back to their depth chart as before. Season-long leaderboard rankings are unchanged.
 - `npm run build` clean.

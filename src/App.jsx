@@ -454,6 +454,41 @@ function cascadeShowWideToLeague(league, showScoringData) {
   };
 }
 
+// v2.6.29.0: admin-authoritative push of a single episode's show-wide scoring
+// into a league, overwriting that episode's scores from admin's source — UNLESS
+// the league has finalized that episode/week. This is the *push* counterpart to
+// cascadeShowWideToLeague's one-time *pull*: when admin clicks Save on an
+// episode, we call this for every opted-in league (matched on show + season by
+// the caller) so scoring goes live immediately instead of waiting for each
+// commissioner to open their league. Rebuilds the episode from the source (same
+// authoritative overwrite the commissioner Re-sync button does), then stamps the
+// cascade marker. Returns { league, changed }.
+function pushEpisodeToLeague(league, episode, perContestant) {
+  if (!league?.useShowWideScoring) return { league, changed: false };
+  const ep = String(episode);
+  if (league.weekStatus?.[ep]?.status === "finalized") return { league, changed: false };
+  const rulesById = Object.fromEntries((league.scoringRules || []).map(r => [r.id, r]));
+  const findContestant = (name) => {
+    const norm = String(name || "").toLowerCase().trim();
+    return (league.contestants || []).find(c => String(c.name || "").toLowerCase().trim() === norm);
+  };
+  const epScores = {};
+  Object.entries(perContestant || {}).forEach(([cName, rules]) => {
+    const c = findContestant(cName);
+    if (!c || !rules) return;
+    const cScores = {};
+    Object.entries(rules).forEach(([ruleId, count]) => {
+      const r = rulesById[ruleId];
+      if (!r) return;
+      cScores[ruleId] = Number(count) * Number(r.points || 0);
+    });
+    if (Object.keys(cScores).length) epScores[c.id] = cScores;
+  });
+  const nextWeekly = { ...(league.weeklyScores || {}), [ep]: epScores };
+  const nextCascaded = { ...(league.cascadedEpisodes || {}), [ep]: Date.now() };
+  return { league: { ...league, weeklyScores: nextWeekly, cascadedEpisodes: nextCascaded }, changed: true };
+}
+
 // Re-sync helper: forget an episode's cascade marker so the next cascade
 // pass overwrites that episode's scores back to the show-wide source.
 // Destructive — any commissioner edits to the episode are lost. Called from
@@ -11134,7 +11169,7 @@ function FAQPage({ onBack }) {
 // v2.6.12.0: Index view — list of (showType, seasonNumber) "show records" as
 // cards, with a "+ New Show" affordance. Drilling into a card opens the detail
 // view (the management UI for that record). Operates like My Leagues.
-function AdminShowsTab() {
+function AdminShowsTab({ leagues }) {
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [records, setRecords] = useState([]);
   const [recordsLoaded, setRecordsLoaded] = useState(false);
@@ -11171,7 +11206,7 @@ function AdminShowsTab() {
   }, []);
 
   if (selectedRecord) {
-    return <AdminShowDetail record={selectedRecord} onBack={() => setSelectedRecord(null)} />;
+    return <AdminShowDetail record={selectedRecord} leagues={leagues} onBack={() => setSelectedRecord(null)} />;
   }
 
   function startCreate() {
@@ -11263,7 +11298,7 @@ function AdminShowsTab() {
 // that show), the season-scoped cast editor, and the season-scoped show-wide
 // episode scoring editor. Was previously the body of AdminShowsTab in
 // v2.6.0.0→v2.6.11.0; now a child component invoked from the index.
-function AdminShowDetail({ record, onBack }) {
+function AdminShowDetail({ record, leagues, onBack }) {
   const selectedShow = record.showType;
   const lockedSeason = record.seasonNumber;
   // v2.6.19.0: library is now a full map of rule objects. Each entry has its
@@ -11774,7 +11809,7 @@ function AdminShowDetail({ record, onBack }) {
       )}
 
       <ShowCastSection selectedShow={selectedShow} lockedSeason={lockedSeason} />
-      <ShowWideScoringSection selectedShow={selectedShow} mergedRules={mergedRules} lockedSeason={lockedSeason} />
+      <ShowWideScoringSection selectedShow={selectedShow} mergedRules={mergedRules} lockedSeason={lockedSeason} leagues={leagues} />
     </div>
   );
 }
@@ -12131,7 +12166,7 @@ function ShowCastSection({ selectedShow, lockedSeason }) {
 // is case-insensitive trim — if league contestant names diverge from what
 // admin types here, they won't match; the commissioner can rename their
 // league's contestants to align.
-function ShowWideScoringSection({ selectedShow, mergedRules, lockedSeason }) {
+function ShowWideScoringSection({ selectedShow, mergedRules, lockedSeason, leagues }) {
   // v2.6.20.0: index/detail structure like My Leagues + Show Records. Outer
   // view lists every episode that exists in showScoring/<show>/<season> as a
   // card; tapping a card opens the per-episode scoring view (rule-first
@@ -12181,9 +12216,10 @@ function ShowWideScoringSection({ selectedShow, mergedRules, lockedSeason }) {
   }
 
   const episodeList = useMemo(() => {
+    // v2.6.29.0: most-recent episode first so admin isn't scrolling a long list.
     return Object.keys(episodesMap || {})
       .map(epNum => ({ episode: epNum, data: episodesMap[epNum] }))
-      .sort((a, b) => Number(a.episode) - Number(b.episode));
+      .sort((a, b) => Number(b.episode) - Number(a.episode));
   }, [episodesMap]);
 
   function openEpisode(epNum) {
@@ -12226,6 +12262,7 @@ function ShowWideScoringSection({ selectedShow, mergedRules, lockedSeason }) {
         episode={selectedEpisode}
         castList={castList}
         mergedRules={mergedRules}
+        leagues={leagues}
         initialScores={episodesMap[selectedEpisode] || {}}
         onBack={() => setSelectedEpisode(null)}
         onScoresChanged={next => patchEpisodeScores(selectedEpisode, next)}
@@ -12239,7 +12276,7 @@ function ShowWideScoringSection({ selectedShow, mergedRules, lockedSeason }) {
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,gap:8,flexWrap:"wrap" }}>
         <div style={{ flex:1,minWidth:0 }}>
           <div style={{ fontSize:14,fontWeight:700,color:"#e8e8f0" }}>Show-Wide Episode Scoring</div>
-          <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>One record per episode. Tap to open and score; opted-in leagues consume at render time.</div>
+          <div style={{ fontSize:11,color:"#6a6a8a",marginTop:2 }}>One record per episode, newest first. Tap to open and score; Save pushes it to every opted-in league right away (finalized weeks are left alone).</div>
         </div>
         <Btn small onClick={startCreate} disabled={!seasonKey || castList.length === 0}><Icon name="plus" size={12}/> New Episode</Btn>
       </div>
@@ -12317,10 +12354,11 @@ function ShowWideScoringSection({ selectedShow, mergedRules, lockedSeason }) {
 // the in-league ScoringTab, scoped to one (show, season, episode). Pure UI —
 // state is hoisted from ShowWideScoringSection's episodesMap and persisted
 // directly to RTDB on Save.
-function ShowEpisodeDetail({ selectedShow, seasonKey, episode, castList, mergedRules, initialScores, onBack, onScoresChanged }) {
+function ShowEpisodeDetail({ selectedShow, seasonKey, episode, castList, mergedRules, leagues, initialScores, onBack, onScoresChanged }) {
   const [scores, setScores] = useState(initialScores || {});
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
+  const [pushInfo, setPushInfo] = useState(null); // { pushed, skippedFinalized } after a save
   const [view, setView] = useState("events"); // "events" | "assign"
   const [selectedRuleId, setSelectedRuleId] = useState(null);
 
@@ -12339,15 +12377,30 @@ function ShowEpisodeDetail({ selectedShow, seasonKey, episode, castList, mergedR
       return next;
     });
     setSavedAt(null);
+    setPushInfo(null);
   }
   function getCount(name, ruleId) { return Number(scores?.[name]?.[ruleId]) || 0; }
   function countAssigned(ruleId) { return castList.reduce((s, c) => s + (getCount(c.name, ruleId) > 0 ? 1 : 0), 0); }
 
   async function saveAll() {
     setSaving(true);
+    setPushInfo(null);
     try {
       await saveRootData(`showScoring/${selectedShow}/${seasonKey}/${episode}`, scores);
+      // v2.6.29.0: push this episode straight into every opted-in league for the
+      // same show + season, so scoring goes live on Save instead of waiting for
+      // each commissioner to open their league. Leagues that have FINALIZED this
+      // episode are left untouched.
+      let pushed = 0, skippedFinalized = 0;
+      const targets = (leagues || []).filter(l => l.useShowWideScoring && l.showType === selectedShow && getShowSeasonKey(l) === seasonKey);
+      await Promise.all(targets.map(async l => {
+        if (l.weekStatus?.[String(episode)]?.status === "finalized") { skippedFinalized++; return; }
+        const { league: updated, changed } = pushEpisodeToLeague(l, episode, scores);
+        if (!changed) return;
+        try { await saveLeague(updated); pushed++; } catch (err) { console.error("Push to league failed:", l.id, err); }
+      }));
       setSavedAt(Date.now());
+      setPushInfo({ pushed, skippedFinalized });
     } catch (e) {
       console.error("Episode save failed:", e);
       alert("Save failed: " + (e?.message || "unknown error") + ". Your edits are preserved locally — try Save again.");
@@ -12377,7 +12430,16 @@ function ShowEpisodeDetail({ selectedShow, seasonKey, episode, castList, mergedR
           <div style={{ fontSize:11,color:"#6a6a8a",fontWeight:600,letterSpacing:"0.05em",textTransform:"uppercase" }}>Episode Scoring</div>
           <div style={{ fontSize:16,fontWeight:800,color:"#e8e8f0",fontFamily:"'Anybody',sans-serif",letterSpacing:"-0.01em" }}>Episode {episode}</div>
         </div>
-        {savedAt && <span style={{ fontSize:11,color:"#4ecdc4" }}>Saved</span>}
+        {savedAt && (
+          <span style={{ fontSize:11,color:"#4ecdc4",textAlign:"right",lineHeight:1.3 }}>
+            Saved
+            {pushInfo && (
+              <span style={{ display:"block",fontSize:10,color:"#6a6a8a" }}>
+                pushed to {pushInfo.pushed} league{pushInfo.pushed===1?"":"s"}{pushInfo.skippedFinalized>0?` · ${pushInfo.skippedFinalized} finalized skipped`:""}
+              </span>
+            )}
+          </span>
+        )}
         <Btn small onClick={saveAll} disabled={saving}>{saving?"Saving...":"Save"}</Btn>
       </div>
 
@@ -12853,7 +12915,7 @@ function AdminPanel({ leagues, onBack, onUpdate, featureFlags, setFeatureFlags }
           merge in scoring.js ship in a follow-up). The episode scoring UI
           is a clear "coming soon" placeholder so commissioners and the admin
           can see what's planned. */}
-      {tab==="shows" && <AdminShowsTab />}
+      {tab==="shows" && <AdminShowsTab leagues={leagues} />}
 
       {/* Audit Log Tab */}
       {tab==="audit" && (
