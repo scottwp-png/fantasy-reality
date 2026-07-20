@@ -2287,9 +2287,11 @@ function StandingsTab({ league, standings, onUpdate, isCommissioner, myTeamId })
   // v2.6.23.5: default the standings breakdown period to season total —
   // it's the headline number for the season-long story. Per-week view stays
   // available via the dropdown for drilling into a specific episode.
-  // v2.6.28.2: during the finale, open the breakdown on the finale week so the
-  // couple picks are visible immediately; otherwise default to season total.
-  const [viewWeek, setViewWeek] = useState(league.finaleActive ? String(league.currentWeek||1) : "season");
+  // v2.6.23.5: default the standings breakdown period to season total — it's
+  // the headline year-long number. Per-week (incl. the finale week) stays
+  // available via the dropdown. (v2.6.28.2 briefly auto-opened on the finale
+  // week; reverted in v2.6.28.3 — that hid the season-long standings.)
+  const [viewWeek, setViewWeek] = useState("season");
 
   // v2.6.25.3: re-rank by the selected breakdown period. Season → use the
   // standings as-passed (calcStandings already ranked by season total).

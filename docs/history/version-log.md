@@ -23,6 +23,11 @@
 
 ## Version Log
 
+### v2.6.28.3 — 2026-07-19
+**Revert the finale-week auto-default in Standings.** v2.6.28.2 opened the Standings breakdown on the finale week while finale mode was active — but that made the whole leaderboard show only that single episode's points instead of the season-long standings the page is supposed to headline. The breakdown period now defaults back to Season Total; the finale week stays reachable (and `· Finale ♥`-labeled) via the dropdown, where selecting it renders each team's couple roster (v2.6.28.1). Roster display was the only thing that needed to change — the ranking period should not have.
+- `npm run build` clean.
+- **Commit:** `_pending_`
+
 ### v2.6.28.2 — 2026-07-19
 **Finale week is now findable in the Standings breakdown.** After v2.6.28.1 made `getTeamRosterForWeek` understand couples, the finale week was technically selectable but indistinguishable — it appeared in the "Roster Breakdown Period" dropdown as an ordinary episode label, and the breakdown defaulted to Season Total, so managers couldn't tell which week held the couple picks.
 - **Finale weeks are labeled** `… · Finale ♥` in the breakdown dropdown, detected by scanning every team's `weeklyDepthCharts` for a `mode:"couples"` chart (robust whether or not `finaleActive` is still on).
