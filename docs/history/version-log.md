@@ -29,7 +29,7 @@
 - **Push to Leagues** is a separate button (labeled with the opted-in league count) that publishes the episode to every matching, non-finalized league at once — replacing the per-league Re-sync trip — behind a confirm. Still uses `pushEpisodeToLeague` + `saveLeague`; finalized weeks are skipped.
 - Newest-first episode list from v2.6.29.0 retained.
 - `npm run build` clean.
-- **Commit:** `_pending_`
+- **Commit:** `a987065`
 
 ### v2.6.29.0 — 2026-07-19
 **Admin episode scoring pushes to leagues on Save, and the episode list is newest-first.** Two asks for the admin Show-Wide Episode Scoring UI.
