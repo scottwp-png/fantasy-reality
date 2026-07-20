@@ -23,6 +23,14 @@
 
 ## Version Log
 
+### v2.6.28.1 — 2026-07-19
+**Finale mode fixes: roster lock, cross-team visibility, and activity logging.** Three gaps in v2.6.28.0's finale picker, all because it was a bespoke screen that didn't reuse the normal depth-chart plumbing.
+- **Roster lock now applies.** `FinaleCouplePickerScreen` honors `isRosterLocked(league)` — managers can't change finale picks once rosters lock (commissioners still can), with the same 🔒 banner the depth chart shows. Was: `readOnly` only checked `lockedToTeamId`, so lock was silently ignored.
+- **Other managers' finale couples are visible in Standings.** `getTeamRosterForWeek` returned an empty array for `mode:"couples"` charts (it only read `captain`/`coCaptain`/`regulars`), so expanded team rows showed nothing for the finale week. Now it expands each ranked couple's two members with the couple's multiplier (×2 / ×1.5 / ×1.25 / ×1), and `MultiplierBadge` renders a `♥ N×` badge for them.
+- **Finale picks hit the activity feed.** The picker's `save()` now `appendAudit`s like the depth-chart save — actor, a per-slot couple summary, the commissioner-editing-another-team flag, and a "while rosters were LOCKED" marker. Required threading `userProfile` into the picker (it wasn't passed).
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean.
+- **Commit:** `_pending_`
+
 ### v2.6.28.0 — 2026-07-19
 **Finale mode → 4 ranked couples + projected couples, and paired scoring events (First Kiss / "I Love You").** Two independent Love Island features shipped together.
 

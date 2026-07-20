@@ -1256,9 +1256,11 @@ function ContestantAvatar({ contestant, league, size=32 }) {
   );
 }
 
-function MultiplierBadge({ role }) {
+function MultiplierBadge({ role, multiplier }) {
   if (role === "captain") return <span style={{ fontSize:10,fontWeight:800,color:"#f5a623",background:"#f5a62322",padding:"1px 6px",borderRadius:4,marginLeft:6 }}>Hero 2×</span>;
   if (role === "coCaptain") return <span style={{ fontSize:10,fontWeight:800,color:"#4ecdc4",background:"#4ecdc422",padding:"1px 6px",borderRadius:4,marginLeft:6 }}>SK 1.5×</span>;
+  // v2.6.28.0: finale couple member — badge shows the couple's rank multiplier.
+  if (role === "couple") return <span style={{ fontSize:10,fontWeight:800,color:"#e94560",background:"#e9456022",padding:"1px 6px",borderRadius:4,marginLeft:6 }}>♥ {multiplier}×</span>;
   return null;
 }
 
@@ -2311,6 +2313,21 @@ function StandingsTab({ league, standings, onUpdate, isCommissioner, myTeamId })
       const dc = (weekNum === "season")
         ? (team.depthChart || {})
         : (team.weeklyDepthCharts?.[weekNum] || team.depthChart || {});
+      // v2.6.28.0: finale couples mode — ranked couples replace the depth chart.
+      // Expand each couple's two members with its rank multiplier so the team's
+      // finale composition is visible in Standings like any other week.
+      if (dc.mode === "couples") {
+        const MULT = [2, 1.5, 1.25, 1];
+        const ranked = dc.couples || [dc.heroCouple, dc.sidekickCouple].filter(Boolean);
+        const cparts = [];
+        ranked.forEach((members, i) => {
+          (members || []).forEach(mid => {
+            const c = (league.contestants||[]).find(x=>x.id===mid);
+            if (c) cparts.push({ ...c, role:"couple", multiplier: MULT[i] ?? 1 });
+          });
+        });
+        return cparts;
+      }
       const parts = [];
       if (dc.captain) { const c = (league.contestants||[]).find(x=>x.id===dc.captain); if(c) parts.push({ ...c, role:"captain", multiplier:2 }); }
       if (dc.coCaptain) { const c = (league.contestants||[]).find(x=>x.id===dc.coCaptain); if(c) parts.push({ ...c, role:"coCaptain", multiplier:1.5 }); }
@@ -2512,7 +2529,7 @@ function StandingsTab({ league, standings, onUpdate, isCommissioner, myTeamId })
                               <div style={{ flex:1 }}>
                                 <div style={{ display:"flex",alignItems:"center",gap:6,flexWrap:"wrap" }}>
                                   <span onClick={()=>openContestant(c.id)} title="View contestant profile" style={{ color:"#e8e8f0",fontSize:14,fontWeight:600,cursor:"pointer",textDecoration:"underline",textDecorationColor:"#2a2a4a",textUnderlineOffset:3 }}>{c.name}</span>
-                                  <MultiplierBadge role={c.role}/>
+                                  <MultiplierBadge role={c.role} multiplier={c.multiplier}/>
                                   {c.status==="eliminated" && <span style={{ color:"#e94560",fontSize:9 }}>ELIM</span>}
                                   {!isMerged && c.tribe && <span style={{ fontSize:9,fontWeight:600,padding:"1px 5px",borderRadius:3,background:tribeColor+"22",color:tribeColor }}>{c.tribe}</span>}
                                 </div>
@@ -5445,7 +5462,7 @@ const FINALE_COUPLE_SLOTS = [
 ];
 const FINALE_COUPLE_COUNT = FINALE_COUPLE_SLOTS.length;
 
-function FinaleCouplePickerScreen({ league, onUpdate, lockedToTeamId, defaultTeamId, isCommissioner, myTeamId }) {
+function FinaleCouplePickerScreen({ league, onUpdate, lockedToTeamId, defaultTeamId, isCommissioner, myTeamId, userProfile }) {
   const [selectedTeam, setSelectedTeam] = useState(lockedToTeamId || defaultTeamId || myTeamId || (league.teams||[])[0]?.id || "");
   const team = (league.teams||[]).find(t => t.id === selectedTeam);
   // Finale couple-pick targets the current week — the commissioner flips finaleActive
@@ -5472,7 +5489,10 @@ function FinaleCouplePickerScreen({ league, onUpdate, lockedToTeamId, defaultTea
   const allFilled = picks.every(Boolean);
   const allDistinct = new Set(picks.filter(Boolean)).size === picks.filter(Boolean).length;
   const canSave = allFilled && allDistinct && dirty;
-  const readOnly = !!lockedToTeamId && lockedToTeamId !== myTeamId;
+  // v2.6.28.0: honor the roster lock like the normal depth chart — managers
+  // can't change finale picks once rosters lock; commissioners still can.
+  const rosterLocked = isRosterLocked(league);
+  const readOnly = (!!lockedToTeamId && lockedToTeamId !== myTeamId) || (rosterLocked && !isCommissioner);
 
   function setPick(i, id) { setPicks(prev => prev.map((p, idx) => idx === i ? id : p)); }
 
@@ -5481,13 +5501,25 @@ function FinaleCouplePickerScreen({ league, onUpdate, lockedToTeamId, defaultTea
     const chosen = picks.map(id => couples.find(c => c.id === id));
     if (chosen.some(c => !c)) return;
     const newChart = { mode: "couples", couples: chosen.map(c => c.members || []) };
-    onUpdate({
-      ...league,
-      teams: league.teams.map(t => t.id === team.id ? {
-        ...t,
-        weeklyDepthCharts: { ...(t.weeklyDepthCharts||{}), [String(finaleWeek)]: newChart },
-      } : t),
+    const nextTeams = league.teams.map(t => t.id === team.id ? {
+      ...t,
+      weeklyDepthCharts: { ...(t.weeklyDepthCharts||{}), [String(finaleWeek)]: newChart },
+    } : t);
+    // v2.6.28.0: log to the activity feed, mirroring the depth-chart save so
+    // finale picks are visible to all members (and flagged if a commissioner
+    // edits someone else's team, or anyone edits while rosters are locked).
+    const isOwnTeam = team.id === myTeamId;
+    const actorName = userProfile?.displayName || (isCommissioner ? "Commissioner" : "Manager");
+    const target = isCommissioner && !isOwnTeam ? `${team.name || "a team"}'s finale couples` : `${team.name || "their"} finale couples`;
+    const lockedSuffix = rosterLocked ? " — while rosters were LOCKED" : "";
+    const summary = chosen.map((c, i) => `${FINALE_COUPLE_SLOTS[i].label} ${renderCoupleLabel(c)}`).join(", ");
+    const audited = appendAudit(league, {
+      type: rosterLocked ? "roster-locked" : "roster",
+      actorName,
+      desc: `${actorName} set ${target}${lockedSuffix} (${summary})`,
+      meta: { teamId: team.id, week: finaleWeek, byCommissioner: !!isCommissioner && !isOwnTeam, wasLocked: rosterLocked, finale: true },
     });
+    onUpdate({ ...audited, teams: nextTeams });
   }
 
   function renderCoupleLabel(c) {
@@ -5508,6 +5540,19 @@ function FinaleCouplePickerScreen({ league, onUpdate, lockedToTeamId, defaultTea
       <div style={{ padding:"12px 14px",background:"#e9456011",borderRadius:10,border:"1px solid #e9456033",marginBottom:14,fontSize:12,color:"#e94560",lineHeight:1.5 }}>
         ♥ Finale week — rank 4 couples from most to least confident (both members score ×2 / ×1.5 / ×1.25 / ×1). The depth chart is paused for this {cadenceWord(league).toLowerCase()} only.
       </div>
+
+      {rosterLocked && !isCommissioner && (
+        <div style={{ padding:"10px 14px",background:"#e9456011",borderRadius:8,border:"1px solid #e9456033",marginBottom:14,display:"flex",alignItems:"center",gap:8 }}>
+          <span style={{ fontSize:16 }}>🔒</span>
+          <div style={{ fontSize:12,color:"#e94560",lineHeight:1.4 }}>Rosters are locked. Your finale picks can't be changed until the commissioner unlocks them.</div>
+        </div>
+      )}
+      {rosterLocked && isCommissioner && (
+        <div style={{ padding:"10px 14px",background:"#f5a62311",borderRadius:8,border:"1px solid #f5a62333",marginBottom:14,display:"flex",alignItems:"center",gap:8 }}>
+          <span style={{ fontSize:16 }}>🔒</span>
+          <div style={{ flex:1,fontSize:12,color:"#f5a623",lineHeight:1.4 }}>Rosters are locked for managers. You can still edit finale picks as commissioner.</div>
+        </div>
+      )}
 
       {(league.teams||[]).length > 1 && !lockedToTeamId && (
         <Select label="Team" value={selectedTeam} onChange={e=>setSelectedTeam(e.target.value)} options={(league.teams||[]).map(t => ({ value: t.id, label: `${t.name} (${t.owner})` }))} />
@@ -6359,6 +6404,7 @@ function DepthChartTab({ league, onUpdate, lockedToTeamId, defaultTeamId, isComm
       defaultTeamId={defaultTeamId}
       isCommissioner={isCommissioner}
       myTeamId={myTeamId}
+      userProfile={userProfile}
     />;
   }
   const [selectedTeam, setSelectedTeam] = useState(lockedToTeamId || defaultTeamId || (league.teams||[])[0]?.id || "");
