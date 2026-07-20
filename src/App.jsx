@@ -2320,8 +2320,13 @@ function StandingsTab({ league, standings, onUpdate, isCommissioner, myTeamId })
 
   function getTeamRosterForWeek(team, weekNum) {
     if (league.format === "captains") {
+      // v2.6.28.4: the season/headline view shows the team's CURRENT roster —
+      // during the finale that's the couples pick saved at the current week (the
+      // finale picker writes there, not to team.depthChart), so the finale roster
+      // shows by default just like the live depth chart did week-to-week.
+      const currentChart = team.weeklyDepthCharts?.[String(league.currentWeek)];
       const dc = (weekNum === "season")
-        ? (team.depthChart || {})
+        ? (currentChart?.mode === "couples" ? currentChart : (team.depthChart || {}))
         : (team.weeklyDepthCharts?.[weekNum] || team.depthChart || {});
       // v2.6.28.0: finale couples mode — ranked couples replace the depth chart.
       // Expand each couple's two members with its rank multiplier so the team's
