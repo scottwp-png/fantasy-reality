@@ -29,7 +29,7 @@
 - **Newest-first episode list.** The index `episodeList` now sorts descending (most recent episode at top) so admin isn't scrolling to the bottom of a long season each time.
 - Leagues are updated via `saveLeague` (granular per-league write); the admin's in-memory list isn't mutated — each commissioner's live `subscribeLeague` picks up the change, and finalized weeks are protected.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean.
-- **Commit:** `_pending_`
+- **Commit:** `c85210f`
 
 ### v2.6.28.4 — 2026-07-19
 **Finale rosters show by default in season-view Standings.** The season (headline) roster breakdown reads `team.depthChart` for the "current" lineup, but the finale picker writes couples to `weeklyDepthCharts[currentWeek]` and leaves `depthChart` as the stale regular-season chart — so the default Standings view kept showing each team's old depth chart instead of their finale couples. `getTeamRosterForWeek` now uses the current week's chart when it's `mode:"couples"` for the season view, so finale rosters appear automatically (no dropdown hunt), exactly like the live depth chart showed week-to-week during the regular season. Teams that haven't picked yet fall back to their depth chart as before. Season-long leaderboard rankings are unchanged.
