@@ -29,7 +29,7 @@
 - **`FinaleCouplePickerScreen`** now separates the *saved baseline* (this episode's chart) from a *seed* that pre-fills from the team's latest couples chart (`latestFinaleCoupleChart`). Advancing into a new finale episode shows the carried-forward picks pre-filled with a "carried forward — Save to apply" hint; Discard reverts to the seed. This also recovers leagues that advanced before this fix — the picker re-shows the prior episode's picks to re-save.
 - Banner copy updated: picks carry forward each finale episode; turn Finale Mode off when the run is over.
 - `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean.
-- **Commit:** `_pending_`
+- **Commit:** `58727ba`
 
 ### v2.6.29.2 — 2026-07-20
 **Finale rosters no longer revert when the week advances.** v2.6.28.4 made the season-view Standings roster show finale couples only when the couples chart sat at `league.currentWeek`. Advancing past the finale (e.g. episode 42 → 43) moved `currentWeek` off it, so the display fell back to the old depth chart even though week 42's couple points still counted. `getTeamRosterForWeek` now uses the team's **latest** `mode:"couples"` chart for the season view — wherever it sits — so once finale picks exist they persist in the display; teams/leagues without finale picks still fall back to the depth chart. Display-only; scoring was always correct.
