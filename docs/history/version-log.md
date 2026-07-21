@@ -23,6 +23,11 @@
 
 ## Version Log
 
+### v2.6.29.2 — 2026-07-20
+**Finale rosters no longer revert when the week advances.** v2.6.28.4 made the season-view Standings roster show finale couples only when the couples chart sat at `league.currentWeek`. Advancing past the finale (e.g. episode 42 → 43) moved `currentWeek` off it, so the display fell back to the old depth chart even though week 42's couple points still counted. `getTeamRosterForWeek` now uses the team's **latest** `mode:"couples"` chart for the season view — wherever it sits — so once finale picks exist they persist in the display; teams/leagues without finale picks still fall back to the depth chart. Display-only; scoring was always correct.
+- `node _snapshots/diff-against-baseline.mjs` → 10/10 PASS. `npm run build` clean.
+- **Commit:** `_pending_`
+
 ### v2.6.29.1 — 2026-07-19
 **Split admin episode scoring into Save (checkpoint) + Push to Leagues (publish).** v2.6.29.0 pushed to leagues on every Save, which conflated "don't lose my work" with "publish," and re-clobbered any commissioner edits on each intermediate save. Reworked per intent:
 - **Save** now only checkpoints the episode to the show-wide source (`showScoring/…`) so in-progress scoring survives an app close — it no longer touches leagues.

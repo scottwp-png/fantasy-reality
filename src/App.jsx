@@ -2355,13 +2355,18 @@ function StandingsTab({ league, standings, onUpdate, isCommissioner, myTeamId })
 
   function getTeamRosterForWeek(team, weekNum) {
     if (league.format === "captains") {
-      // v2.6.28.4: the season/headline view shows the team's CURRENT roster —
-      // during the finale that's the couples pick saved at the current week (the
-      // finale picker writes there, not to team.depthChart), so the finale roster
-      // shows by default just like the live depth chart did week-to-week.
-      const currentChart = team.weeklyDepthCharts?.[String(league.currentWeek)];
+      // v2.6.29.2: the season/headline view shows the team's finale couple picks
+      // once they exist — the finale is the season's end-state roster. Use the
+      // LATEST couples chart the team has (not just the current week's), so
+      // advancing the week past the finale doesn't revert the display to the old
+      // depth chart. Falls back to the depth chart for teams/leagues with no
+      // finale picks. (v2.6.28.4 keyed this off currentWeek and broke on advance.)
+      let finaleChart = null, finaleWk = -Infinity;
+      Object.entries(team.weeklyDepthCharts || {}).forEach(([wk, chart]) => {
+        if (chart?.mode === "couples" && Number(wk) > finaleWk) { finaleWk = Number(wk); finaleChart = chart; }
+      });
       const dc = (weekNum === "season")
-        ? (currentChart?.mode === "couples" ? currentChart : (team.depthChart || {}))
+        ? (finaleChart || team.depthChart || {})
         : (team.weeklyDepthCharts?.[weekNum] || team.depthChart || {});
       // v2.6.28.0: finale couples mode — ranked couples replace the depth chart.
       // Expand each couple's two members with its rank multiplier so the team's
