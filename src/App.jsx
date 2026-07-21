@@ -4018,10 +4018,16 @@ function ScoringTab({ league, onUpdate, isCommissioner = true, userProfile }) {
     const nextWeek = (league.currentWeek||1) + 1;
     let updatedTeams = league.teams;
     if (league.format === "captains") {
-      updatedTeams = league.teams.map(t => ({
-        ...t,
-        weeklyDepthCharts: { ...(t.weeklyDepthCharts||{}), [nextWeek]: { ...(t.depthChart||{}) } },
-      }));
+      updatedTeams = league.teams.map(t => {
+        // v2.6.29.3: during the finale (a SET of episodes under per-episode
+        // scoring), carry the team's couple picks forward so they apply to every
+        // finale episode — instead of resetting to the regular depth chart.
+        const curChart = t.weeklyDepthCharts?.[currentWk];
+        const carry = (league.finaleActive && curChart?.mode === "couples")
+          ? { ...curChart }
+          : { ...(t.depthChart||{}) };
+        return { ...t, weeklyDepthCharts: { ...(t.weeklyDepthCharts||{}), [nextWeek]: carry } };
+      });
     }
 
     // Auto-eliminate: check if any contestant was scored with an "eliminated" rule this week
@@ -5517,6 +5523,19 @@ const FINALE_COUPLE_SLOTS = [
 ];
 const FINALE_COUPLE_COUNT = FINALE_COUPLE_SLOTS.length;
 
+// v2.6.29.3: a team's most recent finale couples chart, across all weeks. Under
+// per-episode scoring the finale spans a SET of episodes; couple picks carry
+// forward from episode to episode (see advanceWeek), and this finds the latest
+// one to pre-fill the picker / show in Standings when a newer finale episode
+// doesn't have its own saved pick yet.
+function latestFinaleCoupleChart(team) {
+  let chart = null, wk = -Infinity;
+  Object.entries(team?.weeklyDepthCharts || {}).forEach(([w, c]) => {
+    if (c?.mode === "couples" && Number(w) > wk) { wk = Number(w); chart = c; }
+  });
+  return chart;
+}
+
 function FinaleCouplePickerScreen({ league, onUpdate, lockedToTeamId, defaultTeamId, isCommissioner, myTeamId, userProfile }) {
   const [selectedTeam, setSelectedTeam] = useState(lockedToTeamId || defaultTeamId || myTeamId || (league.teams||[])[0]?.id || "");
   const team = (league.teams||[]).find(t => t.id === selectedTeam);
@@ -5527,18 +5546,29 @@ function FinaleCouplePickerScreen({ league, onUpdate, lockedToTeamId, defaultTea
   const contestants = league.contestants || [];
   const byId = Object.fromEntries(contestants.map(c => [c.id, c]));
 
-  const savedChart = team?.weeklyDepthCharts?.[String(finaleWeek)];
-  // Ranked member-arrays saved for this team, new shape first then legacy.
-  const savedCouples = savedChart?.mode === "couples"
-    ? (savedChart.couples || [savedChart.heroCouple, savedChart.sidekickCouple].filter(Boolean))
-    : [];
-  const savedPickIds = savedCouples.map(members => couples.find(c => arraysEqualUnordered(c.members, members))?.id || "");
   const padPicks = (ids) => { const p = (ids || []).slice(0, FINALE_COUPLE_COUNT); while (p.length < FINALE_COUPLE_COUNT) p.push(""); return p; };
+  const coupleIdsFromChart = (chart) => {
+    const cs = chart?.mode === "couples"
+      ? (chart.couples || [chart.heroCouple, chart.sidekickCouple].filter(Boolean))
+      : [];
+    return cs.map(members => couples.find(c => arraysEqualUnordered(c.members, members))?.id || "");
+  };
+
+  // Baseline = what's actually saved for THIS finale episode (may be empty if we
+  // just advanced into a new finale episode before picks were saved).
+  const savedChart = team?.weeklyDepthCharts?.[String(finaleWeek)];
+  const savedPickIds = coupleIdsFromChart(savedChart);
   const savedKey = padPicks(savedPickIds).join(",");
 
-  const [picks, setPicks] = useState(padPicks(savedPickIds));
+  // v2.6.29.3: seed = what to pre-fill. If this episode has no couple pick yet,
+  // carry the team's latest finale pick forward so it's pre-filled and the
+  // commissioner just Saves to apply it to this finale episode too.
+  const seedPickIds = savedChart?.mode === "couples" ? savedPickIds : coupleIdsFromChart(latestFinaleCoupleChart(team));
+  const seedKey = padPicks(seedPickIds).join(",");
 
-  useEffect(() => { setPicks(padPicks(savedPickIds)); }, [selectedTeam, savedKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [picks, setPicks] = useState(padPicks(seedPickIds));
+
+  useEffect(() => { setPicks(padPicks(seedPickIds)); }, [selectedTeam, seedKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const dirty = picks.join(",") !== savedKey;
   const allFilled = picks.every(Boolean);
@@ -5593,8 +5623,14 @@ function FinaleCouplePickerScreen({ league, onUpdate, lockedToTeamId, defaultTea
       </div>
 
       <div style={{ padding:"12px 14px",background:"#e9456011",borderRadius:10,border:"1px solid #e9456033",marginBottom:14,fontSize:12,color:"#e94560",lineHeight:1.5 }}>
-        ♥ Finale week — rank 4 couples from most to least confident (both members score ×2 / ×1.5 / ×1.25 / ×1). The depth chart is paused for this {cadenceWord(league).toLowerCase()} only.
+        ♥ Finale — rank 4 couples from most to least confident (both members score ×2 / ×1.5 / ×1.25 / ×1). Picks carry forward to each finale {cadenceWord(league).toLowerCase()} as you advance; turn Finale Mode off when the finale run is over.
       </div>
+
+      {team && savedChart?.mode !== "couples" && seedPickIds.some(Boolean) && !readOnly && (
+        <div style={{ padding:"10px 14px",background:"#f5a62311",borderRadius:8,border:"1px solid #f5a62333",marginBottom:14,fontSize:12,color:"#f5a623",lineHeight:1.4 }}>
+          Carried forward from the previous finale {cadenceWord(league).toLowerCase()}. Hit <b>Save Picks</b> to apply them to {cadenceWord(league)} {finaleWeek}.
+        </div>
+      )}
 
       {rosterLocked && !isCommissioner && (
         <div style={{ padding:"10px 14px",background:"#e9456011",borderRadius:8,border:"1px solid #e9456033",marginBottom:14,display:"flex",alignItems:"center",gap:8 }}>
@@ -5649,7 +5685,7 @@ function FinaleCouplePickerScreen({ league, onUpdate, lockedToTeamId, defaultTea
                 <span style={{ fontSize:11,color:"#e94560",marginRight:"auto" }}>Each couple can only be picked once.</span>
               )}
               {dirty && (
-                <Btn variant="ghost" onClick={()=>setPicks(padPicks(savedPickIds))}>Discard</Btn>
+                <Btn variant="ghost" onClick={()=>setPicks(padPicks(seedPickIds))}>Discard</Btn>
               )}
               <Btn onClick={save} disabled={!canSave}>{savedChart?.mode === "couples" ? "Update Picks" : "Save Picks"}</Btn>
             </div>
